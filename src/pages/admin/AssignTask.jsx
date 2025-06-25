@@ -779,7 +779,7 @@ const handleSubmit = async (e) => {
                   htmlFor="department"
                   className="block text-sm font-medium text-purple-700"
                 >
-                  Project Name
+                  Department Name
                 </label>
                 <select
                   id="department"
@@ -789,7 +789,7 @@ const handleSubmit = async (e) => {
                   required
                   className="w-full rounded-md border border-purple-200 p-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 >
-                  <option value="">Select Project</option>
+                  <option value="">Select Department</option>
                   {departmentOptions.map((dept, index) => (
                     <option key={index} value={dept}>
                       {dept}
