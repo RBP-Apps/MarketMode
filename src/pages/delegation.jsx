@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { CheckCircle2, Upload, X, Search, History, ArrowLeft } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
@@ -72,6 +71,29 @@ function DelegationDataPage() {
     return `${day}/${month}/${year}`
   }, [])
 
+  // NEW: Function to create a proper date object for Google Sheets
+  const createGoogleSheetsDate = useCallback((date) => {
+    // Return a Date object that Google Sheets can properly interpret
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  }, [])
+
+  // NEW: Function to format date for Google Sheets submission
+  const formatDateForGoogleSheets = useCallback((date) => {
+    // Create a properly formatted date string that Google Sheets will recognize as a date
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    
+    // Return in format that Google Sheets recognizes as date: DD/MM/YYYY
+    // But we'll also include the raw date object for better compatibility
+    return {
+      formatted: `${day}/${month}/${year}`,
+      dateObject: new Date(year, date.getMonth(), date.getDate()),
+      // ISO format as fallback
+      iso: date.toISOString().split('T')[0]
+    }
+  }, [])
+
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
   }, [])
@@ -102,7 +124,7 @@ function DelegationDataPage() {
 
       // Handle Google Sheets Date() format
       if (typeof dateStr === "string" && dateStr.startsWith("Date(")) {
-        const match = /Date$$(\d+),(\d+),(\d+)$$/.exec(dateStr)
+        const match = /Date\((\d+),(\d+),(\d+)\)/.exec(dateStr)
         if (match) {
           const year = Number.parseInt(match[1], 10)
           const month = Number.parseInt(match[2], 10)
@@ -556,7 +578,8 @@ function DelegationDataPage() {
 
     try {
       const today = new Date()
-      const todayFormatted = formatDateToDDMMYYYY(today)
+      // UPDATED: Use the new function to format date properly for Google Sheets
+      const dateForSubmission = formatDateForGoogleSheets(today)
 
       // Process submissions in batches for better performance
       const batchSize = 5
@@ -596,12 +619,28 @@ function DelegationDataPage() {
               }
             }
 
+            // UPDATED: Use properly formatted date for submission
+            // Format the next target date properly if it exists
+            let formattedNextTargetDate = ""
+            if (nextTargetDate[id]) {
+              // Parse the DD/MM/YYYY format and create a proper date
+              const targetDateStr = nextTargetDate[id]
+              if (targetDateStr.includes("/")) {
+                const [day, month, year] = targetDateStr.split("/")
+                const targetDate = new Date(year, month - 1, day)
+                const targetDateForSubmission = formatDateForGoogleSheets(targetDate)
+                formattedNextTargetDate = targetDateForSubmission.formatted
+              } else {
+                formattedNextTargetDate = targetDateStr
+              }
+            }
+
             // Updated to include username in column H and task description in column I when submitting to history
             const newRowData = [
-              todayFormatted,
+              dateForSubmission.formatted, // Use formatted date string
               item["col1"] || "",
               statusData[id] || "",
-              nextTargetDate[id] || "",
+              formattedNextTargetDate, // Use properly formatted next target date
               remarksData[id] || "",
               imageUrl,
               "", // Column G
@@ -614,6 +653,11 @@ function DelegationDataPage() {
             insertFormData.append("sheetName", CONFIG.TARGET_SHEET_NAME)
             insertFormData.append("action", "insert")
             insertFormData.append("rowData", JSON.stringify(newRowData))
+            
+            // UPDATED: Add date format hints for Google Sheets for both timestamp and next target date
+            insertFormData.append("dateFormat", "DD/MM/YYYY")
+            insertFormData.append("timestampColumn", "0") // Indicates column A should be treated as date
+            insertFormData.append("nextTargetDateColumn", "3") // Indicates column D (Next Target Date) should be treated as date
 
             return fetch(CONFIG.APPS_SCRIPT_URL, {
               method: "POST",
@@ -838,12 +882,13 @@ function DelegationDataPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${history["col2"] === "Done"
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                history["col2"] === "Done"
                                   ? "bg-green-100 text-green-800"
                                   : history["col2"] === "Extend date"
                                     ? "bg-yellow-100 text-yellow-800"
                                     : "bg-gray-100 text-gray-800"
-                                }`}
+                              }`}
                             >
                               {history["col2"] || "—"}
                             </span>
@@ -931,32 +976,44 @@ function DelegationDataPage() {
                       Task Description
                     </th>
                     <th
-                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${!accountData["col17"] ? "bg-yellow-50" : ""}`}
+                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        !accountData["col17"] ? "bg-yellow-50" : ""
+                      }`}
                     >
                       Task Start Date
                     </th>
                     <th
-                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${!accountData["col17"] ? "bg-green-50" : ""}`}
+                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        !accountData["col17"] ? "bg-green-50" : ""
+                      }`}
                     >
                       Planned Date
                     </th>
                     <th
-                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${!accountData["col17"] ? "bg-blue-50" : ""}`}
+                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        !accountData["col17"] ? "bg-blue-50" : ""
+                      }`}
                     >
                       Status
                     </th>
                     <th
-                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${!accountData["col17"] ? "bg-indigo-50" : ""}`}
+                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        !accountData["col17"] ? "bg-indigo-50" : ""
+                      }`}
                     >
                       Next Target Date
                     </th>
                     <th
-                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${!accountData["col17"] ? "bg-purple-50" : ""}`}
+                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        !accountData["col17"] ? "bg-purple-50" : ""
+                      }`}
                     >
                       Remarks
                     </th>
                     <th
-                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${!accountData["col17"] ? "bg-orange-50" : ""}`}
+                      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        !accountData["col17"] ? "bg-orange-50" : ""
+                      }`}
                     >
                       Upload Image
                     </th>
@@ -1087,10 +1144,11 @@ function DelegationDataPage() {
                               </div>
                             ) : (
                               <label
-                                className={`flex items-center cursor-pointer ${account["col9"]?.toUpperCase() === "YES"
+                                className={`flex items-center cursor-pointer ${
+                                  account["col9"]?.toUpperCase() === "YES"
                                     ? "text-red-600 font-medium"
                                     : "text-purple-600"
-                                  } hover:text-purple-800`}
+                                } hover:text-purple-800`}
                               >
                                 <Upload className="h-4 w-4 mr-1" />
                                 <span className="text-xs">
@@ -1130,3 +1188,4 @@ function DelegationDataPage() {
 }
 
 export default DelegationDataPage
+
