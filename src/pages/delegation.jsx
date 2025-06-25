@@ -90,9 +90,36 @@ function DelegationDataPage() {
       formatted: `${day}/${month}/${year}`,
       dateObject: new Date(year, date.getMonth(), date.getDate()),
       // ISO format as fallback
-      iso: date.toISOString().split('T')[0]
+      iso: date.toISOString().split('T')[0],
+      // Special format for Google Sheets API
+      googleSheetsValue: `=DATE(${year},${month},${day})`
     }
   }, [])
+
+  // NEW: Function to convert DD/MM/YYYY string to Google Sheets date format
+  const convertToGoogleSheetsDate = useCallback((dateString) => {
+    if (!dateString || typeof dateString !== "string") return ""
+    
+    // If already in DD/MM/YYYY format
+    if (dateString.includes("/")) {
+      const [day, month, year] = dateString.split("/")
+      const date = new Date(year, month - 1, day)
+      if (!isNaN(date.getTime())) {
+        return formatDateForGoogleSheets(date)
+      }
+    }
+    
+    // If in YYYY-MM-DD format (from HTML date input)
+    if (dateString.includes("-")) {
+      const [year, month, day] = dateString.split("-")
+      const date = new Date(year, month - 1, day)
+      if (!isNaN(date.getTime())) {
+        return formatDateForGoogleSheets(date)
+      }
+    }
+    
+    return { formatted: dateString, dateObject: null, iso: "", googleSheetsValue: dateString }
+  }, [formatDateForGoogleSheets])
 
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
@@ -622,17 +649,12 @@ function DelegationDataPage() {
             // UPDATED: Use properly formatted date for submission
             // Format the next target date properly if it exists
             let formattedNextTargetDate = ""
+            let nextTargetDateForGoogleSheets = null
+            
             if (nextTargetDate[id]) {
-              // Parse the DD/MM/YYYY format and create a proper date
-              const targetDateStr = nextTargetDate[id]
-              if (targetDateStr.includes("/")) {
-                const [day, month, year] = targetDateStr.split("/")
-                const targetDate = new Date(year, month - 1, day)
-                const targetDateForSubmission = formatDateForGoogleSheets(targetDate)
-                formattedNextTargetDate = targetDateForSubmission.formatted
-              } else {
-                formattedNextTargetDate = targetDateStr
-              }
+              const convertedDate = convertToGoogleSheetsDate(nextTargetDate[id])
+              formattedNextTargetDate = convertedDate.formatted
+              nextTargetDateForGoogleSheets = convertedDate.dateObject
             }
 
             // Updated to include username in column H and task description in column I when submitting to history
@@ -654,10 +676,24 @@ function DelegationDataPage() {
             insertFormData.append("action", "insert")
             insertFormData.append("rowData", JSON.stringify(newRowData))
             
-            // UPDATED: Add date format hints for Google Sheets for both timestamp and next target date
+            // UPDATED: Add comprehensive date format hints for Google Sheets
             insertFormData.append("dateFormat", "DD/MM/YYYY")
-            insertFormData.append("timestampColumn", "0") // Indicates column A should be treated as date
-            insertFormData.append("nextTargetDateColumn", "3") // Indicates column D (Next Target Date) should be treated as date
+            insertFormData.append("timestampColumn", "0") // Column A - Timestamp
+            insertFormData.append("nextTargetDateColumn", "3") // Column D - Next Target Date
+            
+            // Add additional metadata for proper date handling
+            const dateMetadata = {
+              columns: {
+                0: { type: "date", format: "DD/MM/YYYY" }, // Timestamp
+                3: { type: "date", format: "DD/MM/YYYY" }  // Next Target Date
+              }
+            }
+            insertFormData.append("dateMetadata", JSON.stringify(dateMetadata))
+            
+            // If we have a proper date object for next target date, send it separately
+            if (nextTargetDateForGoogleSheets) {
+              insertFormData.append("nextTargetDateObject", nextTargetDateForGoogleSheets.toISOString())
+            }
 
             return fetch(CONFIG.APPS_SCRIPT_URL, {
               method: "POST",
