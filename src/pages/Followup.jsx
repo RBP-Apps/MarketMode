@@ -130,7 +130,7 @@ function FollowUpPage() {
       if (data.table && data.table.rows) {
         data.table.rows.forEach((row, index) => {
           if (index === 0) return // Skip header
-          const stageValue = row.c && row.c[5] && row.c[5].v
+          const stageValue = row.c && row.c[6] && row.c[6].v
           if (stageValue && stageValue.toString().trim() !== "") {
             options.push(stageValue.toString().trim())
           }
