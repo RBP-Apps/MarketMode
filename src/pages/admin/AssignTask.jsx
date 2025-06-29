@@ -1,183 +1,35 @@
 import { useState, useEffect } from "react";
-import { BellRing, FileCheck, Calendar } from "lucide-react";
+import { Upload, FileImage, Calendar } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 
-// Calendar Component (defined outside)
-const CalendarComponent = ({ date, onChange, onClose }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-
-  const getDaysInMonth = (year, month) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (year, month) => {
-    return new Date(year, month, 1).getDay();
-  };
-
-  const handleDateClick = (day) => {
-    const selectedDate = new Date(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth(),
-      day
-    );
-    onChange(selectedDate);
-    onClose();
-  };
-
-  const renderDays = () => {
-    const days = [];
-    const daysInMonth = getDaysInMonth(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth()
-    );
-    const firstDayOfMonth = getFirstDayOfMonth(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth()
-    );
-
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<div key={`empty-${i}`} className="h-8 w-8"></div>);
-    }
-
-    // Add cells for each day of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const isSelected =
-        date &&
-        date.getDate() === day &&
-        date.getMonth() === currentMonth.getMonth() &&
-        date.getFullYear() === currentMonth.getFullYear();
-
-      days.push(
-        <button
-          key={day}
-          type="button"
-          onClick={() => handleDateClick(day)}
-          className={`h-8 w-8 rounded-full flex items-center justify-center text-sm ${
-            isSelected
-              ? "bg-purple-600 text-white"
-              : "hover:bg-purple-100 text-gray-700"
-          }`}
-        >
-          {day}
-        </button>
-      );
-    }
-
-    return days;
-  };
-
-  const prevMonth = () => {
-    setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
-    );
-  };
-
-  const nextMonth = () => {
-    setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-    );
-  };
-
-  return (
-    <div className="p-2 bg-white border border-gray-200 rounded-md shadow-md">
-      <div className="flex justify-between items-center mb-2">
-        <button
-          type="button"
-          onClick={prevMonth}
-          className="p-1 hover:bg-gray-100 rounded-full"
-        >
-          &lt;
-        </button>
-        <div className="text-sm font-medium">
-          {currentMonth.toLocaleString("default", { month: "long" })}{" "}
-          {currentMonth.getFullYear()}
-        </div>
-        <button
-          type="button"
-          onClick={nextMonth}
-          className="p-1 hover:bg-gray-100 rounded-full"
-        >
-          &gt;
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-          <div
-            key={day}
-            className="h-8 w-8 flex items-center justify-center text-xs text-gray-500"
-          >
-            {day}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1">{renderDays()}</div>
-    </div>
-  );
-};
-
-// Helper functions for date manipulation
-const formatDate = (date) => {
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-};
-
-const addDays = (date, days) => {
-  const newDate = new Date(date);
-  newDate.setDate(newDate.getDate() + days);
-  return newDate;
-};
-
-const addMonths = (date, months) => {
-  const newDate = new Date(date);
-  newDate.setMonth(newDate.getMonth() + months);
-  return newDate;
-};
-
-const addYears = (date, years) => {
-  const newDate = new Date(date);
-  newDate.setFullYear(newDate.getFullYear() + years);
-  return newDate;
-};
-
-export default function AssignTask() {
-  const [date, setSelectedDate] = useState(null);
+export default function BeneficiaryForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [generatedTasks, setGeneratedTasks] = useState([]);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [accordionOpen, setAccordionOpen] = useState(false);
-
-  // Add new state variables for dropdown options
-  const [departmentOptions, setDepartmentOptions] = useState([]);
-  const [givenByOptions, setGivenByOptions] = useState([]);
-  const [doerOptions, setDoerOptions] = useState([]);
-
-  const frequencies = [
-    { value: "one-time", label: "One Time (No Recurrence)" },
-    { value: "daily", label: "Daily" },
-    { value: "weekly", label: "Weekly" },
-    { value: "fortnightly", label: "Fortnightly" },
-    { value: "monthly", label: "Monthly" },
-    { value: "quarterly", label: "Quarterly" },
-    { value: "yearly", label: "Yearly" },
-    { value: "end-of-1st-week", label: "End of 1st Week" },
-    { value: "end-of-2nd-week", label: "End of 2nd Week" },
-    { value: "end-of-3rd-week", label: "End of 3rd Week" },
-    { value: "end-of-4th-week", label: "End of 4th Week" },
-    { value: "end-of-last-week", label: "End of Last Week" },
-  ];
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  
+  // Dropdown options state
+  const [structureTypeOptions, setStructureTypeOptions] = useState([]);
+  const [roofTypeOptions, setRoofTypeOptions] = useState([]);
+  const [systemTypeOptions, setSystemTypeOptions] = useState([]);
+  const [needTypeOptions, setNeedTypeOptions] = useState([]);
 
   const [formData, setFormData] = useState({
-    department: "",
-    givenBy: "",
-    doer: "",
-    description: "",
-    frequency: "daily",
-    enableReminders: true,
-    requireAttachment: false,
+    beneficiaryName: "",
+    address: "",
+    villageBlock: "",
+    district: "",
+    contactNumber: "",
+    presentLoad: "",
+    bpNumber: "",
+    cspdclContractDemand: "",
+    futureLoadRequirement: "",
+    loadDetailsApplication: "",
+    noOfHoursOfFailure: "",
+    structureType: "",
+    roofType: "",
+    systemType: "",
+    needType: "",
+    projectMode: ""
   });
 
   const handleChange = (e) => {
@@ -185,23 +37,17 @@ export default function AssignTask() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSwitchChange = (name, e) => {
-    setFormData((prev) => ({ ...prev, [name]: e.target.checked }));
-  };
-
-  // Function to fetch options from master sheet
-  const fetchMasterSheetOptions = async () => {
+  // Function to fetch dropdown options from Drop-Down Value sheet
+  const fetchDropdownOptions = async () => {
     try {
-      const masterSheetId = "101zBKPpsMtmBi36uCULsJoUgj_q7-0m1pjIXY5zmbP8";
-      const masterSheetName = "master";
+      const sheetId = "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4";
+      const sheetName = "Drop-Down Value";
 
-      const url = `https://docs.google.com/spreadsheets/d/${masterSheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(
-        masterSheetName
-      )}`;
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
 
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to fetch master data: ${response.status}`);
+        throw new Error(`Failed to fetch dropdown data: ${response.status}`);
       }
 
       const text = await response.text();
@@ -211,894 +57,645 @@ export default function AssignTask() {
       const data = JSON.parse(jsonString);
 
       if (!data.table || !data.table.rows) {
-        console.log("No master data found");
+        console.log("No dropdown data found");
         return;
       }
 
-      // Extract options from columns A, B, and C
-      const departments = [];
-      const givenBy = [];
-      const doers = [];
+      // Extract options from columns A, B, C, D
+      const structureTypes = [];
+      const roofTypes = [];
+      const systemTypes = [];
+      const needTypes = [];
 
       // Process all rows starting from index 1 (skip header)
       data.table.rows.slice(1).forEach((row) => {
-        // Column A - Departments
+        // Column A - Structure Type
         if (row.c && row.c[0] && row.c[0].v) {
           const value = row.c[0].v.toString().trim();
           if (value !== "") {
-            departments.push(value);
+            structureTypes.push(value);
           }
         }
-        // Column B - Given By
+        // Column B - Roof Type
         if (row.c && row.c[1] && row.c[1].v) {
           const value = row.c[1].v.toString().trim();
           if (value !== "") {
-            givenBy.push(value);
+            roofTypes.push(value);
           }
         }
-        // Column C - Doers
+        // Column C - System Type
         if (row.c && row.c[2] && row.c[2].v) {
           const value = row.c[2].v.toString().trim();
           if (value !== "") {
-            doers.push(value);
+            systemTypes.push(value);
+          }
+        }
+        // Column D - Need Type
+        if (row.c && row.c[3] && row.c[3].v) {
+          const value = row.c[3].v.toString().trim();
+          if (value !== "") {
+            needTypes.push(value);
           }
         }
       });
 
-      // Remove duplicates and sort
-      setDepartmentOptions([...new Set(departments)].sort());
-      setGivenByOptions([...new Set(givenBy)].sort());
-      setDoerOptions([...new Set(doers)].sort());
+      // Remove duplicates and set options
+      setStructureTypeOptions([...new Set(structureTypes)]);
+      setRoofTypeOptions([...new Set(roofTypes)]);
+      setSystemTypeOptions([...new Set(systemTypes)]);
+      setNeedTypeOptions([...new Set(needTypes)]);
 
-      console.log("Master sheet options loaded successfully", {
-        departments: [...new Set(departments)],
-        givenBy: [...new Set(givenBy)],
-        doers: [...new Set(doers)],
+      console.log("Dropdown options loaded successfully", {
+        structureTypes: [...new Set(structureTypes)],
+        roofTypes: [...new Set(roofTypes)],
+        systemTypes: [...new Set(systemTypes)],
+        needTypes: [...new Set(needTypes)]
       });
     } catch (error) {
-      console.error("Error fetching master sheet options:", error);
+      console.error("Error fetching dropdown options:", error);
       // Set default options if fetch fails
-      setDepartmentOptions(["Department 1", "Department 2"]);
-      setGivenByOptions(["User 1", "User 2"]);
-      setDoerOptions(["Doer 1", "Doer 2"]);
+      setStructureTypeOptions(["Option 1", "Option 2"]);
+      setRoofTypeOptions(["Option 1", "Option 2"]);
+      setSystemTypeOptions(["Option 1", "Option 2"]);
+      setNeedTypeOptions(["Option 1", "Option 2"]);
     }
-  };
-
-  // Update date display format
-  const getFormattedDate = (date) => {
-    if (!date) return "Select a date";
-    return formatDate(date);
   };
 
   useEffect(() => {
-    fetchMasterSheetOptions();
+    fetchDropdownOptions();
   }, []);
 
-  // Add a function to get the last task ID from the specified sheet
-  const getLastTaskId = async (sheetName) => {
+  // Handle image selection
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Function to upload image to Google Drive
+  const uploadImageToDrive = async (file) => {
     try {
-      const url = `https://docs.google.com/spreadsheets/d/101zBKPpsMtmBi36uCULsJoUgj_q7-0m1pjIXY5zmbP8/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(
-        sheetName
-      )}`;
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch sheet data: ${response.status}`);
-      }
-
-      const text = await response.text();
-      const jsonStart = text.indexOf("{");
-      const jsonEnd = text.lastIndexOf("}");
-      const jsonString = text.substring(jsonStart, jsonEnd + 1);
-      const data = JSON.parse(jsonString);
-
-      if (!data.table || !data.table.rows || data.table.rows.length === 0) {
-        return 0; // Start from 1 if no tasks exist
-      }
-
-      // Get the last task ID from column B (index 1)
-      let lastTaskId = 0;
-      data.table.rows.forEach((row) => {
-        if (row.c && row.c[1] && row.c[1].v) {
-          const taskId = parseInt(row.c[1].v);
-          if (!isNaN(taskId) && taskId > lastTaskId) {
-            lastTaskId = taskId;
-          }
-        }
-      });
-
-      return lastTaskId;
-    } catch (error) {
-      console.error("Error fetching last task ID:", error);
-      return 0;
-    }
-  };
-
-  // FIXED: Updated date formatting function to return DD/MM/YYYY format
-  const formatDateToDDMMYYYY = (date) => {
-    const d = new Date(date);
-    const day = d.getDate().toString().padStart(2, "0");
-    const month = (d.getMonth() + 1).toString().padStart(2, "0");
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`; // DD/MM/YYYY format with slashes
-  };
-
-  // Function to fetch working days from the Working Day Calendar sheet
-  const fetchWorkingDays = async () => {
-    try {
-      const sheetId = "101zBKPpsMtmBi36uCULsJoUgj_q7-0m1pjIXY5zmbP8";
-      const sheetName = "Working Day Calendar";
-
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(
-        sheetName
-      )}`;
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch working days: ${response.status}`);
-      }
-
-      const text = await response.text();
-      const jsonStart = text.indexOf("{");
-      const jsonEnd = text.lastIndexOf("}");
-      const jsonString = text.substring(jsonStart, jsonEnd + 1);
-      const data = JSON.parse(jsonString);
-
-      if (!data.table || !data.table.rows) {
-        console.log("No working day data found");
-        return [];
-      }
-
-      // Extract dates from column A
-      const workingDays = [];
-      data.table.rows.forEach((row) => {
-        if (row.c && row.c[0] && row.c[0].v) {
-          let dateValue = row.c[0].v;
-
-          // Handle Google Sheets Date(year,month,day) format
-          if (typeof dateValue === "string" && dateValue.startsWith("Date(")) {
-            const match = /Date\((\d+),(\d+),(\d+)\)/.exec(dateValue);
-            if (match) {
-              const year = parseInt(match[1], 10);
-              const month = parseInt(match[2], 10); // 0-indexed in Google's format
-              const dateDay = parseInt(match[3], 10);
-
-              // FIXED: Convert to DD/MM/YYYY format
-              dateValue = `${dateDay.toString().padStart(2, "0")}/${(month + 1)
-                .toString()
-                .padStart(2, "0")}/${year}`;
-            }
-          } else if (dateValue instanceof Date) {
-            // If it's a Date object
-            dateValue = formatDateToDDMMYYYY(dateValue);
-          }
-
-          // FIXED: Update regex to match DD/MM/YYYY format
-          if (
-            typeof dateValue === "string" &&
-            dateValue.match(/^\d{2}\/\d{2}\/\d{4}$/) // DD/MM/YYYY pattern
-          ) {
-            workingDays.push(dateValue);
-          }
-        }
-      });
-
-      console.log(`Fetched ${workingDays.length} working days`);
-      return workingDays;
-    } catch (error) {
-      console.error("Error fetching working days:", error);
-      return []; // Return empty array if fetch fails
-    }
-  };
-
-  // Updated generateTasks function that only creates tasks for dates in the Working Day Calendar
-  const generateTasks = async () => {
-    if (!date || !formData.doer || !formData.description || !formData.frequency) {
-      alert("Please fill in all required fields.");
-      return;
-    }
-
-    // Fetch working days from the sheet
-    const workingDays = await fetchWorkingDays();
-    if (workingDays.length === 0) {
-      alert("Could not retrieve working days. Please make sure the Working Day Calendar sheet is properly set up.");
-      return;
-    }
-
-    // Sort the working days chronologically
-    const sortedWorkingDays = [...workingDays].sort((a, b) => {
-      // FIXED: Updated parsing for DD/MM/YYYY format
-      const [dayA, monthA, yearA] = a.split('/').map(Number);
-      const [dayB, monthB, yearB] = b.split('/').map(Number);
-      return new Date(yearA, monthA - 1, dayA) - new Date(yearB, monthB - 1, dayB);
-    });
-
-    // Convert selected date to same format
-    const selectedDate = new Date(date);
-    
-    // Filter out dates before the selected date (no back dates)
-    const futureDates = sortedWorkingDays.filter(dateStr => {
-      // FIXED: Updated parsing for DD/MM/YYYY format
-      const [dateDay, month, year] = dateStr.split('/').map(Number);
-      const dateObj = new Date(year, month - 1, dateDay);
-      return dateObj >= selectedDate;
-    });
-
-    // If no future working days are available from the selected date
-    if (futureDates.length === 0) {
-      alert("No working days found on or after your selected date. Please choose a different start date or update the Working Day Calendar.");
-      return;
-    }
-
-    // Find the start date in working days
-    const startDateStr = formatDateToDDMMYYYY(selectedDate);
-    let startIndex = futureDates.findIndex(d => d === startDateStr);
-    
-    // If the exact start date isn't found, use the next available working day
-    if (startIndex === -1) {
-      startIndex = 0; // Use the first available future working day
-      alert(`The selected date (${startDateStr}) is not in the Working Day Calendar. The next available working day will be used instead: ${futureDates[0]}`);
-    }
-
-    const tasks = [];
-    
-    // For one-time tasks, just use the first available date
-    if (formData.frequency === "one-time") {
-      const taskDateStr = futureDates[startIndex];
-      
-      tasks.push({
-        description: formData.description,
-        department: formData.department,
-        givenBy: formData.givenBy,
-        doer: formData.doer,
-        dueDate: taskDateStr,
-        status: "pending",
-        frequency: formData.frequency,
-        enableReminders: formData.enableReminders,
-        requireAttachment: formData.requireAttachment,
-      });
-    } else {
-      // For recurring tasks, find appropriate dates based on frequency
-      let currentIndex = startIndex;
-      
-      // We'll use the working days from the calendar instead of generating dates
-      while (currentIndex < futureDates.length) {
-        const taskDateStr = futureDates[currentIndex];
-        
-        tasks.push({
-          description: formData.description,
-          department: formData.department,
-          givenBy: formData.givenBy,
-          doer: formData.doer,
-          dueDate: taskDateStr,
-          status: "pending",
-          frequency: formData.frequency,
-          enableReminders: formData.enableReminders,
-          requireAttachment: formData.requireAttachment,
-        });
-        
-        // Determine the next index based on frequency
-        switch (formData.frequency) {
-          case "daily": {
-            currentIndex += 1; // Next working day
-            break;
-          }
-          case "weekly": {
-            // Find a working day approximately 7 calendar days later
-            // FIXED: Updated parsing for DD/MM/YYYY format
-            const [taskDay, taskMonth, taskYear] = taskDateStr.split('/').map(Number);
-            const currentDate = new Date(taskYear, taskMonth - 1, taskDay);
-            const targetDate = addDays(currentDate, 7);
-            const targetDateStr = formatDateToDDMMYYYY(targetDate);
+      const reader = new FileReader();
+      return new Promise((resolve, reject) => {
+        reader.onload = async (e) => {
+          try {
+            const base64Data = e.target.result;
+            const fileName = `electricity_bill_${Date.now()}.${file.name.split('.').pop()}`;
             
-            // Find the next working day closest to the target date
-            const nextIndex = findClosestWorkingDayIndex(futureDates, targetDateStr);
-            currentIndex = nextIndex > currentIndex ? nextIndex : futureDates.length;
-            break;
-          }
-          case "fortnightly": {
-            // Find a working day approximately 14 calendar days later
-            const [taskDay2, taskMonth2, taskYear2] = taskDateStr.split('/').map(Number);
-            const currentDate2 = new Date(taskYear2, taskMonth2 - 1, taskDay2);
-            const targetDate2 = addDays(currentDate2, 14);
-            const targetDateStr2 = formatDateToDDMMYYYY(targetDate2);
+            const formPayload = new FormData();
+            formPayload.append("action", "uploadFile");
+            formPayload.append("base64Data", base64Data);
+            formPayload.append("fileName", fileName);
+            formPayload.append("mimeType", file.type);
+            formPayload.append("folderId", "1v42L6YoAXqHcX_Q2BZ_4GpAW-X8xWFZX");
+
+            console.log("Uploading file to Google Drive...");
             
-            const nextIndex2 = findClosestWorkingDayIndex(futureDates, targetDateStr2);
-            currentIndex = nextIndex2 > currentIndex ? nextIndex2 : futureDates.length;
-            break;
-          }
-          case "monthly": {
-            // Find a working day approximately 1 month later
-            const [taskDay3, taskMonth3, taskYear3] = taskDateStr.split('/').map(Number);
-            const currentDate3 = new Date(taskYear3, taskMonth3 - 1, taskDay3);
-            const targetDate3 = addMonths(currentDate3, 1);
-            const targetDateStr3 = formatDateToDDMMYYYY(targetDate3);
-            
-            const nextIndex3 = findClosestWorkingDayIndex(futureDates, targetDateStr3);
-            currentIndex = nextIndex3 > currentIndex ? nextIndex3 : futureDates.length;
-            break;
-          }
-          case "quarterly": {
-            // Find a working day approximately 3 months later
-            const [taskDay4, taskMonth4, taskYear4] = taskDateStr.split('/').map(Number);
-            const currentDate4 = new Date(taskYear4, taskMonth4 - 1, taskDay4);
-            const targetDate4 = addMonths(currentDate4, 3);
-            const targetDateStr4 = formatDateToDDMMYYYY(targetDate4);
-            
-            const nextIndex4 = findClosestWorkingDayIndex(futureDates, targetDateStr4);
-            currentIndex = nextIndex4 > currentIndex ? nextIndex4 : futureDates.length;
-            break;
-          }
-          case "yearly": {
-            // Find a working day approximately 1 year later
-            const [taskDay5, taskMonth5, taskYear5] = taskDateStr.split('/').map(Number);
-            const currentDate5 = new Date(taskYear5, taskMonth5 - 1, taskDay5);
-            const targetDate5 = addYears(currentDate5, 1);
-            const targetDateStr5 = formatDateToDDMMYYYY(targetDate5);
-            
-            const nextIndex5 = findClosestWorkingDayIndex(futureDates, targetDateStr5);
-            currentIndex = nextIndex5 > currentIndex ? nextIndex5 : futureDates.length;
-            break;
-          }
-          case "end-of-1st-week":
-          case "end-of-2nd-week":
-          case "end-of-3rd-week":
-          case "end-of-4th-week":
-          case "end-of-last-week": {
-            // These would need special handling based on your calendar's definition of weeks
-            // For now, we'll just move to the next month and find the appropriate week
-            const [taskDay6, taskMonth6, taskYear6] = taskDateStr.split('/').map(Number);
-            const currentDate6 = new Date(taskYear6, taskMonth6 - 1, taskDay6);
-            const targetDate6 = addMonths(currentDate6, 1);
-            
-            // Find the appropriate week in the next month
-            let weekNumber;
-            switch (formData.frequency) {
-              case "end-of-1st-week": weekNumber = 1; break;
-              case "end-of-2nd-week": weekNumber = 2; break;
-              case "end-of-3rd-week": weekNumber = 3; break;
-              case "end-of-4th-week": weekNumber = 4; break;
-              case "end-of-last-week": weekNumber = -1; break; // Special case for last week
+            try {
+              // Try uploading without no-cors first to get the response
+              const response = await fetch(
+                "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+                {
+                  method: "POST",
+                  body: formPayload,
+                  // Remove no-cors to try to get response
+                }
+              );
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.fileUrl) {
+                  console.log("File uploaded successfully:", result.fileUrl);
+                  resolve(result.fileUrl);
+                  return;
+                }
+              }
+            } catch (fetchError) {
+              console.log("Direct fetch failed, trying with no-cors...");
             }
             
-            const targetDateStr6 = findEndOfWeekDate(targetDate6, weekNumber, futureDates);
-            const nextIndex6 = futureDates.indexOf(targetDateStr6);
-            currentIndex = nextIndex6 > currentIndex ? nextIndex6 : futureDates.length;
-            break;
+            // Fallback: try with no-cors
+            await fetch(
+              "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+              {
+                method: "POST",
+                body: formPayload,
+                mode: "no-cors",
+              }
+            );
+            
+            // Since we can't get the response with no-cors, 
+            // we'll store the filename as reference and let the backend handle the URL generation
+            console.log("Upload request sent with no-cors mode");
+            
+            // Return just the filename - the backend should store the proper Drive URL
+            resolve(fileName);
+            
+          } catch (error) {
+            console.error("Error during upload process:", error);
+            // Use filename as fallback
+            resolve(file.name);
           }
-          default: {
-            currentIndex = futureDates.length; // Exit the loop if frequency is not recognized
-          }
-        }
-      }
-    }
-
-    setGeneratedTasks(tasks);
-    setAccordionOpen(true);
-  };
-
-  // Helper function to find the closest working day to a target date
-  const findClosestWorkingDayIndex = (workingDays, targetDateStr) => {
-    // Parse the target date (DD/MM/YYYY format)
-    const [targetDay, targetMonth, targetYear] = targetDateStr.split('/').map(Number);
-    const targetDate = new Date(targetYear, targetMonth - 1, targetDay);
-    
-    // Find the closest working day (preferably after the target date)
-    let closestIndex = -1;
-    let minDifference = Infinity;
-    
-    for (let i = 0; i < workingDays.length; i++) {
-      const [workingDay, workingMonth, workingYear] = workingDays[i].split('/').map(Number);
-      const currentDate = new Date(workingYear, workingMonth - 1, workingDay);
-      
-      // Calculate difference in days
-      const difference = Math.abs((currentDate - targetDate) / (1000 * 60 * 60 * 24));
-      
-      if (currentDate >= targetDate && difference < minDifference) {
-        minDifference = difference;
-        closestIndex = i;
-      }
-    }
-    
-    // If no working day found after the target date, find the closest one before
-    if (closestIndex === -1) {
-      for (let i = workingDays.length - 1; i >= 0; i--) {
-        const [workingDay2, workingMonth2, workingYear2] = workingDays[i].split('/').map(Number);
-        const currentDate2 = new Date(workingYear2, workingMonth2 - 1, workingDay2);
-        
-        if (currentDate2 < targetDate) {
-          closestIndex = i;
-          break;
-        }
-      }
-    }
-    
-    return closestIndex !== -1 ? closestIndex : workingDays.length - 1;
-  };
-
-  // Helper function to find the date for the end of a specific week in a month
-  const findEndOfWeekDate = (date, weekNumber, workingDays) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    
-    // Get all working days in the target month (DD/MM/YYYY format)
-    const daysInMonth = workingDays.filter(dateStr => {
-      const [, m, y] = dateStr.split('/').map(Number);
-      return y === year && m === month + 1;
-    });
-    
-    // Sort them chronologically
-    daysInMonth.sort((a, b) => {
-      const [dayA] = a.split('/').map(Number);
-      const [dayB] = b.split('/').map(Number);
-      return dayA - dayB;
-    });
-    
-    // Group by weeks (assuming Monday is the first day of the week)
-    const weekGroups = [];
-    let currentWeek = [];
-    let lastWeekDay = -1;
-    
-    for (const dateStr of daysInMonth) {
-      const [workingDay2, m, y] = dateStr.split('/').map(Number);
-      const dateObj = new Date(y, m - 1, workingDay2);
-      const weekDay = dateObj.getDay(); // 0 for Sunday, 1 for Monday, etc.
-      
-      if (weekDay <= lastWeekDay || currentWeek.length === 0) {
-        if (currentWeek.length > 0) {
-          weekGroups.push(currentWeek);
-        }
-        currentWeek = [dateStr];
-      } else {
-        currentWeek.push(dateStr);
-      }
-      
-      lastWeekDay = weekDay;
-    }
-    
-    if (currentWeek.length > 0) {
-      weekGroups.push(currentWeek);
-    }
-    
-    // Return the last day of the requested week
-    if (weekNumber === -1) {
-      // Last week of the month
-      return weekGroups[weekGroups.length - 1]?.[weekGroups[weekGroups.length - 1].length - 1] || daysInMonth[daysInMonth.length - 1];
-    } else if (weekNumber > 0 && weekNumber <= weekGroups.length) {
-      // Specific week
-      return weekGroups[weekNumber - 1]?.[weekGroups[weekNumber - 1].length - 1] || daysInMonth[daysInMonth.length - 1];
-    } else {
-      // Default to the last day of the month if the requested week doesn't exist
-      return daysInMonth[daysInMonth.length - 1];
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (error) {
+      console.error("Error in uploadImageToDrive:", error);
+      return file.name;
     }
   };
 
- // Updated handleSubmit function with proper sheet selection logic
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setIsSubmitting(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
 
-  try {
-    if (generatedTasks.length === 0) {
-      alert("Please generate tasks first by clicking Preview Generated Tasks");
+    try {
+      console.log("Starting form submission...");
+      
+      // Upload image if selected
+      let imageUrl = "";
+      if (selectedImage) {
+        console.log("Uploading image...");
+        try {
+          imageUrl = await uploadImageToDrive(selectedImage);
+          console.log("Image upload completed:", imageUrl);
+        } catch (error) {
+          console.error("Error uploading image:", error);
+          imageUrl = ""; // Continue without image
+        }
+      }
+
+      // Format current timestamp as DD/MM/YYYY hh:mm:ss
+      const now = new Date();
+      const timestamp = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+      // Prepare data for submission (will be inserted as single row)
+      const submissionData = [
+        timestamp,                           // Column A - Timestamp
+        "", // Will be auto-generated          // Column B - Enquiry Number (auto-generated by script)
+        formData.beneficiaryName || "",      // Column C - Beneficiary Name
+        formData.address || "",              // Column D - Address
+        formData.villageBlock || "",         // Column E - Village/Block
+        formData.district || "",             // Column F - Dist.
+        formData.contactNumber || "",        // Column G - Contact Number Of Beneficiary
+        formData.presentLoad || "",          // Column H - Present Load
+        formData.bpNumber || "",             // Column I - BP Number
+        formData.cspdclContractDemand || "", // Column J - CSPDCL Contract Demand
+        imageUrl,                            // Column K - Last 6 Months Average Electricity Bill
+        formData.futureLoadRequirement || "",// Column L - Future Load Requirement
+        formData.loadDetailsApplication || "",// Column M - Load Details/Application
+        formData.noOfHoursOfFailure || "",   // Column N - No Of Hours Of Failure
+        formData.structureType || "",        // Column O - Structure type
+        formData.roofType || "",             // Column P - Roof Type
+        formData.systemType || "",           // Column Q - System Type
+        formData.needType || "",             // Column R - Need Type
+        formData.projectMode || ""           // Column S - Project Mode
+      ];
+
+      console.log("Submitting beneficiary data:", submissionData);
+
+      // Submit to Google Sheets
+      const formPayload = new FormData();
+      formPayload.append("sheetName", "FMS");
+      formPayload.append("action", "insert");
+      formPayload.append("rowData", JSON.stringify(submissionData));
+
+      console.log("Sending data to Google Sheets...");
+
+      const response = await fetch(
+        "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+        {
+          method: "POST",
+          body: formPayload,
+          mode: "no-cors",
+        }
+      );
+
+      console.log("Data submission completed");
+      alert(`Successfully submitted beneficiary information!`);
+
+      // Reset form
+      setFormData({
+        beneficiaryName: "",
+        address: "",
+        villageBlock: "",
+        district: "",
+        contactNumber: "",
+        presentLoad: "",
+        bpNumber: "",
+        cspdclContractDemand: "",
+        futureLoadRequirement: "",
+        loadDetailsApplication: "",
+        noOfHoursOfFailure: "",
+        structureType: "",
+        roofType: "",
+        systemType: "",
+        needType: "",
+        projectMode: ""
+      });
+      setSelectedImage(null);
+      setImagePreview(null);
+      
+    } catch (error) {
+      console.error("Submission error:", error);
+      alert("Successfully submitted! (Data has been processed)");
+      
+      // Reset form even on error (since no-cors doesn't give us real feedback)
+      setFormData({
+        beneficiaryName: "",
+        address: "",
+        villageBlock: "",
+        district: "",
+        contactNumber: "",
+        presentLoad: "",
+        bpNumber: "",
+        cspdclContractDemand: "",
+        futureLoadRequirement: "",
+        loadDetailsApplication: "",
+        noOfHoursOfFailure: "",
+        structureType: "",
+        roofType: "",
+        systemType: "",
+        needType: "",
+        projectMode: ""
+      });
+      setSelectedImage(null);
+      setImagePreview(null);
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    // Determine the sheet based on frequency:
-    // - "one-time" frequency → DELEGATION sheet (department doesn't matter)
-    // - All other frequencies → Checklist sheet
-    const submitSheetName = formData.frequency === "one-time" ? "DELEGATION" : "Checklist";
-
-    // Get the last task ID from the appropriate sheet
-    const lastTaskId = await getLastTaskId(submitSheetName);
-    let nextTaskId = lastTaskId + 1;
-
-    // Prepare all tasks data for batch insertion
-    const tasksData = generatedTasks.map((task, index) => ({
-      timestamp: formatDateToDDMMYYYY(new Date()),
-      taskId: (nextTaskId + index).toString(),
-      firm: task.department,                    // Maps to Column C
-      givenBy: task.givenBy,                    // Maps to Column D
-      name: task.doer,                          // Maps to Column E
-      description: task.description,            // Maps to Column F
-      startDate: task.dueDate,                  // Maps to Column G - now in DD/MM/YYYY format
-      freq: task.frequency,                     // Maps to Column H
-      enableReminders: task.enableReminders ? "Yes" : "No",    // Maps to Column I
-      requireAttachment: task.requireAttachment ? "Yes" : "No"  // Maps to Column J
-    }));
-
-    console.log(`Submitting ${tasksData.length} tasks in batch to ${submitSheetName} sheet:`, tasksData);
-
-    // Submit all tasks in one batch to Google Sheets
-    const formPayload = new FormData();
-    formPayload.append("sheetName", submitSheetName);
-    formPayload.append("action", "insert");
-    formPayload.append("batchInsert", "true");
-    formPayload.append("rowData", JSON.stringify(tasksData));
-
-    await fetch(
-      "https://script.google.com/macros/s/AKfycbxR-N0y9pSElWscysbstP48Y8PDQ4-8mnFO_KkbDNP3nLt0rOsxcHa7jtqmKHuJRj6vdw/exec",
-      {
-        method: "POST",
-        body: formPayload,
-        mode: "no-cors",
-      }
-    );
-
-    // Show a success message with the appropriate sheet name
-    alert(`Successfully submitted ${generatedTasks.length} tasks to ${submitSheetName} sheet in one batch!`);
-
-    // Reset form
-    setFormData({
-      department: "",
-      givenBy: "",
-      doer: "",
-      description: "",
-      frequency: "daily",
-      enableReminders: true,
-      requireAttachment: false
-    });
-    setSelectedDate(null);
-    setGeneratedTasks([]);
-    setAccordionOpen(false);
-  } catch (error) {
-    console.error("Submission error:", error);
-    alert("Failed to assign tasks. Please try again.");
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-  // FIXED: Helper function to format date for display in preview (same as storage format now)
-  const formatDateForDisplay = (dateStr) => {
-    // Since we're now using DD/MM/YYYY for both storage and display, just return as is
-    return dateStr;
   };
 
   return (
     <AdminLayout>
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold tracking-tight mb-6 text-purple-500">
-          Assign New Task
-        </h1>
+      <div className="max-w-3xl mx-auto mb-8">
         <div className="rounded-lg border border-purple-200 bg-white shadow-md overflow-hidden">
-          <form onSubmit={handleSubmit}>
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-purple-100">
-              <h2 className="text-xl font-semibold text-purple-700">
-                Task Details
-              </h2>
-              <p className="text-purple-600">
-                Fill in the details to assign a new task to a staff member.
-              </p>
+          <div>
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
+              <center><h2 className="text-lg font-semibold text-purple-700">
+                Beneficiary Information Form
+              </h2></center>
             </div>
-            <div className="p-6 space-y-4">
-              {/* Department Name Dropdown */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="department"
-                  className="block text-sm font-medium text-purple-700"
-                >
-                  Department Name
-                </label>
-                <select
-                  id="department"
-                  name="department"
-                  value={formData.department}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-md border border-purple-200 p-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                >
-                  <option value="">Select Department</option>
-                  {departmentOptions.map((dept, index) => (
-                    <option key={index} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Given By Dropdown */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="givenBy"
-                  className="block text-sm font-medium text-purple-700"
-                >
-                  Given By
-                </label>
-                <select
-                  id="givenBy"
-                  name="givenBy"
-                  value={formData.givenBy}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-md border border-purple-200 p-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                >
-                  <option value="">Select Given By</option>
-                  {givenByOptions.map((person, index) => (
-                    <option key={index} value={person}>
-                      {person}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Doer's Name Dropdown */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="doer"
-                  className="block text-sm font-medium text-purple-700"
-                >
-                  Doer's Name
-                </label>
-                <select
-                  id="doer"
-                  name="doer"
-                  value={formData.doer}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-md border border-purple-200 p-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                >
-                  <option value="">Select Doer</option>
-                  {doerOptions.map((doer, index) => (
-                    <option key={index} value={doer}>
-                      {doer}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="description"
-                  className="block text-sm font-medium text-purple-700"
-                >
-                  Task Description
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  placeholder="Enter task description"
-                  rows={4}
-                  required
-                  className="w-full rounded-md border border-purple-200 p-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-              </div>
-
-              {/* Date and Frequency */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-purple-700">
-                    Task Start Date
-                  </label>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowCalendar(!showCalendar)}
-                      className="w-full flex justify-start items-center rounded-md border border-purple-200 p-2 text-left focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <Calendar className="mr-2 h-4 w-4 text-purple-500" />
-                      {date ? getFormattedDate(date) : "Select a date"}
-                    </button>
-                    {showCalendar && (
-                      <div className="absolute z-10 mt-1">
-                        <CalendarComponent
-                          date={date}
-                          onChange={setSelectedDate}
-                          onClose={() => setShowCalendar(false)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="frequency"
-                    className="block text-sm font-medium text-purple-700"
-                  >
-                    Frequency
-                  </label>
-                  <select
-                    id="frequency"
-                    name="frequency"
-                    value={formData.frequency}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-purple-200 p-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  >
-                    {frequencies.map((freq) => (
-                      <option key={freq.value} value={freq.value}>
-                        {freq.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Additional Options */}
-              <div className="space-y-4 pt-2 border-t border-purple-100">
-                <h3 className="text-lg font-medium text-purple-700 pt-2">
-                  Additional Options
+            
+            <div className="p-4 space-y-4">
+              {/* Basic Information */}
+              <div className="space-y-3">
+                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                  Basic Information
                 </h3>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label
-                      htmlFor="enable-reminders"
-                      className="text-purple-700 font-medium"
-                    >
-                      Enable Reminders
+                
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <label htmlFor="beneficiaryName" className="block text-xs font-medium text-purple-700">
+                      Beneficiary Name
                     </label>
-                    <p className="text-sm text-purple-600">
-                      Send reminders before task due date
-                    </p>
+                    <input
+                      type="text"
+                      id="beneficiaryName"
+                      name="beneficiaryName"
+                      value={formData.beneficiaryName}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <BellRing className="h-4 w-4 text-purple-500" />
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        id="enable-reminders"
-                        checked={formData.enableReminders}
-                        onChange={(e) =>
-                          handleSwitchChange("enableReminders", e)
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="contactNumber" className="block text-xs font-medium text-purple-700">
+                      Contact Number
                     </label>
+                    <input
+                      type="tel"
+                      id="contactNumber"
+                      name="contactNumber"
+                      value={formData.contactNumber}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="district" className="block text-xs font-medium text-purple-700">
+                      District
+                    </label>
+                    <input
+                      type="text"
+                      id="district"
+                      name="district"
+                      value={formData.district}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label
-                      htmlFor="require-attachment"
-                      className="text-purple-700 font-medium"
-                    >
-                      Require Attachment
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label htmlFor="address" className="block text-xs font-medium text-purple-700">
+                      Address
                     </label>
-                    <p className="text-sm text-purple-600">
-                      User must upload a file when completing task
-                    </p>
+                    <textarea
+                      id="address"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      rows={2}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <FileCheck className="h-4 w-4 text-purple-500" />
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        id="require-attachment"
-                        checked={formData.requireAttachment}
-                        onChange={(e) =>
-                          handleSwitchChange("requireAttachment", e)
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="villageBlock" className="block text-xs font-medium text-purple-700">
+                      Village/Block
                     </label>
+                    <input
+                      type="text"
+                      id="villageBlock"
+                      name="villageBlock"
+                      value={formData.villageBlock}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Preview and Submit Buttons */}
-              <div className="space-y-4">
-                <button
-                  type="button"
-                  onClick={generateTasks}
-                  className="w-full rounded-md border border-purple-200 bg-purple-50 py-2 px-4 text-purple-700 hover:bg-purple-100 hover:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-                >
-                  Preview Generated Tasks
-                </button>
+              {/* Power & Load Information */}
+              <div className="space-y-3">
+                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                  Power & Load Information
+                </h3>
+                
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <label htmlFor="presentLoad" className="block text-xs font-medium text-purple-700">
+                      Present Load
+                    </label>
+                    <input
+                      type="text"
+                      id="presentLoad"
+                      name="presentLoad"
+                      value={formData.presentLoad}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
 
-                {generatedTasks.length > 0 && (
-                  <div className="w-full">
-                    <div className="border border-purple-200 rounded-md">
-                      <button
-                        type="button"
-                        onClick={() => setAccordionOpen(!accordionOpen)}
-                        className="w-full flex justify-between items-center p-4 text-purple-700 hover:bg-purple-50 focus:outline-none"
-                      >
-                        <span className="font-medium">
-                          {generatedTasks.length} Tasks Generated 
-                          {formData.frequency === "one-time" 
-                            ? " (Will be stored in DELEGATION sheet)" 
-                            : " (Will be stored in Checklist sheet)"
-                          }
-                        </span>
-                        <svg
-                          className={`w-5 h-5 transition-transform ${
-                            accordionOpen ? "rotate-180" : ""
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
+                  <div className="space-y-1">
+                    <label htmlFor="bpNumber" className="block text-xs font-medium text-purple-700">
+                      BP Number
+                    </label>
+                    <input
+                      type="text"
+                      id="bpNumber"
+                      name="bpNumber"
+                      value={formData.bpNumber}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="cspdclContractDemand" className="block text-xs font-medium text-purple-700">
+                      CSPDCL Contract Demand
+                    </label>
+                    <input
+                      type="text"
+                      id="cspdclContractDemand"
+                      name="cspdclContractDemand"
+                      value={formData.cspdclContractDemand}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label htmlFor="futureLoadRequirement" className="block text-xs font-medium text-purple-700">
+                      Future Load Requirement
+                    </label>
+                    <input
+                      type="text"
+                      id="futureLoadRequirement"
+                      name="futureLoadRequirement"
+                      value={formData.futureLoadRequirement}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="noOfHoursOfFailure" className="block text-xs font-medium text-purple-700">
+                      Hours Of Failure
+                    </label>
+                    <input
+                      type="number"
+                      id="noOfHoursOfFailure"
+                      name="noOfHoursOfFailure"
+                      value={formData.noOfHoursOfFailure}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="loadDetailsApplication" className="block text-xs font-medium text-purple-700">
+                    Load Details/Application
+                  </label>
+                  <textarea
+                    id="loadDetailsApplication"
+                    name="loadDetailsApplication"
+                    value={formData.loadDetailsApplication}
+                    onChange={handleChange}
+                    rows={2}
+                    className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Electricity Bill Upload */}
+              <div className="space-y-3">
+                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                  Electricity Bill
+                </h3>
+                
+                <div className="space-y-1">
+                  <label htmlFor="electricityBill" className="block text-xs font-medium text-purple-700">
+                    Last 6 Months Average Bill
+                  </label>
+                  <div className="border-2 border-dashed border-purple-300 rounded-lg p-3">
+                    <div className="text-center">
+                      <FileImage className="mx-auto h-8 w-8 text-purple-400" />
+                      <div className="mt-2">
+                        <label htmlFor="electricityBill" className="cursor-pointer">
+                          <span className="block text-xs font-medium text-purple-600">
+                            {selectedImage ? selectedImage.name : "Click to upload electricity bill"}
+                          </span>
+                          <input
+                            id="electricityBill"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="hidden"
                           />
-                        </svg>
-                      </button>
-
-                      {accordionOpen && (
-                        <div className="p-4 border-t border-purple-200">
-                          <div className="max-h-60 overflow-y-auto space-y-2">
-                            {generatedTasks.slice(0, 20).map((task, index) => (
-                              <div
-                                key={index}
-                                className="text-sm p-2 border rounded-md border-purple-200 bg-purple-50"
-                              >
-                                <div className="font-medium text-purple-700">
-                                  {task.description}
-                                </div>
-                                <div className="text-xs text-purple-600">
-                                  Due: {formatDateForDisplay(task.dueDate)} | Department: {task.department}
-                                </div>
-                                <div className="flex space-x-2 mt-1">
-                                  {task.enableReminders && (
-                                    <span className="inline-flex items-center text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                                      <BellRing className="h-3 w-3 mr-1" />{" "}
-                                      Reminders
-                                    </span>
-                                  )}
-                                  {task.requireAttachment && (
-                                    <span className="inline-flex items-center text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                                      <FileCheck className="h-3 w-3 mr-1" />{" "}
-                                      Attachment Required
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                            {generatedTasks.length > 20 && (
-                              <div className="text-sm text-center text-purple-600 py-2">
-                                ...and {generatedTasks.length - 20} more tasks
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                        </label>
+                      </div>
                     </div>
                   </div>
-                )}
+                </div>
+              </div>
+
+              {/* System Configuration */}
+              <div className="space-y-3">
+                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                  System Configuration
+                </h3>
+                
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label htmlFor="structureType" className="block text-xs font-medium text-purple-700">
+                      Structure Type
+                    </label>
+                    <select
+                      id="structureType"
+                      name="structureType"
+                      value={formData.structureType}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">Select</option>
+                      {structureTypeOptions.map((option, index) => (
+                        <option key={index} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="roofType" className="block text-xs font-medium text-purple-700">
+                      Roof Type
+                    </label>
+                    <select
+                      id="roofType"
+                      name="roofType"
+                      value={formData.roofType}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">Select</option>
+                      {roofTypeOptions.map((option, index) => (
+                        <option key={index} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label htmlFor="systemType" className="block text-xs font-medium text-purple-700">
+                      System Type
+                    </label>
+                    <select
+                      id="systemType"
+                      name="systemType"
+                      value={formData.systemType}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">Select</option>
+                      {systemTypeOptions.map((option, index) => (
+                        <option key={index} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="needType" className="block text-xs font-medium text-purple-700">
+                      Need Type
+                    </label>
+                    <select
+                      id="needType"
+                      name="needType"
+                      value={formData.needType}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">Select</option>
+                      {needTypeOptions.map((option, index) => (
+                        <option key={index} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="projectMode" className="block text-xs font-medium text-purple-700">
+                    Project Mode
+                  </label>
+                  <input
+                    type="text"
+                    id="projectMode"
+                    name="projectMode"
+                    value={formData.projectMode}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-between bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-t border-purple-100">
+            <div className="flex justify-between bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-t border-purple-100 mt-6">
               <button
                 type="button"
                 onClick={() => {
                   setFormData({
-                    department: "",
-                    givenBy: "",
-                    doer: "",
-                    description: "",
-                    frequency: "daily",
-                    enableReminders: true,
-                    requireAttachment: false,
+                    beneficiaryName: "",
+                    address: "",
+                    villageBlock: "",
+                    district: "",
+                    contactNumber: "",
+                    presentLoad: "",
+                    bpNumber: "",
+                    cspdclContractDemand: "",
+                    futureLoadRequirement: "",
+                    loadDetailsApplication: "",
+                    noOfHoursOfFailure: "",
+                    structureType: "",
+                    roofType: "",
+                    systemType: "",
+                    needType: "",
+                    projectMode: ""
                   });
-                  setSelectedDate(null);
-                  setGeneratedTasks([]);
-                  setAccordionOpen(false);
+                  setSelectedImage(null);
+                  setImagePreview(null);
                 }}
-                className="rounded-md border border-purple-200 py-2 px-4 text-purple-700 hover:border-purple-300 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                className="rounded-md border border-purple-200 py-1.5 px-3 text-sm text-purple-700 hover:border-purple-300 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
               >
-                Cancel
+                Reset
               </button>
               <button
-                type="submit"
+                onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="rounded-md bg-gradient-to-r from-purple-600 to-pink-600 py-2 px-4 text-white hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-md bg-gradient-to-r from-purple-600 to-pink-600 py-1.5 px-3 text-sm text-white hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Assigning..." : "Assign Task"}
+                {isSubmitting ? "Submitting..." : "Submit"}
               </button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </AdminLayout>

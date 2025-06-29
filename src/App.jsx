@@ -5,10 +5,22 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import LoginPage from "./pages/LoginPage"
 import AdminDashboard from "./pages/admin/Dashboard"
 import AdminAssignTask from "./pages/admin/AssignTask"
-// import AllTasks from "./pages/admin/AllTasks"
-import DataPage from "./pages/admin/DataPage"
-import AdminDataPage from "./pages/admin/admin-data-page"
-import AccountDataPage from "./pages/delegation"
+import SurveyReportPage from "./pages/SurveyReport"
+import QuotationsendPage from "./pages/Quatationsend"
+import FollowupPage from "./pages/Followup"
+import OrderPlacePage from "./pages/OrderPlace"
+import IPAssigmentPage from "./pages/IPAssigment"
+import DispatchmaterialPage from "./pages/Dispatchmaterial"
+import InformToCustomerPage from "./pages/InformToCustomer"
+import MaterialreceivedPage from "./pages/Materialreceived"
+import InstallationPage from "./pages/Installation"
+import BillingPage from "./pages/Billing"
+import CspdclForSynconizationPage from "./pages/CspdclForSynconization"
+import InspectionPage from "./pages/Inspection"
+import ProjectCommissioningPage from "./pages/ProjectCommissioning"
+import RedemptionPage from "./pages/Redemption"
+import SubsidyDisbursalPage from "./pages/SubsidyDisbursal"
+import PaymentPage from "./pages/Payment"
 import "./index.css"
 
 // Auth wrapper component to protect routes
@@ -30,32 +42,6 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 }
 
 function App() {
-  // const [darkMode, setDarkMode] = useState(false)
-
-  // useEffect(() => {
-  //   // Check for user preference
-  //   if (
-  //     localStorage.theme === "dark" ||
-  //     (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches)
-  //   ) {
-  //     setDarkMode(true)
-  //     document.documentElement.classList.add("dark")
-  //   } else {
-  //     setDarkMode(false)
-  //     document.documentElement.classList.remove("dark")
-  //   }
-  // }, [])
-
-  // const toggleDarkMode = () => {
-  //   setDarkMode(!darkMode)
-  //   if (darkMode) {
-  //     document.documentElement.classList.remove("dark")
-  //     localStorage.theme = "light"
-  //   } else {
-  //     document.documentElement.classList.add("dark")
-  //     localStorage.theme = "dark"
-  //   }
-  // }
 
   return (
     <Router>
@@ -89,32 +75,160 @@ function App() {
           }
         />
 
-         {/* Delegation route for user */}
+         {/* Survey Report route for user */}
           <Route
-          path="/dashboard/delegation"
+          path="/dashboard/SurveyReport"
           element={
             <ProtectedRoute>
-              <AccountDataPage/>
+              <SurveyReportPage/>
+            </ProtectedRoute>
+          }
+        />
+        {/*Quotationsend route for user */}
+          <Route
+          path="/dashboard/Quotationsend"
+          element={
+            <ProtectedRoute>
+              <QuotationsendPage/>
+            </ProtectedRoute>
+          }
+        />
+        {/*Follow up route for user */}
+          <Route
+          path="/dashboard/Followup"
+          element={
+            <ProtectedRoute>
+              <FollowupPage/>
             </ProtectedRoute>
           }
         />
 
-        {/* Data routes */}
-        <Route
-          path="/dashboard/data/:category"
+        {/*Order Place route for user */}
+          <Route
+          path="/dashboard/OrderPlace"
           element={
             <ProtectedRoute>
-              <DataPage />
+              <OrderPlacePage/>
             </ProtectedRoute>
           }
         />
 
-        {/* Specific route for Admin Data Page */}
-        <Route
-          path="/dashboard/data/admin"
+        {/*IP Assignment route for user */}
+          <Route
+          path="/dashboard/IPAssigment"
           element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <AdminDataPage />
+            <ProtectedRoute>
+              <IPAssigmentPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*Dispatchmaterial route for user */}
+          <Route
+          path="/dashboard/Dispatchmaterial"
+          element={
+            <ProtectedRoute>
+              <DispatchmaterialPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*InformToCustomer route for user */}
+          <Route
+          path="/dashboard/InformToCustomer"
+          element={
+            <ProtectedRoute>
+              <InformToCustomerPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*Materialreceived route for user */}
+          <Route
+          path="/dashboard/Materialreceived"
+          element={
+            <ProtectedRoute>
+              <MaterialreceivedPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*Installation route for user */}
+          <Route
+          path="/dashboard/Installation"
+          element={
+            <ProtectedRoute>
+              <InstallationPage/>
+            </ProtectedRoute>
+          }
+        /> 
+
+        {/*Billing route for user */}
+          <Route
+          path="/dashboard/Billing"
+          element={
+            <ProtectedRoute>
+              <BillingPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*CspdclForSynconization route for user */}
+          <Route
+          path="/dashboard/CspdclForSynconization"
+          element={
+            <ProtectedRoute>
+              <CspdclForSynconizationPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*Inspection route for user */}
+          <Route
+          path="/dashboard/Inspection"
+          element={
+            <ProtectedRoute>
+              <InspectionPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*ProjectCommissioning route for user */}
+          <Route
+          path="/dashboard/ProjectCommissioning"
+          element={
+            <ProtectedRoute>
+              <ProjectCommissioningPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*Redemption route for user */}
+          <Route
+          path="/dashboard/Redemption"
+          element={
+            <ProtectedRoute>
+              <RedemptionPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*SubsidyDisbursal route for user */}
+          <Route
+          path="/dashboard/SubsidyDisbursal"
+          element={
+            <ProtectedRoute>
+              <SubsidyDisbursalPage/>
+            </ProtectedRoute>
+          }
+        />
+
+        {/*Payment route for user */}
+          <Route
+          path="/dashboard/Payment"
+          element={
+            <ProtectedRoute>
+              <PaymentPage/>
             </ProtectedRoute>
           }
         />
@@ -123,7 +237,6 @@ function App() {
         <Route path="/admin/*" element={<Navigate to="/dashboard/admin" replace />} />
         <Route path="/admin/dashboard" element={<Navigate to="/dashboard/admin" replace />} />
         <Route path="/admin/assign-task" element={<Navigate to="/dashboard/assign-task" replace />} />
-        <Route path="/admin/data/:category" element={<Navigate to="/dashboard/data/:category" replace />} />
         <Route path="/user/*" element={<Navigate to="/dashboard/admin" replace />} />
       </Routes>
     </Router>

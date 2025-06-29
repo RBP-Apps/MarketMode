@@ -2,7 +2,32 @@
 
 import { useState, useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { CheckSquare, ClipboardList, Home, LogOut, Menu, Database, ChevronDown, ChevronRight } from 'lucide-react'
+import { 
+  CheckSquare, 
+  ClipboardList, 
+  Home, 
+  LogOut, 
+  Menu, 
+  Database, 
+  ChevronDown, 
+  ChevronRight,
+  FileText,
+  Send,
+  Phone,
+  ShoppingCart,
+  UserCheck,
+  Truck,
+  Bell,
+  Package,
+  Wrench,
+  Receipt,
+  Zap,
+  Search,
+  CheckCircle,
+  RotateCcw,
+  DollarSign,
+  CreditCard
+} from 'lucide-react'
 
 export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
   const location = useLocation()
@@ -50,72 +75,150 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     // { id: "jockey", name: "Jockey", link: "/dashboard/data/jockey" },
   ]
 
-  // Determine which departments to show in the submenu
-  // const getAccessibleDepartments = () => {
-  //   if (userRole === "admin") {
-  //     // Admin sees all departments
-  //     return dataCategories
-  //   } else {
-  //     // Regular users see only their own department plus admin (if needed)
-  //     return dataCategories.filter(cat => 
-  //       cat.id === username || 
-  //       cat.id.toLowerCase() === username.toLowerCase()
-  //     )
-  //   }
-  // }
-
-  // Update the routes array based on user role
+  // Update the routes array with unique icons for each section
   const routes = [
     {
       href: "/dashboard/admin",
       label: "Dashboard",
       icon: Database,
       active: location.pathname === "/dashboard/admin",
-      showFor: ["admin", "user"] // Show for both roles
+      showFor: ["admin", "user"]
     },
     {
       href: "/dashboard/assign-task",
-      label: "Assign Task",
-      icon: CheckSquare,
+      label: "Indent Form",
+      icon: FileText,
       active: location.pathname === "/dashboard/assign-task",
-      showFor: ["admin"] // Only show for admin
+      showFor: ["admin", "user"]
     },
     {
-      href: "/dashboard/delegation",
-     label: "Delegation",
-     icon: ClipboardList,
-     active: location.pathname === "/dashboard/delegation",
-     showFor: ["admin", "user"] // Only show for admin
-   },
+      href: "/dashboard/SurveyReport",
+      label: "Survey Report",
+      icon: Search,
+      active: location.pathname === "/dashboard/SurveyReport",
+      showFor: ["admin", "user"]
+    },
     {
-      href: "#",
-      label: "Data",
-      icon: Database,
-      active: location.pathname.includes("/dashboard/data"),
-      submenu: true,
-      showFor: ["admin", "user"] // Show for both roles
+      href: "/dashboard/Quotationsend",
+      label: "Quotation Send",
+      icon: Send,
+      active: location.pathname === "/dashboard/Quotationsend",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Followup",
+      label: "Follow Up",
+      icon: Phone,
+      active: location.pathname === "/dashboard/Followup",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/OrderPlace",
+      label: "Order Place In Varyak",
+      icon: ShoppingCart,
+      active: location.pathname === "/dashboard/OrderPlace",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/IPAssigment",
+      label: "IP Assignment",
+      icon: UserCheck,
+      active: location.pathname === "/dashboard/IPAssigment",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Dispatchmaterial",
+      label: "Dispatch Material",
+      icon: Truck,
+      active: location.pathname === "/dashboard/Dispatchmaterial",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/InformToCustomer",
+      label: "Inform To Customer",
+      icon: Bell,
+      active: location.pathname === "/dashboard/InformToCustomer",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Materialreceived",
+      label: "Material Received",
+      icon: Package,
+      active: location.pathname === "/dashboard/Materialreceived",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Installation",
+      label: "Installation",
+      icon: Wrench,
+      active: location.pathname === "/dashboard/Installation",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Billing",
+      label: "Billing",
+      icon: Receipt,
+      active: location.pathname === "/dashboard/Billing",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/CspdclForSynconization",
+      label: "CSPDCL For Synchronization",
+      icon: Zap,
+      active: location.pathname === "/dashboard/CspdclForSynconization",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Inspection",
+      label: "Inspection",
+      icon: CheckCircle,
+      active: location.pathname === "/dashboard/Inspection",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/ProjectCommissioning",
+      label: "Project Commissioning",
+      icon: CheckSquare,
+      active: location.pathname === "/dashboard/ProjectCommissioning",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Redemption",
+      label: "Redemption",
+      icon: RotateCcw,
+      active: location.pathname === "/dashboard/Redemption",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/SubsidyDisbursal",
+      label: "Subsidy Disbursal",
+      icon: DollarSign,
+      active: location.pathname === "/dashboard/SubsidyDisbursal",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/Payment",
+      label: "Payment",
+      icon: CreditCard,
+      active: location.pathname === "/dashboard/Payment",
+      showFor: ["admin", "user"]
     },
   ]
 
-// Modify getAccessibleDepartments to show all departments
-// const getAccessibleDepartments = () => {
-//   // Both admin and users see all departments
-//   return dataCategories
-// }
-const getAccessibleDepartments = () => {
-  const userRole = sessionStorage.getItem('role') || 'user'
-  return dataCategories.filter(cat => 
-    !cat.showFor || cat.showFor.includes(userRole)
-  )
-}
+  const getAccessibleDepartments = () => {
+    const userRole = sessionStorage.getItem('role') || 'user'
+    return dataCategories.filter(cat => 
+      !cat.showFor || cat.showFor.includes(userRole)
+    )
+  }
 
-// Filter routes based on user role
-const getAccessibleRoutes = () => {
-  const userRole = sessionStorage.getItem('role') || 'user'
-  return routes.filter(route => 
-    route.showFor.includes(userRole)
-  )
-}
+  // Filter routes based on user role
+  const getAccessibleRoutes = () => {
+    const userRole = sessionStorage.getItem('role') || 'user'
+    return routes.filter(route => 
+      route.showFor.includes(userRole)
+    )
+  }
 
   // Check if the current path is a data category page
   const isDataPage = location.pathname.includes("/dashboard/data/")
@@ -138,7 +241,7 @@ const getAccessibleRoutes = () => {
         <div className="flex h-14 items-center border-b border-blue-200 px-4 bg-gradient-to-r from-blue-100 to-purple-100">
           <Link to="/dashboard/admin" className="flex items-center gap-2 font-semibold text-blue-700">
             <ClipboardList className="h-5 w-5 text-blue-600" />
-            <span>Checklist & Delegation</span>
+            <span>Market Mode</span>
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">
@@ -225,7 +328,7 @@ const getAccessibleRoutes = () => {
                     </svg>
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646A9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                     </svg>
                   )}
                   <span className="sr-only">{darkMode ? "Light mode" : "Dark mode"}</span>
@@ -264,7 +367,7 @@ const getAccessibleRoutes = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <ClipboardList className="h-5 w-5 text-blue-600" />
-                <span>Checklist & Delegation</span>
+                <span>Market Mode</span>
               </Link>
             </div>
             <nav className="flex-1 overflow-y-auto p-2 bg-white">
@@ -380,7 +483,7 @@ const getAccessibleRoutes = () => {
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-blue-200 bg-white px-4 md:px-6">
           <div className="flex md:hidden w-8"></div>
-          <h1 className="text-lg font-semibold text-blue-700">Checklist & Delegation</h1>
+          <h1 className="text-lg font-semibold text-blue-700">Market Mode</h1>
           <div className="w-8"></div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gradient-to-br from-blue-50 to-purple-50">

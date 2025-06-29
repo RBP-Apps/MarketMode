@@ -70,7 +70,7 @@ const UserLayout = ({ children }) => {
             className="flex items-center gap-2 font-semibold text-green-700 dark:text-green-300"
           >
             <i className="fas fa-clipboard-list h-5 w-5 text-green-600 dark:text-green-400"></i>
-            <span>Checklist & Delegation</span>
+            <span>Market Mode</span>
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">
