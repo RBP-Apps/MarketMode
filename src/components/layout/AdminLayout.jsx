@@ -86,7 +86,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/assign-task",
-      label: "Indent Form",
+      label: "Enquiry Form",
       icon: FileText,
       active: location.pathname === "/dashboard/assign-task",
       showFor: ["admin", "user"]
@@ -114,7 +114,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/OrderPlace",
-      label: "Order Place In Varyak",
+      label: "Varya",
       icon: ShoppingCart,
       active: location.pathname === "/dashboard/OrderPlace",
       showFor: ["admin", "user"]

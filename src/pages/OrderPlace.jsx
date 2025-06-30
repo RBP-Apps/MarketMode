@@ -16,8 +16,8 @@ const CONFIG = {
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
   // Updated page configuration
   PAGE_CONFIG: {
-    title: "Order Receive",
-    historyTitle: "Order History",
+    title: "Varya",
+    historyTitle: "Varya History",
     description: "Manage pending orders",
     historyDescription: "View completed order records",
   },
