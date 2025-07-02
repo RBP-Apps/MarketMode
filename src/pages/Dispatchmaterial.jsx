@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Package, Truck } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
-// Configuration object
+// Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
-  DRIVE_FOLDER_ID: "1SFoN0eZ8TS6qEruTlGj-WELKkm8Gw2iU",
+  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -26,14 +26,17 @@ const CONFIG = {
 // Debounce hook for search optimization
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value)
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value)
     }, delay)
+
     return () => {
       clearTimeout(handler)
     }
   }, [value, delay])
+
   return debouncedValue
 }
 
@@ -77,7 +80,7 @@ function DispatchMaterialsPage() {
     setUsername(user || "")
   }, [])
 
-  // Fetch dropdown options
+  // Fetch dropdown options from Column H2:H
   const fetchDropdownOptions = useCallback(async () => {
     try {
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.DROPDOWN_SHEET_NAME}&action=fetch`)
@@ -113,7 +116,8 @@ function DispatchMaterialsPage() {
       // Extract values from column H (index 7) starting from row 2
       const options = []
       rows.forEach((row, rowIndex) => {
-        if (rowIndex >= 1) { // Skip header row (row 1)
+        if (rowIndex >= 1) {
+          // Skip header row (row 1)
           let rowValues = []
           if (row.c) {
             rowValues = row.c.map((cell) => (cell && cell.v !== undefined ? cell.v : ""))
@@ -190,12 +194,13 @@ function DispatchMaterialsPage() {
           return
         }
 
-        // Check conditions: Column BM (index 64) not null and Column BN (index 65)
-        const columnBM = rowValues[64] // Column BM
+        // Updated conditions: Column BN (index 65) not null for both pending and history
+        // Column BO (index 66) null for pending, not null for history
         const columnBN = rowValues[65] // Column BN
+        const columnBO = rowValues[66] // Column BO
 
-        const hasColumnBM = !isEmpty(columnBM)
-        if (!hasColumnBM) return // Skip if column BM is empty
+        const hasColumnBN = !isEmpty(columnBN)
+        if (!hasColumnBN) return // Skip if column BN is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
@@ -222,20 +227,21 @@ function DispatchMaterialsPage() {
           ipName: rowValues[56] || "", // BE
           ipContact: rowValues[57] || "", // BF
           gstNumber: rowValues[58] || "", // BG
-          bankAccountDetails: rowValues[59] || "", // BH
-          aadharCard: rowValues[60] || "", // BI
-          panCard: rowValues[61] || "", // BJ
-          workOrderNumber: rowValues[62] || "", // BK
-          workOrderCopy: rowValues[63] || "", // BL
+          gstCertificates: rowValues[59] || "", // BH - Added GST Certificates
+          bankAccountDetails: rowValues[60] || "", // BI
+          aadharCard: rowValues[61] || "", // BJ
+          panCard: rowValues[62] || "", // BK
+          workOrderNumber: rowValues[63] || "", // BL
+          workOrderCopy: rowValues[64] || "", // BM
           // Dispatch data
-          actual: rowValues[65] || "", // BN
-          dispatchMaterial: rowValues[67] || "", // BP
+          actual: rowValues[66] || "", // BO
+          dispatchMaterial: rowValues[68] || "", // BQ
         }
 
-        // Check if Column BN is null for pending, not null for history
-        const isColumnBNEmpty = isEmpty(columnBN)
+        // Check if Column BO is null for pending, not null for history
+        const isColumnBOEmpty = isEmpty(columnBO)
 
-        if (isColumnBNEmpty) {
+        if (isColumnBOEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -259,7 +265,7 @@ function DispatchMaterialsPage() {
   // Initialize status values with existing dispatch material values
   useEffect(() => {
     const initialStatusValues = {}
-    pendingData.forEach(record => {
+    pendingData.forEach((record) => {
       if (record.dispatchMaterial && record.dispatchMaterial !== "") {
         initialStatusValues[record._id] = record.dispatchMaterial
       }
@@ -289,29 +295,29 @@ function DispatchMaterialsPage() {
   }, [historyData, debouncedSearchTerm])
 
   const handleRowSelection = useCallback((recordId, isChecked) => {
-    setSelectedRows(prev => ({
+    setSelectedRows((prev) => ({
       ...prev,
-      [recordId]: isChecked
+      [recordId]: isChecked,
     }))
   }, [])
 
   const handleStatusChange = useCallback((recordId, status) => {
-    setStatusValues(prev => ({
+    setStatusValues((prev) => ({
       ...prev,
-      [recordId]: status
+      [recordId]: status,
     }))
   }, [])
 
   const handleSubmit = async () => {
-    const selectedRecordIds = Object.keys(selectedRows).filter(id => selectedRows[id])
-    
+    const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
+
     if (selectedRecordIds.length === 0) {
       alert("Please select at least one record to submit")
       return
     }
 
     // Check if all selected records have status selected
-    const missingStatus = selectedRecordIds.filter(id => !statusValues[id] || statusValues[id] === "Select")
+    const missingStatus = selectedRecordIds.filter((id) => !statusValues[id] || statusValues[id] === "Select")
     if (missingStatus.length > 0) {
       alert("Please select status for all selected records")
       return
@@ -320,21 +326,21 @@ function DispatchMaterialsPage() {
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
-        const record = pendingData.find(r => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
-        
+
         if (!record) return
 
         // Create array with 100 empty strings to ensure we have enough columns
         const rowData = Array(100).fill("")
-        
+
         // Set specific columns:
-        // Column BP (index 67) - Status
-        rowData[67] = status
-        
-        // Column BN (index 65) - Actual timestamp (only if status is "Done")
+        // Column BQ (index 68) - Status
+        rowData[68] = status
+
+        // Column BO (index 66) - Actual timestamp (only if status is "Done")
         if (status === "Done") {
-          rowData[65] = formatTimestamp()
+          rowData[66] = formatTimestamp()
         }
 
         // Prepare update data for this specific record
@@ -342,7 +348,7 @@ function DispatchMaterialsPage() {
           action: "update",
           sheetName: CONFIG.SOURCE_SHEET_NAME,
           rowIndex: record._rowIndex,
-          rowData: JSON.stringify(rowData)
+          rowData: JSON.stringify(rowData),
         }
 
         const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
@@ -357,47 +363,49 @@ function DispatchMaterialsPage() {
       })
 
       const results = await Promise.all(updatePromises)
-      const failedUpdates = results.filter(result => !result.success)
+      const failedUpdates = results.filter((result) => !result.success)
 
       if (failedUpdates.length > 0) {
         throw new Error("Some updates failed")
       }
 
       setSuccessMessage(`Successfully updated ${selectedRecordIds.length} dispatch material record(s)`)
-      
+
       // Update local state
-      const updatedRecords = selectedRecordIds.map(recordId => {
-        const record = pendingData.find(r => r._id === recordId)
+      const updatedRecords = selectedRecordIds.map((recordId) => {
+        const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         return {
           ...record,
           dispatchMaterial: status,
-          actual: status === "Done" ? formatTimestamp() : record.actual // Keep existing actual date if not "Done"
+          actual: status === "Done" ? formatTimestamp() : record.actual, // Keep existing actual date if not "Done"
         }
       })
 
       // Only move records to history if status is "Done", keep all others in pending
-      const doneRecords = updatedRecords.filter(record => record.dispatchMaterial === "Done")
-      
+      const doneRecords = updatedRecords.filter((record) => record.dispatchMaterial === "Done")
+
       // Update pending data: remove only "Done" records, keep and update all others
-      setPendingData(prev => {
-        return prev.map(record => {
-          const updatedRecord = updatedRecords.find(updated => updated._id === record._id)
-          if (updatedRecord) {
-            // If this record was updated and is NOT "Done", return the updated version
-            if (updatedRecord.dispatchMaterial !== "Done") {
-              return updatedRecord
+      setPendingData((prev) => {
+        return prev
+          .map((record) => {
+            const updatedRecord = updatedRecords.find((updated) => updated._id === record._id)
+            if (updatedRecord) {
+              // If this record was updated and is NOT "Done", return the updated version
+              if (updatedRecord.dispatchMaterial !== "Done") {
+                return updatedRecord
+              }
+              // If this record was updated and IS "Done", it will be filtered out below
+              return null
             }
-            // If this record was updated and IS "Done", it will be filtered out below
-            return null
-          }
-          // If this record was not updated, keep it as is
-          return record
-        }).filter(record => record !== null) // Remove null entries (the "Done" records)
+            // If this record was not updated, keep it as is
+            return record
+          })
+          .filter((record) => record !== null) // Remove null entries (the "Done" records)
       })
 
       if (doneRecords.length > 0) {
-        setHistoryData(prev => [...doneRecords, ...prev])
+        setHistoryData((prev) => [...doneRecords, ...prev])
       }
 
       // Clear selections and status values
@@ -408,7 +416,6 @@ function DispatchMaterialsPage() {
       setTimeout(() => {
         setSuccessMessage("")
       }, 3000)
-
     } catch (error) {
       console.error("Error updating dispatch materials:", error)
       alert("Failed to update dispatch materials: " + error.message)
@@ -601,6 +608,9 @@ function DispatchMaterialsPage() {
                       GST Number
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      GST Certificates
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Bank Account Details
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -680,6 +690,21 @@ function DispatchMaterialsPage() {
                             <div className="text-xs text-gray-900">{record.gstNumber || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
+                            {record.gstCertificates ? (
+                              <a
+                                href={record.gstCertificates}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
                             {record.bankAccountDetails ? (
                               <a
                                 href={record.bankAccountDetails}
@@ -751,8 +776,10 @@ function DispatchMaterialsPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={20} className="px-4 py-8 text-center text-gray-500 text-sm">
-                          {searchTerm ? "No history records matching your search" : "No completed dispatch materials found"}
+                        <td colSpan={21} className="px-4 py-8 text-center text-gray-500 text-sm">
+                          {searchTerm
+                            ? "No history records matching your search"
+                            : "No completed dispatch materials found"}
                         </td>
                       </tr>
                     )
@@ -831,15 +858,28 @@ function DispatchMaterialsPage() {
                           )}
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900 font-medium text-blue-600">
-                            {record.ipName || "—"}
-                          </div>
+                          <div className="text-xs text-gray-900 font-medium text-blue-600">{record.ipName || "—"}</div>
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs text-gray-900">{record.ipContact || "—"}</div>
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs text-gray-900">{record.gstNumber || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          {record.gstCertificates ? (
+                            <a
+                              href={record.gstCertificates}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           {record.bankAccountDetails ? (
@@ -908,7 +948,7 @@ function DispatchMaterialsPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={20} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={21} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm
                           ? "No pending dispatch materials matching your search"
                           : "No pending dispatch materials found"}

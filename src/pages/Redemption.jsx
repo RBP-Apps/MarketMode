@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, FileText } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
-// Configuration object
+// Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
-  // Updated Google Drive folder ID for file uploads
+  // Updated Google Sheet ID
   DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
@@ -132,7 +132,7 @@ function SubsidyTokenPage() {
     }
   }, [isEmpty])
 
-  // Optimized data fetching
+  // Updated data fetching with new column mappings
   const fetchSheetData = useCallback(async () => {
     try {
       setLoading(true)
@@ -186,16 +186,15 @@ function SubsidyTokenPage() {
           return
         }
 
-        // Check conditions: Column DO (index 118) not null and Column DP (index 119)
-        const columnDO = rowValues[118] // Column DO (index 118)
-        const columnDP = rowValues[119] // Column DP (index 119)
+        // Updated conditions: Column DR (index 121) not null and Column DS (index 122)
+        const columnDR = rowValues[121] // Column DR (index 121)
+        const columnDS = rowValues[122] // Column DS (index 122)
 
-        const hasColumnDO = !isEmpty(columnDO)
-        if (!hasColumnDO) return // Skip if column DO is empty
+        const hasColumnDR = !isEmpty(columnDR)
+        if (!hasColumnDR) return // Skip if column DR is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
-
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -204,31 +203,29 @@ function SubsidyTokenPage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
-          // Basic info columns
+          // Updated column mappings as per specifications
           enquiryNumber: rowValues[1] || "", // B
           beneficiaryName: rowValues[2] || "", // C
           address: rowValues[3] || "", // D
           contactNumber: rowValues[6] || "", // G
           surveyorName: rowValues[29] || "", // AD
-          // Document columns
-          powerPurchaseAgreement: rowValues[99] || "", // CV (IMAGE)
-          vendorConsumerAgreement: rowValues[100] || "", // CW (IMAGE)
-          quotationCopy: rowValues[101] || "", // CX
-          applicationCopy: rowValues[102] || "", // CY
-          cancellationCheque: rowValues[107] || "", // DD
-          electricityBill: rowValues[108] || "", // DE
-          witnessIdProof: rowValues[109] || "", // DF
-          inspection: rowValues[113] || "", // DJ
-          projectCommission: rowValues[117] || "", // DN
+          // Updated document columns
+          powerPurchaseAgreement: rowValues[100] || "", // CW (IMAGE)
+          vendorConsumerAgreement: rowValues[101] || "", // CX (IMAGE)
+          quotationCopy: rowValues[102] || "", // CY
+          applicationCopy: rowValues[103] || "", // CZ
+          electricityBill: rowValues[109] || "", // DF
+          witnessIdProof: rowValues[110] || "", // DG
+          inspection: rowValues[113] || "", // DK
+          projectCommission: rowValues[118] || "", // DP
           // Status and timestamp columns
-          actual: rowValues[119] || "", // DP
-          subsidyToken: rowValues[121] || "", // DR
+          actual: rowValues[122] || "", // DS
+          subsidyToken: rowValues[124] || "", // DU
         }
 
-        // Check if Column DP is null for pending, not null for history
-        const isColumnDPEmpty = isEmpty(columnDP)
-
-        if (isColumnDPEmpty) {
+        // Check if Column DS is null for pending, not null for history
+        const isColumnDSEmpty = isEmpty(columnDS)
+        if (isColumnDSEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -297,7 +294,6 @@ function SubsidyTokenPage() {
 
   const handleSubmit = async () => {
     const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
-
     if (selectedRecordIds.length === 0) {
       alert("Please select at least one record to submit")
       return
@@ -315,19 +311,18 @@ function SubsidyTokenPage() {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
-
         if (!record) return
 
         // Create array with 150 empty strings to ensure we have enough columns
         const rowData = Array(150).fill("")
 
-        // Set specific columns:
-        // Column DR (index 121) - Status (Subsidy Token)
-        rowData[121] = status
+        // Updated column mappings:
+        // Column DU (index 124) - Status (Subsidy Token)
+        rowData[124] = status
 
-        // Column DP (index 119) - Actual timestamp (only if status is "Done")
+        // Column DS (index 122) - Actual timestamp (only if status is "Done")
         if (status === "Done") {
-          rowData[119] = formatTimestamp()
+          rowData[122] = formatTimestamp()
         }
 
         // Prepare update data for this specific record
@@ -345,13 +340,11 @@ function SubsidyTokenPage() {
           },
           body: new URLSearchParams(updateData).toString(),
         })
-
         return response.json()
       })
 
       const results = await Promise.all(updatePromises)
       const failedUpdates = results.filter((result) => !result.success)
-
       if (failedUpdates.length > 0) {
         throw new Error("Some updates failed")
       }
@@ -585,11 +578,6 @@ function SubsidyTokenPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Application Copy
                     </th>
-                    {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cancellation Cheque
-                      </th>
-                    )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Electricity Bill
                     </th>
@@ -680,21 +668,6 @@ function SubsidyTokenPage() {
                             {record.applicationCopy ? (
                               <a
                                 href={record.applicationCopy}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                View
-                              </a>
-                            ) : (
-                              <span className="text-gray-400 text-xs">—</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            {record.cancellationCheque ? (
-                              <a
-                                href={record.cancellationCheque}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:text-blue-800 flex items-center text-xs"

@@ -26,14 +26,17 @@ const CONFIG = {
 // Debounce hook for search optimization
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value)
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value)
     }, delay)
+
     return () => {
       clearTimeout(handler)
     }
   }, [value, delay])
+
   return debouncedValue
 }
 
@@ -51,6 +54,7 @@ function PaymentPage() {
   const [username, setUsername] = useState("")
   const [selectedRows, setSelectedRows] = useState({})
   const [statusValues, setStatusValues] = useState({})
+  const [paymentDetails, setPaymentDetails] = useState({})
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -81,11 +85,14 @@ function PaymentPage() {
   const fetchDropdownOptions = useCallback(async () => {
     try {
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.DROPDOWN_SHEET_NAME}&action=fetch`)
+
       if (!response.ok) {
         throw new Error(`Failed to fetch dropdown data: ${response.status}`)
       }
+
       const text = await response.text()
       let data
+
       try {
         data = JSON.parse(text)
       } catch (parseError) {
@@ -119,12 +126,14 @@ function PaymentPage() {
           } else if (Array.isArray(row)) {
             rowValues = row
           }
+
           const optionValue = rowValues[7] // Column H (index 7)
           if (!isEmpty(optionValue)) {
             options.push(optionValue.toString())
           }
         }
       })
+
       setDropdownOptions(options)
     } catch (error) {
       console.error("Error fetching dropdown options:", error)
@@ -137,15 +146,19 @@ function PaymentPage() {
     try {
       setLoading(true)
       setError(null)
+
       // Fetch both main data and dropdown options
       await fetchDropdownOptions()
 
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.SOURCE_SHEET_NAME}&action=fetch`)
+
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status}`)
       }
+
       const text = await response.text()
       let data
+
       try {
         data = JSON.parse(text)
       } catch (parseError) {
@@ -184,15 +197,16 @@ function PaymentPage() {
           return
         }
 
-        // Check conditions: Column DW (index 126) not null and Column DX (index 127)
-        const columnDW = rowValues[126] // Column DW
-        const columnDX = rowValues[127] // Column DX
-        const hasColumnDW = !isEmpty(columnDW)
+        // Check conditions: Column DZ (index 129) not null and Column EA (index 130)
+        const columnDZ = rowValues[129] // Column DZ
+        const columnEA = rowValues[130] // Column EA
 
-        if (!hasColumnDW) return // Skip if column DW is empty
+        const hasColumnDZ = !isEmpty(columnDZ)
+        if (!hasColumnDZ) return // Skip if column DZ is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
+
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -208,26 +222,30 @@ function PaymentPage() {
           contactNumber: rowValues[6] || "", // G
           surveyorName: rowValues[29] || "", // AD
           // Payment specific columns
-          powerPurchaseAgreement: rowValues[99] || "", // CV (IMAGE)
-          vendorConsumerAgreement: rowValues[100] || "", // CW (IMAGE)
-          quotationCopy: rowValues[101] || "", // CX
-          applicationCopy: rowValues[102] || "", // CY
-          electricityBill: rowValues[108] || "", // DE
-          witnessIdProof: rowValues[109] || "", // DF
-          inspection: rowValues[113] || "", // DJ
-          projectCommission: rowValues[117] || "", // DN
-          subsidyToken: rowValues[121] || "", // DR
-          subsidyDisbursal: rowValues[125] || "", // DV
-          // History specific columns
+          powerPurchaseAgreement: rowValues[100] || "", // CW (IMAGE)
+          vendorConsumerAgreement: rowValues[101] || "", // CX (IMAGE)
+          quotationCopy: rowValues[102] || "", // CY
+          applicationCopy: rowValues[103] || "", // CZ
           cancellationCheque: rowValues[107] || "", // DD
+          electricityBill: rowValues[109] || "", // DF
+          witnessIdProof: rowValues[110] || "", // DG
+          inspection: rowValues[114] || "", // DK
+          projectCommission: rowValues[118] || "", // DP
+          subsidyToken: rowValues[121] || "", // DR
+          subsidyDisbursal: rowValues[128] || "", // DY
+          // History specific columns
           payment: rowValues[129] || "", // DZ
-          actual: rowValues[127] || "", // DX
+          checkNo: rowValues[133] || "", // ED
+          date: rowValues[134] || "", // EE
+          amount: rowValues[135] || "", // EF
+          deduction: rowValues[136] || "", // EG
+          actual: rowValues[130] || "", // EA
         }
 
-        // Check if Column DX is null for pending, not null for history
-        const isColumnDXEmpty = isEmpty(columnDX)
+        // Check if Column EA is null for pending, not null for history
+        const isColumnEAEmpty = isEmpty(columnEA)
 
-        if (isColumnDXEmpty) {
+        if (isColumnEAEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -251,12 +269,20 @@ function PaymentPage() {
   // Initialize status values with existing payment values
   useEffect(() => {
     const initialStatusValues = {}
+    const initialPaymentDetails = {}
     pendingData.forEach((record) => {
       if (record.payment && record.payment !== "") {
         initialStatusValues[record._id] = record.payment
       }
+      initialPaymentDetails[record._id] = {
+        checkNo: record.checkNo || "",
+        date: record.date || "",
+        amount: record.amount || "",
+        deduction: record.deduction || "",
+      }
     })
     setStatusValues(initialStatusValues)
+    setPaymentDetails(initialPaymentDetails)
   }, [pendingData])
 
   // Optimized filtered data with debounced search
@@ -294,8 +320,19 @@ function PaymentPage() {
     }))
   }, [])
 
+  const handlePaymentDetailChange = useCallback((recordId, field, value) => {
+    setPaymentDetails((prev) => ({
+      ...prev,
+      [recordId]: {
+        ...prev[recordId],
+        [field]: value,
+      },
+    }))
+  }, [])
+
   const handleSubmit = async () => {
     const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
+
     if (selectedRecordIds.length === 0) {
       alert("Please select at least one record to submit")
       return
@@ -308,24 +345,42 @@ function PaymentPage() {
       return
     }
 
+    // Check if records with "Done" status have required payment details
+    const doneRecords = selectedRecordIds.filter((id) => statusValues[id] === "Done")
+    const missingPaymentDetails = doneRecords.filter((id) => {
+      const details = paymentDetails[id] || {}
+      return !details.checkNo || !details.date || !details.amount
+    })
+
+    if (missingPaymentDetails.length > 0) {
+      alert("Please fill in Check No, Date, and Amount for all records with 'Done' status")
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+        const details = paymentDetails[recordId] || {}
 
         if (!record) return
 
-        // Create array with 135 empty strings to ensure we have enough columns
-        const rowData = Array(135).fill("")
+        // Create array with enough empty strings to ensure we have enough columns
+        const rowData = Array(140).fill("")
 
         // Set specific columns:
-        // Column DZ (index 129) - Status (Payment)
-        rowData[129] = status
+        // Column EC (index 132) - Status (Payment)
+        rowData[132] = status
 
-        // Column DX (index 127) - Actual timestamp (only if status is "Done")
+        // Column EA (index 130) - Actual timestamp (only if status is "Done")
         if (status === "Done") {
-          rowData[127] = formatTimestamp()
+          rowData[130] = formatTimestamp()
+          // Store payment details
+          rowData[133] = details.checkNo || "" // ED - Check No
+          rowData[134] = details.date || "" // EE - Date
+          rowData[135] = details.amount || "" // EF - Amount
+          rowData[136] = details.deduction || "" // EG - Deduction
         }
 
         // Prepare update data for this specific record
@@ -360,10 +415,16 @@ function PaymentPage() {
       const updatedRecords = selectedRecordIds.map((recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+        const details = paymentDetails[recordId] || {}
+
         return {
           ...record,
           payment: status,
           actual: status === "Done" ? formatTimestamp() : record.actual,
+          checkNo: status === "Done" ? details.checkNo : record.checkNo,
+          date: status === "Done" ? details.date : record.date,
+          amount: status === "Done" ? details.amount : record.amount,
+          deduction: status === "Done" ? details.deduction : record.deduction,
         }
       })
 
@@ -396,6 +457,7 @@ function PaymentPage() {
       // Clear selections and status values
       setSelectedRows({})
       setStatusValues({})
+      setPaymentDetails({})
 
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -414,6 +476,7 @@ function PaymentPage() {
     setSearchTerm("")
     setSelectedRows({})
     setStatusValues({})
+    setPaymentDetails({})
   }, [])
 
   return (
@@ -554,6 +617,18 @@ function PaymentPage() {
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Check No
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Deduction
+                        </th>
                       </>
                     )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -607,9 +682,23 @@ function PaymentPage() {
                       Subsidy Disbursal
                     </th>
                     {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Payment
-                      </th>
+                      <>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Payment
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Check No
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Deduction
+                        </th>
+                      </>
                     )}
                   </tr>
                 </thead>
@@ -705,11 +794,23 @@ function PaymentPage() {
                               {record.payment || "—"}
                             </span>
                           </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.checkNo || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.date || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.amount || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.deduction || "—"}</div>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={18} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={22} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm
                             ? "No payment history records matching your search"
                             : "No completed payments found"}
@@ -717,114 +818,160 @@ function PaymentPage() {
                       </tr>
                     )
                   ) : filteredPendingData.length > 0 ? (
-                    filteredPendingData.map((record) => (
-                      <tr key={record._id} className="hover:bg-gray-50">
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={selectedRows[record._id] || false}
-                            onChange={(e) => handleRowSelection(record._id, e.target.checked)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          />
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <select
-                            value={statusValues[record._id] || record.payment || "Select"}
-                            onChange={(e) => handleStatusChange(record._id, e.target.value)}
-                            disabled={!selectedRows[record._id]}
-                            className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          >
-                            <option value="Select">Select</option>
-                            {dropdownOptions.map((option, index) => (
-                              <option key={index} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs font-medium text-blue-900">{record.enquiryNumber || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900 flex items-center">
-                            <Users className="h-3 w-3 mr-1 text-gray-400" />
-                            {record.beneficiaryName || "—"}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 max-w-xs">
-                          <div className="text-xs text-gray-900 truncate flex items-center" title={record.address}>
-                            <MapPin className="h-3 w-3 mr-1 text-gray-400" />
-                            {record.address || "—"}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900 flex items-center">
-                            <Phone className="h-3 w-3 mr-1 text-gray-400" />
-                            {record.contactNumber || "—"}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.surveyorName || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          {record.powerPurchaseAgreement ? (
-                            <a
-                              href={record.powerPurchaseAgreement}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                    filteredPendingData.map((record) => {
+                      const isSelected = selectedRows[record._id] || false
+                      const currentStatus = statusValues[record._id] || record.payment || "Select"
+                      const isDoneStatus = currentStatus === "Done"
+                      const currentDetails = paymentDetails[record._id] || {}
+
+                      return (
+                        <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => handleRowSelection(record._id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <select
+                              value={currentStatus}
+                              onChange={(e) => handleStatusChange(record._id, e.target.value)}
+                              disabled={!isSelected}
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                             >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View
-                            </a>
-                          ) : (
-                            <span className="text-gray-400 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          {record.vendorConsumerAgreement ? (
-                            <a
-                              href={record.vendorConsumerAgreement}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View
-                            </a>
-                          ) : (
-                            <span className="text-gray-400 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.quotationCopy || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.applicationCopy || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.electricityBill || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.witnessIdProof || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.inspection || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.subsidyToken || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.subsidyDisbursal || "—"}</div>
-                        </td>
-                      </tr>
-                    ))
+                              <option value="Select">Select</option>
+                              {dropdownOptions.map((option, index) => (
+                                <option key={index} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="text"
+                              value={currentDetails.checkNo || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "checkNo", e.target.value)}
+                              disabled={!isSelected || !isDoneStatus}
+                              placeholder="Check No"
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-20"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="date"
+                              value={currentDetails.date || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "date", e.target.value)}
+                              disabled={!isSelected || !isDoneStatus}
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-28"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={currentDetails.amount || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "amount", e.target.value)}
+                              disabled={!isSelected || !isDoneStatus}
+                              placeholder="Amount"
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-20"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={currentDetails.deduction || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "deduction", e.target.value)}
+                              disabled={!isSelected || !isDoneStatus}
+                              placeholder="Deduction"
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-20"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs font-medium text-blue-900">{record.enquiryNumber || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900 flex items-center">
+                              <Users className="h-3 w-3 mr-1 text-gray-400" />
+                              {record.beneficiaryName || "—"}
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 max-w-xs">
+                            <div className="text-xs text-gray-900 truncate flex items-center" title={record.address}>
+                              <MapPin className="h-3 w-3 mr-1 text-gray-400" />
+                              {record.address || "—"}
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900 flex items-center">
+                              <Phone className="h-3 w-3 mr-1 text-gray-400" />
+                              {record.contactNumber || "—"}
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.surveyorName || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            {record.powerPurchaseAgreement ? (
+                              <a
+                                href={record.powerPurchaseAgreement}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            {record.vendorConsumerAgreement ? (
+                              <a
+                                href={record.vendorConsumerAgreement}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.quotationCopy || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.applicationCopy || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.electricityBill || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.witnessIdProof || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.inspection || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.subsidyToken || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.subsidyDisbursal || "—"}</div>
+                          </td>
+                        </tr>
+                      )
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={17} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={21} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm ? "No pending payments matching your search" : "No pending payments found"}
                       </td>
                     </tr>

@@ -9,8 +9,8 @@ const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
-  // Updated Google Drive folder ID for file uploads
-  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
+  // Updated Google Sheet ID
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -77,7 +77,7 @@ function SubsidyDisbursalPage() {
     setUsername(user || "")
   }, [])
 
-  // Fetch dropdown options
+  // Fetch dropdown options from "Drop-Down Value" sheet Column H2:H
   const fetchDropdownOptions = useCallback(async () => {
     try {
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.DROPDOWN_SHEET_NAME}&action=fetch`)
@@ -137,6 +137,7 @@ function SubsidyDisbursalPage() {
     try {
       setLoading(true)
       setError(null)
+
       // Fetch both main data and dropdown options
       await fetchDropdownOptions()
 
@@ -144,6 +145,7 @@ function SubsidyDisbursalPage() {
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status}`)
       }
+
       const text = await response.text()
       let data
       try {
@@ -184,12 +186,12 @@ function SubsidyDisbursalPage() {
           return
         }
 
-        // Check conditions: Column DS (index 122) not null and Column DT (index 123)
-        const columnDS = rowValues[122] // Column DS
-        const columnDT = rowValues[123] // Column DT
-        const hasColumnDS = !isEmpty(columnDS)
+        // Check conditions: Column DV (index 125) not null and Column DW (index 126)
+        const columnDV = rowValues[125] // Column DV (DV7:DV)
+        const columnDW = rowValues[126] // Column DW (DW7:DW)
 
-        if (!hasColumnDS) return // Skip if column DS is empty
+        const hasColumnDV = !isEmpty(columnDV)
+        if (!hasColumnDV) return // Skip if column DV is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
@@ -207,26 +209,24 @@ function SubsidyDisbursalPage() {
           address: rowValues[3] || "", // D
           contactNumber: rowValues[6] || "", // G
           surveyorName: rowValues[29] || "", // AD
-          // Subsidy Disbursal specific columns
-          powerPurchaseAgreement: rowValues[99] || "", // CV (IMAGE)
-          vendorConsumerAgreement: rowValues[100] || "", // CW (IMAGE)
-          quotationCopy: rowValues[101] || "", // CX
-          applicationCopy: rowValues[102] || "", // CY
-          electricityBill: rowValues[108] || "", // DE
-          witnessIdProof: rowValues[109] || "", // DF
-          inspection: rowValues[113] || "", // DJ
-          projectCommission: rowValues[117] || "", // DN
-          subsidyToken: rowValues[121] || "", // DR
-          // History specific columns
-          cancellationCheque: rowValues[107] || "", // DD
-          subsidyDisbursal: rowValues[125] || "", // DV
-          actual: rowValues[123] || "", // DT
+          // Document columns (updated mapping)
+          powerPurchaseAgreement: rowValues[100] || "", // CW (IMAGE)
+          vendorConsumerAgreement: rowValues[101] || "", // CX (IMAGE)
+          quotationCopy: rowValues[102] || "", // CY
+          applicationCopy: rowValues[103] || "", // CZ
+          electricityBill: rowValues[109] || "", // DF
+          witnessIdProof: rowValues[110] || "", // DG
+          inspection: rowValues[114] || "", // DK
+          projectCommission: rowValues[119] || "", // DP
+          // Status columns
+          subsidyDisbursal: rowValues[128] || "", // DY
+          actual: rowValues[126] || "", // DW
         }
 
-        // Check if Column DT is null for pending, not null for history
-        const isColumnDTEmpty = isEmpty(columnDT)
+        // Check if Column DW is null for pending, not null for history
+        const isColumnDWEmpty = isEmpty(columnDW)
 
-        if (isColumnDTEmpty) {
+        if (isColumnDWEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -312,19 +312,18 @@ function SubsidyDisbursalPage() {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
-
         if (!record) return
 
         // Create array with 130 empty strings to ensure we have enough columns
         const rowData = Array(130).fill("")
 
         // Set specific columns:
-        // Column DV (index 125) - Status (Subsidy Disbursal)
-        rowData[125] = status
+        // Column DY (index 128) - Status (Subsidy Disbursal)
+        rowData[128] = status
 
-        // Column DT (index 123) - Actual timestamp (only if status is "Done")
+        // Column DW (index 126) - Actual timestamp (only if status is "Done")
         if (status === "Done") {
-          rowData[123] = formatTimestamp()
+          rowData[126] = formatTimestamp()
         }
 
         // Prepare update data for this specific record
@@ -582,11 +581,6 @@ function SubsidyDisbursalPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Application Copy
                     </th>
-                    {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cancellation Cheque
-                      </th>
-                    )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Electricity Bill
                     </th>
@@ -598,9 +592,6 @@ function SubsidyDisbursalPage() {
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Project Commission
-                    </th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Subsidy Token
                     </th>
                     {showHistory && (
                       <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -675,9 +666,6 @@ function SubsidyDisbursalPage() {
                             <div className="text-xs text-gray-900">{record.applicationCopy || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.cancellationCheque || "—"}</div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.electricityBill || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
@@ -690,9 +678,6 @@ function SubsidyDisbursalPage() {
                             <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.subsidyToken || "—"}</div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               {record.subsidyDisbursal || "—"}
                             </span>
@@ -701,7 +686,7 @@ function SubsidyDisbursalPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={17} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={15} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm
                             ? "No history records matching your search"
                             : "No completed subsidy disbursal found"}
@@ -805,9 +790,6 @@ function SubsidyDisbursalPage() {
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.subsidyToken || "—"}</div>
                         </td>
                       </tr>
                     ))

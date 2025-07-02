@@ -17,7 +17,7 @@ const CONFIG = {
 
   // Updated page configuration
   PAGE_CONFIG: {
-    title: "Survey Report",
+    title: "Site Survey",
     historyTitle: "FMS Survey History",
     description: "Manage pending survey tasks",
     historyDescription: "View completed survey records",

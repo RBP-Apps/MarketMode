@@ -1,16 +1,16 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Package, Bell } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Bell } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
-// Configuration object
+// Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
-  // Updated Google Drive folder ID for file uploads
-  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
+  // Updated Google Sheet ID
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -77,17 +77,15 @@ function InformToCustomerPage() {
     setUsername(user || "")
   }, [])
 
-  // Fetch dropdown options
+  // Fetch dropdown options from "Drop-Down Value" sheet Column H2:H
   const fetchDropdownOptions = useCallback(async () => {
     try {
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.DROPDOWN_SHEET_NAME}&action=fetch`)
       if (!response.ok) {
         throw new Error(`Failed to fetch dropdown data: ${response.status}`)
       }
-
       const text = await response.text()
       let data
-
       try {
         data = JSON.parse(text)
       } catch (parseError) {
@@ -113,21 +111,20 @@ function InformToCustomerPage() {
       // Extract values from column H (index 7) starting from row 2
       const options = []
       rows.forEach((row, rowIndex) => {
-        if (rowIndex >= 1) { // Skip header row (row 1)
+        if (rowIndex >= 1) {
+          // Skip header row (row 1)
           let rowValues = []
           if (row.c) {
             rowValues = row.c.map((cell) => (cell && cell.v !== undefined ? cell.v : ""))
           } else if (Array.isArray(row)) {
             rowValues = row
           }
-
           const optionValue = rowValues[7] // Column H (index 7)
           if (!isEmpty(optionValue)) {
             options.push(optionValue.toString())
           }
         }
       })
-
       setDropdownOptions(options)
     } catch (error) {
       console.error("Error fetching dropdown options:", error)
@@ -148,10 +145,8 @@ function InformToCustomerPage() {
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status}`)
       }
-
       const text = await response.text()
       let data
-
       try {
         data = JSON.parse(text)
       } catch (parseError) {
@@ -190,16 +185,15 @@ function InformToCustomerPage() {
           return
         }
 
-        // Check conditions: Column BQ (index 68) not null and Column BR (index 69)
-        const columnBQ = rowValues[68] // Column BQ
-        const columnBR = rowValues[69] // Column BR
+        // Updated conditions: Column BR (index 69) not null and Column BS (index 70) for pending/history
+        const columnBR = rowValues[69] // Column BR (index 69)
+        const columnBS = rowValues[70] // Column BS (index 70)
 
-        const hasColumnBQ = !isEmpty(columnBQ)
-        if (!hasColumnBQ) return // Skip if column BQ is empty
+        const hasColumnBR = !isEmpty(columnBR)
+        if (!hasColumnBR) return // Skip if column BR is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
-
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -208,35 +202,33 @@ function InformToCustomerPage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
-          // Basic info columns
+          // Updated column mappings as per specification
           enquiryNumber: rowValues[1] || "", // B
           beneficiaryName: rowValues[2] || "", // C
           address: rowValues[3] || "", // D
           villageBlock: rowValues[4] || "", // E
           district: rowValues[5] || "", // F
           contactNumber: rowValues[6] || "", // G
-          surveyorName: rowValues[29] || "", // AD
-          surveyorContact: rowValues[30] || "", // AE
-          orderCopy: rowValues[52] || "", // BA
-          // IP details
-          ipName: rowValues[56] || "", // BE
-          ipContact: rowValues[57] || "", // BF
-          gstNumber: rowValues[58] || "", // BG
-          bankAccountDetails: rowValues[59] || "", // BH
-          aadharCard: rowValues[60] || "", // BI
-          panCard: rowValues[61] || "", // BJ
-          workOrderNumber: rowValues[62] || "", // BK
-          workOrderCopy: rowValues[63] || "", // BL
-          // Dispatch and Customer info
-          dispatchMaterial: rowValues[67] || "", // BP
-          actual: rowValues[69] || "", // BR
-          informToCustomer: rowValues[71] || "", // BT
+          surveyorName: rowValues[29] || "", // AD (index 29)
+          surveyorContact: rowValues[30] || "", // AE (index 30)
+          orderCopy: rowValues[52] || "", // BA (index 52)
+          ipName: rowValues[56] || "", // BE (index 56)
+          ipContact: rowValues[57] || "", // BF (index 57)
+          gstNumber: rowValues[58] || "", // BG (index 58)
+          gstCertificates: rowValues[59] || "", // BH (index 59)
+          bankAccountDetails: rowValues[60] || "", // BI (index 60)
+          aadharCard: rowValues[61] || "", // BJ (index 61)
+          panCard: rowValues[62] || "", // BK (index 62)
+          workOrderNumber: rowValues[63] || "", // BL (index 63)
+          workOrderCopy: rowValues[64] || "", // BM (index 64)
+          dispatchMaterial: rowValues[68] || "", // BQ (index 68)
+          actual: rowValues[70] || "", // BS (index 70)
+          informToCustomer: rowValues[72] || "", // BU (index 72)
         }
 
-        // Check if Column BR is null for pending, not null for history
-        const isColumnBREmpty = isEmpty(columnBR)
-
-        if (isColumnBREmpty) {
+        // Check if Column BS is null for pending, not null for history
+        const isColumnBSEmpty = isEmpty(columnBS)
+        if (isColumnBSEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -260,7 +252,7 @@ function InformToCustomerPage() {
   // Initialize status values with existing inform to customer values
   useEffect(() => {
     const initialStatusValues = {}
-    pendingData.forEach(record => {
+    pendingData.forEach((record) => {
       if (record.informToCustomer && record.informToCustomer !== "") {
         initialStatusValues[record._id] = record.informToCustomer
       }
@@ -290,29 +282,29 @@ function InformToCustomerPage() {
   }, [historyData, debouncedSearchTerm])
 
   const handleRowSelection = useCallback((recordId, isChecked) => {
-    setSelectedRows(prev => ({
+    setSelectedRows((prev) => ({
       ...prev,
-      [recordId]: isChecked
+      [recordId]: isChecked,
     }))
   }, [])
 
   const handleStatusChange = useCallback((recordId, status) => {
-    setStatusValues(prev => ({
+    setStatusValues((prev) => ({
       ...prev,
-      [recordId]: status
+      [recordId]: status,
     }))
   }, [])
 
   const handleSubmit = async () => {
-    const selectedRecordIds = Object.keys(selectedRows).filter(id => selectedRows[id])
-    
+    const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
+
     if (selectedRecordIds.length === 0) {
       alert("Please select at least one record to submit")
       return
     }
 
     // Check if all selected records have status selected
-    const missingStatus = selectedRecordIds.filter(id => !statusValues[id] || statusValues[id] === "Select")
+    const missingStatus = selectedRecordIds.filter((id) => !statusValues[id] || statusValues[id] === "Select")
     if (missingStatus.length > 0) {
       alert("Please select status for all selected records")
       return
@@ -321,21 +313,21 @@ function InformToCustomerPage() {
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
-        const record = pendingData.find(r => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
-        
+
         if (!record) return
 
         // Create array with 100 empty strings to ensure we have enough columns
         const rowData = Array(100).fill("")
-        
+
         // Set specific columns:
-        // Column BT (index 71) - Status (Inform to Customer)
-        rowData[71] = status
-        
-        // Column BR (index 69) - Actual timestamp (only if status is "Done")
+        // Column BU (index 72) - Status (Inform to Customer)
+        rowData[72] = status
+
+        // Column BS (index 70) - Actual timestamp (only if status is "Done")
         if (status === "Done") {
-          rowData[69] = formatTimestamp()
+          rowData[70] = formatTimestamp()
         }
 
         // Prepare update data for this specific record
@@ -343,7 +335,7 @@ function InformToCustomerPage() {
           action: "update",
           sheetName: CONFIG.SOURCE_SHEET_NAME,
           rowIndex: record._rowIndex,
-          rowData: JSON.stringify(rowData)
+          rowData: JSON.stringify(rowData),
         }
 
         const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
@@ -358,47 +350,46 @@ function InformToCustomerPage() {
       })
 
       const results = await Promise.all(updatePromises)
-      const failedUpdates = results.filter(result => !result.success)
+      const failedUpdates = results.filter((result) => !result.success)
 
       if (failedUpdates.length > 0) {
         throw new Error("Some updates failed")
       }
 
       setSuccessMessage(`Successfully updated ${selectedRecordIds.length} customer notification record(s)`)
-      
+
       // Update local state
-      const updatedRecords = selectedRecordIds.map(recordId => {
-        const record = pendingData.find(r => r._id === recordId)
+      const updatedRecords = selectedRecordIds.map((recordId) => {
+        const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         return {
           ...record,
           informToCustomer: status,
-          actual: status === "Done" ? formatTimestamp() : record.actual // Keep existing actual date if not "Done"
+          actual: status === "Done" ? formatTimestamp() : record.actual,
         }
       })
 
-      // Only move records to history if status is "Done", keep all others in pending
-      const doneRecords = updatedRecords.filter(record => record.informToCustomer === "Done")
-      
+      // Only move records to history if status is "Done"
+      const doneRecords = updatedRecords.filter((record) => record.informToCustomer === "Done")
+
       // Update pending data: remove only "Done" records, keep and update all others
-      setPendingData(prev => {
-        return prev.map(record => {
-          const updatedRecord = updatedRecords.find(updated => updated._id === record._id)
-          if (updatedRecord) {
-            // If this record was updated and is NOT "Done", return the updated version
-            if (updatedRecord.informToCustomer !== "Done") {
-              return updatedRecord
+      setPendingData((prev) => {
+        return prev
+          .map((record) => {
+            const updatedRecord = updatedRecords.find((updated) => updated._id === record._id)
+            if (updatedRecord) {
+              if (updatedRecord.informToCustomer !== "Done") {
+                return updatedRecord
+              }
+              return null
             }
-            // If this record was updated and IS "Done", it will be filtered out below
-            return null
-          }
-          // If this record was not updated, keep it as is
-          return record
-        }).filter(record => record !== null) // Remove null entries (the "Done" records)
+            return record
+          })
+          .filter((record) => record !== null)
       })
 
       if (doneRecords.length > 0) {
-        setHistoryData(prev => [...doneRecords, ...prev])
+        setHistoryData((prev) => [...doneRecords, ...prev])
       }
 
       // Clear selections and status values
@@ -409,7 +400,6 @@ function InformToCustomerPage() {
       setTimeout(() => {
         setSuccessMessage("")
       }, 3000)
-
     } catch (error) {
       console.error("Error updating customer notifications:", error)
       alert("Failed to update customer notifications: " + error.message)
@@ -602,6 +592,9 @@ function InformToCustomerPage() {
                       GST Number
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      GST Certificates
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Bank Account Details
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -686,6 +679,21 @@ function InformToCustomerPage() {
                             <div className="text-xs text-gray-900">{record.gstNumber || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
+                            {record.gstCertificates ? (
+                              <a
+                                href={record.gstCertificates}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
                             {record.bankAccountDetails ? (
                               <a
                                 href={record.bankAccountDetails}
@@ -762,8 +770,10 @@ function InformToCustomerPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={21} className="px-4 py-8 text-center text-gray-500 text-sm">
-                          {searchTerm ? "No history records matching your search" : "No completed customer notifications found"}
+                        <td colSpan={22} className="px-4 py-8 text-center text-gray-500 text-sm">
+                          {searchTerm
+                            ? "No history records matching your search"
+                            : "No completed customer notifications found"}
                         </td>
                       </tr>
                     )
@@ -842,15 +852,28 @@ function InformToCustomerPage() {
                           )}
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900 font-medium text-blue-600">
-                            {record.ipName || "—"}
-                          </div>
+                          <div className="text-xs text-gray-900 font-medium text-blue-600">{record.ipName || "—"}</div>
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs text-gray-900">{record.ipContact || "—"}</div>
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs text-gray-900">{record.gstNumber || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          {record.gstCertificates ? (
+                            <a
+                              href={record.gstCertificates}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           {record.bankAccountDetails ? (

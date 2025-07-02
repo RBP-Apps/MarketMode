@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Package } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
-// Configuration object
+// Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
@@ -54,6 +54,7 @@ function ProjectCommissionPage() {
   const [username, setUsername] = useState("")
   const [selectedRows, setSelectedRows] = useState({})
   const [statusValues, setStatusValues] = useState({})
+  const [dateValues, setDateValues] = useState({})
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -69,6 +70,15 @@ function ProjectCommissionPage() {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
   }, [])
 
+  const formatDateOnly = useCallback((dateString) => {
+    if (!dateString) return ""
+    const date = new Date(dateString)
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
+  }, [])
+
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
   }, [])
@@ -80,7 +90,7 @@ function ProjectCommissionPage() {
     setUsername(user || "")
   }, [])
 
-  // Fetch dropdown options
+  // Fetch dropdown options from Drop-Down Value sheet Column H2:H
   const fetchDropdownOptions = useCallback(async () => {
     try {
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.DROPDOWN_SHEET_NAME}&action=fetch`)
@@ -140,7 +150,7 @@ function ProjectCommissionPage() {
     }
   }, [isEmpty])
 
-  // Optimized data fetching
+  // Optimized data fetching with updated column mappings
   const fetchSheetData = useCallback(async () => {
     try {
       setLoading(true)
@@ -196,12 +206,12 @@ function ProjectCommissionPage() {
           return
         }
 
-        // Check conditions: Column DK (index 114) not null and Column DL (index 115)
-        const columnDK = rowValues[114] // Column DK
-        const columnDL = rowValues[115] // Column DL
+        // Updated conditions: Column DM (index 116) not null and Column DN (index 117)
+        const columnDM = rowValues[116] // Column DM (index 116)
+        const columnDN = rowValues[117] // Column DN (index 117)
 
-        const hasColumnDK = !isEmpty(columnDK)
-        if (!hasColumnDK) return // Skip if column DK is empty
+        const hasColumnDM = !isEmpty(columnDM)
+        if (!hasColumnDM) return // Skip if column DM is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
@@ -220,23 +230,23 @@ function ProjectCommissionPage() {
           address: rowValues[3] || "", // D
           contactNumber: rowValues[6] || "", // G
           surveyorName: rowValues[29] || "", // AD
-          // Project Commission specific columns
-          powerPurchaseAgreement: rowValues[99] || "", // CV
-          vendorConsumerAgreement: rowValues[100] || "", // CW
-          quotationCopy: rowValues[101] || "", // CX
-          applicationCopy: rowValues[102] || "", // CY
-          cancellationCheque: rowValues[107] || "", // DD
-          electricityBill: rowValues[108] || "", // DE
-          witnessIdProof: rowValues[109] || "", // DF
-          inspection: rowValues[113] || "", // DJ
-          actual: rowValues[115] || "", // DL
-          projectCommission: rowValues[117] || "", // DN
+          // Project Commission specific columns - Updated mappings
+          powerPurchaseAgreement: rowValues[100] || "", // CW (was CV)
+          vendorConsumerAgreement: rowValues[101] || "", // CX (was CW)
+          quotationCopy: rowValues[102] || "", // CY (was CX)
+          applicationCopy: rowValues[103] || "", // CZ (was CY)
+          electricityBill: rowValues[109] || "", // DF (was DE)
+          witnessIdProof: rowValues[110] || "", // DG (was DF)
+          inspection: rowValues[114] || "", // DK (was DJ)
+          date: rowValues[115] || "", // DL
+          projectCommission: rowValues[119] || "", // DP
+          actualDate: rowValues[117] || "", // DN
         }
 
-        // Check if Column DL is null for pending, not null for history
-        const isColumnDLEmpty = isEmpty(columnDL)
+        // Check if Column DN is null for pending, not null for history
+        const isColumnDNEmpty = isEmpty(columnDN)
 
-        if (isColumnDLEmpty) {
+        if (isColumnDNEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -257,15 +267,22 @@ function ProjectCommissionPage() {
     fetchSheetData()
   }, [fetchSheetData])
 
-  // Initialize status values with existing project commission values
+  // Initialize status and date values with existing data
   useEffect(() => {
     const initialStatusValues = {}
+    const initialDateValues = {}
+
     pendingData.forEach((record) => {
       if (record.projectCommission && record.projectCommission !== "") {
         initialStatusValues[record._id] = record.projectCommission
       }
+      if (record.date && record.date !== "") {
+        initialDateValues[record._id] = record.date
+      }
     })
+
     setStatusValues(initialStatusValues)
+    setDateValues(initialDateValues)
   }, [pendingData])
 
   // Optimized filtered data with debounced search
@@ -303,6 +320,13 @@ function ProjectCommissionPage() {
     }))
   }, [])
 
+  const handleDateChange = useCallback((recordId, date) => {
+    setDateValues((prev) => ({
+      ...prev,
+      [recordId]: date,
+    }))
+  }, [])
+
   const handleSubmit = async () => {
     const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
 
@@ -318,24 +342,39 @@ function ProjectCommissionPage() {
       return
     }
 
+    // Check if records with "Done" status have dates selected
+    const doneRecordsWithoutDate = selectedRecordIds.filter(
+      (id) => statusValues[id] === "Done" && (!dateValues[id] || dateValues[id] === ""),
+    )
+    if (doneRecordsWithoutDate.length > 0) {
+      alert("Please select date for all records with 'Done' status")
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+        const selectedDate = dateValues[recordId]
 
         if (!record) return
 
         // Create array with 120 empty strings to ensure we have enough columns
         const rowData = Array(120).fill("")
 
-        // Set specific columns:
-        // Column DN (index 117) - Status (Project Commission)
-        rowData[117] = status
+        // Set specific columns based on updated mappings:
+        // Column DP (index 119) - Status (Project Commission)
+        rowData[119] = status
 
-        // Column DL (index 115) - Actual timestamp (only if status is "Done")
+        // Column DQ (index 120) - Date (only if provided)
+        if (selectedDate) {
+          rowData[120] = formatDateOnly(selectedDate)
+        }
+
+        // Column DN (index 117) - Actual timestamp (only if status is "Done")
         if (status === "Done") {
-          rowData[115] = formatTimestamp()
+          rowData[117] = formatTimestamp()
         }
 
         // Prepare update data for this specific record
@@ -370,14 +409,17 @@ function ProjectCommissionPage() {
       const updatedRecords = selectedRecordIds.map((recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+        const selectedDate = dateValues[recordId]
+
         return {
           ...record,
           projectCommission: status,
-          actual: status === "Done" ? formatTimestamp() : record.actual, // Keep existing actual date if not "Done"
+          date: selectedDate ? formatDateOnly(selectedDate) : record.date,
+          actualDate: status === "Done" ? formatTimestamp() : record.actualDate,
         }
       })
 
-      // Only move records to history if status is "Done", keep all others in pending
+      // Only move records to history if status is "Done"
       const doneRecords = updatedRecords.filter((record) => record.projectCommission === "Done")
 
       // Update pending data: remove only "Done" records, keep and update all others
@@ -403,9 +445,10 @@ function ProjectCommissionPage() {
         setHistoryData((prev) => [...doneRecords, ...prev])
       }
 
-      // Clear selections and status values
+      // Clear selections and values
       setSelectedRows({})
       setStatusValues({})
+      setDateValues({})
 
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -424,6 +467,7 @@ function ProjectCommissionPage() {
     setSearchTerm("")
     setSelectedRows({})
     setStatusValues({})
+    setDateValues({})
   }, [])
 
   return (
@@ -564,6 +608,9 @@ function ProjectCommissionPage() {
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
                       </>
                     )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -593,11 +640,6 @@ function ProjectCommissionPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Application Copy
                     </th>
-                    {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cancellation Cheque
-                      </th>
-                    )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Electricity Bill
                     </th>
@@ -680,9 +722,6 @@ function ProjectCommissionPage() {
                             <div className="text-xs text-gray-900">{record.applicationCopy || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.cancellationCheque || "—"}</div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.electricityBill || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
@@ -700,7 +739,7 @@ function ProjectCommissionPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={15} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={14} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm
                             ? "No history records matching your search"
                             : "No completed project commission found"}
@@ -732,6 +771,15 @@ function ProjectCommissionPage() {
                               </option>
                             ))}
                           </select>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <input
+                            type="date"
+                            value={dateValues[record._id] || record.date || ""}
+                            onChange={(e) => handleDateChange(record._id, e.target.value)}
+                            disabled={!selectedRows[record._id] || statusValues[record._id] !== "Done"}
+                            className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs font-medium text-blue-900">{record.enquiryNumber || "—"}</div>
@@ -806,7 +854,7 @@ function ProjectCommissionPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={14} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={16} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm
                           ? "No pending project commission matching your search"
                           : "No pending project commission found"}

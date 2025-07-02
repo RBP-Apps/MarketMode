@@ -55,6 +55,7 @@ function IPAssignmentPage() {
     ipName: "",
     contactNumberOfIP: "",
     gstNumber: "",
+    gstCertificates: null,
     bankAccountDetails: null,
     aadharCard: null,
     panCard: null,
@@ -94,6 +95,7 @@ function IPAssignmentPage() {
       setError(null)
 
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.SOURCE_SHEET_NAME}&action=fetch`)
+
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status}`)
       }
@@ -179,11 +181,12 @@ function IPAssignmentPage() {
           ipName: rowValues[56] || "", // BE
           ipContact: rowValues[57] || "", // BF
           gstNumber: rowValues[58] || "", // BG
-          bankAccountDetails: rowValues[59] || "", // BH
-          aadharCard: rowValues[60] || "", // BI
-          panCard: rowValues[61] || "", // BJ
-          workOrderNumber: rowValues[62] || "", // BK
-          workOrderCopy: rowValues[63] || "", // BL
+          gstCertificates: rowValues[59] || "", // BH
+          bankAccountDetails: rowValues[60] || "", // BI
+          aadharCard: rowValues[61] || "", // BJ
+          panCard: rowValues[62] || "", // BK
+          workOrderNumber: rowValues[63] || "", // BL
+          workOrderCopy: rowValues[64] || "", // BM
         }
 
         // Check if Column BC is null for pending, not null for history
@@ -237,6 +240,7 @@ function IPAssignmentPage() {
       ipName: "",
       contactNumberOfIP: "",
       gstNumber: "",
+      gstCertificates: null,
       bankAccountDetails: null,
       aadharCard: null,
       panCard: null,
@@ -302,10 +306,15 @@ function IPAssignmentPage() {
     setIsSubmitting(true)
     try {
       // Upload images and get URLs
+      let gstCertificatesUrl = ""
       let bankAccountDetailsUrl = ""
       let aadharCardUrl = ""
       let panCardUrl = ""
       let workOrderCopyUrl = ""
+
+      if (ipForm.gstCertificates) {
+        gstCertificatesUrl = await uploadImageToDrive(ipForm.gstCertificates)
+      }
 
       if (ipForm.bankAccountDetails) {
         bankAccountDetailsUrl = await uploadImageToDrive(ipForm.bankAccountDetails)
@@ -388,11 +397,12 @@ function IPAssignmentPage() {
           ipForm.ipName, // BE - IP Name (index 56)
           ipForm.contactNumberOfIP, // BF - Contact Number Of IP (index 57)
           ipForm.gstNumber, // BG - GST Number (index 58)
-          bankAccountDetailsUrl, // BH - Bank Account Details (index 59)
-          aadharCardUrl, // BI - Aadhar Card (index 60)
-          panCardUrl, // BJ - Pan Card (index 61)
-          ipForm.workOrderNumber, // BK - Work Order Number (index 62)
-          workOrderCopyUrl, // BL - Work Order Copy (index 63)
+          gstCertificatesUrl, // BH - GST Certificates (index 59)
+          bankAccountDetailsUrl, // BI - Bank Account Details (index 60)
+          aadharCardUrl, // BJ - Aadhar Card (index 61)
+          panCardUrl, // BK - Pan Card (index 62)
+          ipForm.workOrderNumber, // BL - Work Order Number (index 63)
+          workOrderCopyUrl, // BM - Work Order Copy (index 64)
         ]),
       }
 
@@ -405,13 +415,12 @@ function IPAssignmentPage() {
       })
 
       const result = await response.json()
+
       if (result.success) {
         setSuccessMessage(`IP Assignment completed successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowIPModal(false)
-
         // Move record from pending to history immediately
         setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-
         // Add to history with updated data
         const updatedRecord = {
           ...selectedRecord,
@@ -419,13 +428,13 @@ function IPAssignmentPage() {
           ipName: ipForm.ipName,
           ipContact: ipForm.contactNumberOfIP,
           gstNumber: ipForm.gstNumber,
+          gstCertificates: gstCertificatesUrl,
           bankAccountDetails: bankAccountDetailsUrl,
           aadharCard: aadharCardUrl,
           panCard: panCardUrl,
           workOrderNumber: ipForm.workOrderNumber,
           workOrderCopy: workOrderCopyUrl,
         }
-
         setHistoryData((prev) => [updatedRecord, ...prev])
 
         // Clear success message after 3 seconds
@@ -455,6 +464,7 @@ function IPAssignmentPage() {
       ipName: "",
       contactNumberOfIP: "",
       gstNumber: "",
+      gstCertificates: null,
       bankAccountDetails: null,
       aadharCard: null,
       panCard: null,
@@ -643,6 +653,9 @@ function IPAssignmentPage() {
                           GST Number
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          GST Certificates
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Bank Account Details
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -719,6 +732,21 @@ function IPAssignmentPage() {
                             <div className="text-xs text-gray-900">{record.gstNumber || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
+                            {record.gstCertificates ? (
+                              <a
+                                href={record.gstCertificates}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
                             {record.bankAccountDetails ? (
                               <a
                                 href={record.bankAccountDetails}
@@ -785,7 +813,7 @@ function IPAssignmentPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={18} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={19} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm ? "No history records matching your search" : "No completed IP assignments found"}
                         </td>
                       </tr>
@@ -1027,6 +1055,26 @@ function IPAssignmentPage() {
                       placeholder="Enter work order number"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
+                  </div>
+
+                  {/* GST Certificates */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      GST Certificates
+                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload("gstCertificates", e.target.files[0])}
+                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    {ipForm.gstCertificates && (
+                      <p className="text-sm text-green-600 mt-2 flex items-center">
+                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                        {ipForm.gstCertificates.name}
+                      </p>
+                    )}
                   </div>
 
                   {/* Bank Account Details */}

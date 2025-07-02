@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
-// Configuration object
+// Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1SUhoI00UZ8jkao8tXVCPAbyBZLoYp5ko",
+  // Updated Sheet ID
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   // Updated page configuration
@@ -25,14 +27,17 @@ const CONFIG = {
 // Debounce hook for search optimization
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value)
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value)
     }, delay)
+
     return () => {
       clearTimeout(handler)
     }
   }, [value, delay])
+
   return debouncedValue
 }
 
@@ -97,7 +102,7 @@ function InstallationPage() {
     setUsername(user || "")
   }, [])
 
-  // Optimized data fetching
+  // Optimized data fetching with updated column mappings
   const fetchSheetData = useCallback(async () => {
     try {
       setLoading(true)
@@ -150,12 +155,12 @@ function InstallationPage() {
           return
         }
 
-        // Check conditions: Column BZ (index 77) not null and Column CA (index 78)
-        const columnBZ = rowValues[77] // Column BZ
+        // Updated conditions: Column CA (index 78) not null and Column CB (index 79)
         const columnCA = rowValues[78] // Column CA
+        const columnCB = rowValues[79] // Column CB
 
-        const hasColumnBZ = !isEmpty(columnBZ)
-        if (!hasColumnBZ) return // Skip if column BZ is empty
+        const hasColumnCA = !isEmpty(columnCA)
+        if (!hasColumnCA) return // Skip if column CA is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
@@ -168,7 +173,8 @@ function InstallationPage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
-          // Basic info columns
+
+          // Updated column mappings based on specifications
           enquiryNumber: rowValues[1] || "", // B
           beneficiaryName: rowValues[2] || "", // C
           address: rowValues[3] || "", // D
@@ -179,31 +185,32 @@ function InstallationPage() {
           ipName: rowValues[56] || "", // BE
           ipContact: rowValues[57] || "", // BF
           gstNumber: rowValues[58] || "", // BG
-          aadharCard: rowValues[60] || "", // BI
-          panCard: rowValues[61] || "", // BJ
-          workOrderNumber: rowValues[62] || "", // BK
-          workOrderCopy: rowValues[63] || "", // BL
-          dispatchMaterial: rowValues[67] || "", // BP
-          informToCustomer: rowValues[71] || "", // BT
-          copyOfReceipt: rowValues[75] || "", // BX
-          dateOfReceipt: rowValues[76] || "", // BY
+          aadharCard: rowValues[61] || "", // BJ
+          panCard: rowValues[62] || "", // BK
+          workOrderNumber: rowValues[63] || "", // BL
+          workOrderCopy: rowValues[64] || "", // BM
+          dispatchMaterial: rowValues[68] || "", // BQ
+          informToCustomer: rowValues[72] || "", // BU
+          copyOfReceipt: rowValues[76] || "", // BY
+          dateOfReceipt: rowValues[77] || "", // BZ
+
           // Installation data
-          actual: rowValues[78] || "", // CA
-          dateOfInstallation: rowValues[80] || "", // CC
-          routing: rowValues[81] || "", // CD
-          earthing: rowValues[82] || "", // CE
-          baseFoundation: rowValues[83] || "", // CF
-          wiring: rowValues[84] || "", // CG
-          foundationPhoto: rowValues[85] || "", // CH
-          afterInstallationPhoto: rowValues[86] || "", // CI
-          photoWithCustomer: rowValues[87] || "", // CJ
-          completeInstallationPhoto: rowValues[88] || "", // CK
+          actual: rowValues[79] || "", // CB
+          dateOfInstallation: rowValues[81] || "", // CD
+          routing: rowValues[82] || "", // CE
+          earthing: rowValues[83] || "", // CF
+          baseFoundation: rowValues[84] || "", // CG
+          wiring: rowValues[85] || "", // CH
+          foundationPhoto: rowValues[86] || "", // CI
+          afterInstallationPhoto: rowValues[87] || "", // CJ
+          photoWithCustomer: rowValues[88] || "", // CK
+          completeInstallationPhoto: rowValues[89] || "", // CL
         }
 
-        // Check if Column CA is null for pending, not null for history
-        const isColumnCAEmpty = isEmpty(columnCA)
+        // Check if Column CB is null for pending, not null for history
+        const isColumnCBEmpty = isEmpty(columnCB)
 
-        if (isColumnCAEmpty) {
+        if (isColumnCBEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -338,24 +345,24 @@ function InstallationPage() {
         completeInstallationPhotoUrl = await uploadImageToDrive(installForm.completeInstallationPhoto)
       }
 
-      // Prepare update data
+      // Prepare update data with corrected column indices
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
         rowData: JSON.stringify([
-          ...Array(78).fill(""), // Fill columns A to CA (index 77) with empty strings to keep existing data
-          formatTimestamp(), // CA - Actual timestamp (index 78)
-          "", // CB - keep existing
-          formatDate(installForm.dateOfInstallation), // CC - Date Of Installation (index 80)
-          installForm.routing, // CD - Routing (index 81)
-          installForm.earthing, // CE - Earthing (index 82)
-          installForm.baseFoundation, // CF - Base Foundation (index 83)
-          installForm.wiring, // CG - Wiring (index 84)
-          foundationPhotoUrl, // CH - Foundation Photo (index 85)
-          afterInstallationPhotoUrl, // CI - After Installation Photo (index 86)
-          photoWithCustomerUrl, // CJ - Photo With Customer (index 87)
-          completeInstallationPhotoUrl, // CK - Complete Installation Photo (index 88)
+          ...Array(79).fill(""), // Fill columns A to CB (index 78) with empty strings to keep existing data
+          formatTimestamp(), // CB - Actual timestamp (index 79)
+          "", // CC - keep existing
+          formatDate(installForm.dateOfInstallation), // CD - Date Of Installation (index 81)
+          installForm.routing, // CE - Routing (index 82)
+          installForm.earthing, // CF - Earthing (index 83)
+          installForm.baseFoundation, // CG - Base Foundation (index 84)
+          installForm.wiring, // CH - Wiring (index 85)
+          foundationPhotoUrl, // CI - Foundation Photo (index 86)
+          afterInstallationPhotoUrl, // CJ - After Installation Photo (index 87)
+          photoWithCustomerUrl, // CK - Photo With Customer (index 88)
+          completeInstallationPhotoUrl, // CL - Complete Installation Photo (index 89)
         ]),
       }
 
@@ -554,6 +561,7 @@ function InstallationPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Contact Number
                     </th>
+
                     {!showHistory && (
                       <>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -594,6 +602,7 @@ function InstallationPage() {
                         </th>
                       </>
                     )}
+
                     {showHistory && (
                       <>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -639,6 +648,7 @@ function InstallationPage() {
                     )}
                   </tr>
                 </thead>
+
                 <tbody className="bg-white divide-y divide-gray-200">
                   {showHistory ? (
                     filteredHistoryData.length > 0 ? (

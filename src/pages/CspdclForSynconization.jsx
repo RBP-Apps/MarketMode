@@ -27,14 +27,17 @@ const CONFIG = {
 // Debounce hook for search optimization
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value)
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value)
     }, delay)
+
     return () => {
       clearTimeout(handler)
     }
   }, [value, delay])
+
   return debouncedValue
 }
 
@@ -52,19 +55,19 @@ function CSPDCLDocPage() {
   const [userRole, setUserRole] = useState("")
   const [username, setUsername] = useState("")
 
-  // Document form state
+  // Document form state - Updated to use checkboxes that store 'OK' or blank
   const [docForm, setDocForm] = useState({
     powerPurchaseAgreement: null,
     vendorConsumerAgreement: null,
-    quotationCopy: "",
-    applicationCopy: "",
-    physibilityReport: "",
-    tokenForSubsidy: "",
-    panCard: "",
-    aadharCard: "",
-    cancellationCheque: "",
-    electricityBill: "",
-    witnessIdProof: "",
+    quotationCopy: false,
+    applicationCopy: false,
+    physibilityReport: false,
+    tokenForSubsidy: false,
+    panCard: false,
+    aadharCard: false,
+    cancellationCheque: false,
+    electricityBill: false,
+    witnessIdProof: false,
   })
 
   // Debounced search term for better performance
@@ -78,6 +81,7 @@ function CSPDCLDocPage() {
     const hours = now.getHours().toString().padStart(2, "0")
     const minutes = now.getMinutes().toString().padStart(2, "0")
     const seconds = now.getSeconds().toString().padStart(2, "0")
+
     // Return formatted datetime string exactly as "DD/MM/YYYY hh:mm:ss"
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
   }, [])
@@ -93,7 +97,7 @@ function CSPDCLDocPage() {
     setUsername(user || "")
   }, [])
 
-  // Optimized data fetching
+  // Optimized data fetching with corrected column mappings
   const fetchSheetData = useCallback(async () => {
     try {
       setLoading(true)
@@ -146,12 +150,13 @@ function CSPDCLDocPage() {
           return
         }
 
-        // Check conditions: Column CS (index 96) not null and Column CT (index 97)
-        const columnCS = rowValues[96] // Column CS
+        // Condition: Column CT (index 97) not null for both pending and history
+        // Column CU (index 98) null for pending, not null for history
         const columnCT = rowValues[97] // Column CT
+        const columnCU = rowValues[98] // Column CU
 
-        const hasColumnCS = !isEmpty(columnCS)
-        if (!hasColumnCS) return // Skip if column CS is empty
+        const hasColumnCT = !isEmpty(columnCT)
+        if (!hasColumnCT) return // Skip if column CT is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
@@ -164,39 +169,41 @@ function CSPDCLDocPage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
-          // Basic info columns
+
+          // Basic info columns with exact mappings as specified
           enquiryNumber: rowValues[1] || "", // B
           beneficiaryName: rowValues[2] || "", // C
           address: rowValues[3] || "", // D
           contactNumber: rowValues[6] || "", // G
           surveyorName: rowValues[29] || "", // AD
-          dispatchMaterial: rowValues[67] || "", // BP
-          informToCustomer: rowValues[71] || "", // BT
-          copyOfReceipt: rowValues[75] || "", // BX (IMAGE)
-          dateOfReceipt: rowValues[76] || "", // BY
-          dateOfInstallation: rowValues[80] || "", // CC
-          completeInstallationPhoto: rowValues[88] || "", // CK (IMAGE)
-          consumerBillNumber: rowValues[92] || "", // CO
-          vendorBillNumber: rowValues[94] || "", // CQ
-          // Document submission data
-          actual: rowValues[97] || "", // CT
-          powerPurchaseAgreement: rowValues[99] || "", // CV
-          vendorConsumerAgreement: rowValues[100] || "", // CW
-          quotationCopy: rowValues[101] || "", // CX
-          applicationCopy: rowValues[102] || "", // CY
-          physibilityReport: rowValues[103] || "", // CZ
-          tokenForSubsidy: rowValues[104] || "", // DA
-          panCard: rowValues[105] || "", // DB
-          aadharCard: rowValues[106] || "", // DC
-          cancellationCheque: rowValues[107] || "", // DD
-          electricityBill: rowValues[108] || "", // DE
-          witnessIdProof: rowValues[109] || "", // DF
+          dispatchMaterial: rowValues[69] || "", // BQ (column BQ is index 69, not 68)
+          informToCustomer: rowValues[72] || "", // BU
+          copyOfReceipt: rowValues[76] || "", // BY
+          dateOfReceipt: rowValues[77] || "", // BZ
+          dateOfInstallation: rowValues[81] || "", // CD
+          completeInstallationPhoto: rowValues[89] || "", // CL
+          consumerBillNumber: rowValues[93] || "", // CP
+          vendorBillNumber: rowValues[95] || "", // CR
+
+          // Document submission data - FIXED column mappings
+          actual: rowValues[98] || "", // CU - timestamp
+          powerPurchaseAgreement: rowValues[100] || "", // CW
+          vendorConsumerAgreement: rowValues[101] || "", // CX
+          quotationCopy: rowValues[102] || "", // CY
+          applicationCopy: rowValues[103] || "", // CZ
+          physibilityReport: rowValues[104] || "", // DA - FIXED: was 105, now 104
+          tokenForSubsidy: rowValues[105] || "", // DB - FIXED: was 106, now 105
+          panCard: rowValues[106] || "", // DC - FIXED: was 107, now 106
+          aadharCard: rowValues[107] || "", // DD - FIXED: was 108, now 107
+          cancellationCheque: rowValues[108] || "", // DE - FIXED: was 109, now 108
+          electricityBill: rowValues[109] || "", // DF - FIXED: was 110, now 109
+          witnessIdProof: rowValues[110] || "", // DG - FIXED: was 111, now 110
         }
 
-        // Check if Column CT is null for pending, not null for history
-        const isColumnCTEmpty = isEmpty(columnCT)
+        // Check if Column CU is null for pending, not null for history
+        const isColumnCUEmpty = isEmpty(columnCU)
 
-        if (isColumnCTEmpty) {
+        if (isColumnCUEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -243,15 +250,15 @@ function CSPDCLDocPage() {
     setDocForm({
       powerPurchaseAgreement: null,
       vendorConsumerAgreement: null,
-      quotationCopy: "",
-      applicationCopy: "",
-      physibilityReport: "",
-      tokenForSubsidy: "",
-      panCard: "",
-      aadharCard: "",
-      cancellationCheque: "",
-      electricityBill: "",
-      witnessIdProof: "",
+      quotationCopy: false,
+      applicationCopy: false,
+      physibilityReport: false,
+      tokenForSubsidy: false,
+      panCard: false,
+      aadharCard: false,
+      cancellationCheque: false,
+      electricityBill: false,
+      witnessIdProof: false,
     })
     setShowDocModal(true)
   }, [])
@@ -260,8 +267,8 @@ function CSPDCLDocPage() {
     setDocForm((prev) => ({ ...prev, [field]: file }))
   }, [])
 
-  const handleInputChange = useCallback((field, value) => {
-    setDocForm((prev) => ({ ...prev, [field]: value }))
+  const handleCheckboxChange = useCallback((field, checked) => {
+    setDocForm((prev) => ({ ...prev, [field]: checked }))
   }, [])
 
   const fileToBase64 = useCallback((file) => {
@@ -324,38 +331,40 @@ function CSPDCLDocPage() {
       }
 
       // Create a full row array with existing data plus new document data
-      // Initialize array with empty strings for all columns (up to column DF which is index 109)
-      const rowData = new Array(110).fill("")
-      
+      // Initialize array with empty strings for all columns (up to column DG which is index 110)
+      const rowData = new Array(111).fill("")
+
       // Fill existing data from selectedRecord
       rowData[1] = selectedRecord.enquiryNumber || "" // B - Enquiry Number
-      rowData[2] = selectedRecord.beneficiaryName || "" // C - Beneficiary Name  
+      rowData[2] = selectedRecord.beneficiaryName || "" // C - Beneficiary Name
       rowData[3] = selectedRecord.address || "" // D - Address
       rowData[6] = selectedRecord.contactNumber || "" // G - Contact Number
       rowData[29] = selectedRecord.surveyorName || "" // AD - Surveyor Name
-      rowData[67] = selectedRecord.dispatchMaterial || "" // BP - Dispatch Material
-      rowData[71] = selectedRecord.informToCustomer || "" // BT - Inform To Customer
-      rowData[75] = selectedRecord.copyOfReceipt || "" // BX - Copy Of Receipt
-      rowData[76] = selectedRecord.dateOfReceipt || "" // BY - Date Of Receipt
-      rowData[80] = selectedRecord.dateOfInstallation || "" // CC - Date Of Installation
-      rowData[88] = selectedRecord.completeInstallationPhoto || "" // CK - Complete Installation Photo
-      rowData[92] = selectedRecord.consumerBillNumber || "" // CO - Consumer Bill Number
-      rowData[94] = selectedRecord.vendorBillNumber || "" // CQ - Vendor Bill Number
-      // Note: We don't modify Column CS as per requirement - keep existing value unchanged
-      
-      // Add new document submission data with correct column mapping
-      rowData[97] = formatTimestamp() // CT - Actual timestamp (Column CT = index 97)
-      rowData[99] = powerPurchaseAgreementUrl // CV - Power Purchase Agreement (Column CV = index 99)
-      rowData[100] = vendorConsumerAgreementUrl // CW - Vendor Consumer Agreement (Column CW = index 100)
-      rowData[101] = docForm.quotationCopy // CX - Quotation Copy (Column CX = index 101)
-      rowData[102] = docForm.applicationCopy // CY - Application Copy (Column CY = index 102)
-      rowData[103] = docForm.physibilityReport // CZ - Physibility Report (Column CZ = index 103)
-      rowData[104] = docForm.tokenForSubsidy // DA - Token For Subsidy (Column DA = index 104)
-      rowData[105] = docForm.panCard // DB - Pan Card (Column DB = index 105)
-      rowData[106] = docForm.aadharCard // DC - Aadhar Card (Column DC = index 106)
-      rowData[107] = docForm.cancellationCheque // DD - Cancellation Cheque (Column DD = index 107)
-      rowData[108] = docForm.electricityBill // DE - Electricity Bill (Column DE = index 108)
-      rowData[109] = docForm.witnessIdProof // DF - Witness Id Proof (Column DF = index 109)
+      rowData[69] = selectedRecord.dispatchMaterial || "" // BQ - Dispatch Material (corrected index)
+      rowData[72] = selectedRecord.informToCustomer || "" // BU - Inform To Customer
+      rowData[76] = selectedRecord.copyOfReceipt || "" // BY - Copy Of Receipt
+      rowData[77] = selectedRecord.dateOfReceipt || "" // BZ - Date Of Receipt
+      rowData[81] = selectedRecord.dateOfInstallation || "" // CD - Date Of Installation
+      rowData[89] = selectedRecord.completeInstallationPhoto || "" // CL - Complete Installation Photo
+      rowData[93] = selectedRecord.consumerBillNumber || "" // CP - Consumer Bill Number
+      rowData[95] = selectedRecord.vendorBillNumber || "" // CR - Vendor Bill Number
+
+      // Keep Column CT unchanged (this is what identifies the record)
+      rowData[97] = selectedRecord.actual || rowData[97] // CT - Keep existing value
+
+      // Add new document submission data with FIXED column mapping
+      rowData[98] = formatTimestamp() // CU - Actual timestamp
+      rowData[100] = powerPurchaseAgreementUrl // CW - Power Purchase Agreement
+      rowData[101] = vendorConsumerAgreementUrl // CX - Vendor Consumer Agreement
+      rowData[102] = docForm.quotationCopy ? "OK" : "" // CY - Quotation Copy (store 'OK' or blank)
+      rowData[103] = docForm.applicationCopy ? "OK" : "" // CZ - Application Copy
+      rowData[104] = docForm.physibilityReport ? "OK" : "" // DA - FIXED: was 105, now 104
+      rowData[105] = docForm.tokenForSubsidy ? "OK" : "" // DB - FIXED: was 106, now 105
+      rowData[106] = docForm.panCard ? "OK" : "" // DC - FIXED: was 107, now 106
+      rowData[107] = docForm.aadharCard ? "OK" : "" // DD - FIXED: was 108, now 107
+      rowData[108] = docForm.cancellationCheque ? "OK" : "" // DE - FIXED: was 109, now 108
+      rowData[109] = docForm.electricityBill ? "OK" : "" // DF - FIXED: was 110, now 109
+      rowData[110] = docForm.witnessIdProof ? "OK" : "" // DG - FIXED: was 111, now 110
 
       // Prepare update data using existing update action
       const updateData = new FormData()
@@ -386,15 +395,15 @@ function CSPDCLDocPage() {
           actual: formatTimestamp(),
           powerPurchaseAgreement: powerPurchaseAgreementUrl,
           vendorConsumerAgreement: vendorConsumerAgreementUrl,
-          quotationCopy: docForm.quotationCopy,
-          applicationCopy: docForm.applicationCopy,
-          physibilityReport: docForm.physibilityReport,
-          tokenForSubsidy: docForm.tokenForSubsidy,
-          panCard: docForm.panCard,
-          aadharCard: docForm.aadharCard,
-          cancellationCheque: docForm.cancellationCheque,
-          electricityBill: docForm.electricityBill,
-          witnessIdProof: docForm.witnessIdProof,
+          quotationCopy: docForm.quotationCopy ? "OK" : "",
+          applicationCopy: docForm.applicationCopy ? "OK" : "",
+          physibilityReport: docForm.physibilityReport ? "OK" : "",
+          tokenForSubsidy: docForm.tokenForSubsidy ? "OK" : "",
+          panCard: docForm.panCard ? "OK" : "",
+          aadharCard: docForm.aadharCard ? "OK" : "",
+          cancellationCheque: docForm.cancellationCheque ? "OK" : "",
+          electricityBill: docForm.electricityBill ? "OK" : "",
+          witnessIdProof: docForm.witnessIdProof ? "OK" : "",
         }
 
         setHistoryData((prev) => [updatedRecord, ...prev])
@@ -425,15 +434,15 @@ function CSPDCLDocPage() {
     setDocForm({
       powerPurchaseAgreement: null,
       vendorConsumerAgreement: null,
-      quotationCopy: "",
-      applicationCopy: "",
-      physibilityReport: "",
-      tokenForSubsidy: "",
-      panCard: "",
-      aadharCard: "",
-      cancellationCheque: "",
-      electricityBill: "",
-      witnessIdProof: "",
+      quotationCopy: false,
+      applicationCopy: false,
+      physibilityReport: false,
+      tokenForSubsidy: false,
+      panCard: false,
+      aadharCard: false,
+      cancellationCheque: false,
+      electricityBill: false,
+      witnessIdProof: false,
     })
   }, [])
 
@@ -632,15 +641,13 @@ function CSPDCLDocPage() {
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
+                            <div className="text-xs text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.beneficiaryName || "—"}</div>
                           </td>
-                          <td className="px-2 py-3 max-w-xs">
-                            <div className="text-xs text-gray-900 truncate" title={record.address}>
-                              {record.address || "—"}
-                            </div>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.address || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.contactNumber || "—"}</div>
@@ -905,104 +912,122 @@ function CSPDCLDocPage() {
                     )}
                   </div>
 
-                  {/* Text Input Fields */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Quotation Copy</label>
+                  {/* Checkbox Fields */}
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.quotationCopy}
-                      onChange={(e) => handleInputChange("quotationCopy", e.target.value)}
-                      placeholder="Enter quotation copy details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="quotationCopy"
+                      checked={docForm.quotationCopy}
+                      onChange={(e) => handleCheckboxChange("quotationCopy", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="quotationCopy" className="ml-2 block text-sm text-gray-900">
+                      Quotation Copy
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Application Copy</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.applicationCopy}
-                      onChange={(e) => handleInputChange("applicationCopy", e.target.value)}
-                      placeholder="Enter application copy details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="applicationCopy"
+                      checked={docForm.applicationCopy}
+                      onChange={(e) => handleCheckboxChange("applicationCopy", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="applicationCopy" className="ml-2 block text-sm text-gray-900">
+                      Application Copy
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Physibility Report</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.physibilityReport}
-                      onChange={(e) => handleInputChange("physibilityReport", e.target.value)}
-                      placeholder="Enter physibility report details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="physibilityReport"
+                      checked={docForm.physibilityReport}
+                      onChange={(e) => handleCheckboxChange("physibilityReport", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="physibilityReport" className="ml-2 block text-sm text-gray-900">
+                      Physibility Report
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Token For Subsidy</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.tokenForSubsidy}
-                      onChange={(e) => handleInputChange("tokenForSubsidy", e.target.value)}
-                      placeholder="Enter token for subsidy details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="tokenForSubsidy"
+                      checked={docForm.tokenForSubsidy}
+                      onChange={(e) => handleCheckboxChange("tokenForSubsidy", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="tokenForSubsidy" className="ml-2 block text-sm text-gray-900">
+                      Token For Subsidy
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Pan Card</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.panCard}
-                      onChange={(e) => handleInputChange("panCard", e.target.value)}
-                      placeholder="Enter PAN card details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="panCard"
+                      checked={docForm.panCard}
+                      onChange={(e) => handleCheckboxChange("panCard", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="panCard" className="ml-2 block text-sm text-gray-900">
+                      Pan Card
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Aadhar Card</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.aadharCard}
-                      onChange={(e) => handleInputChange("aadharCard", e.target.value)}
-                      placeholder="Enter Aadhar card details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="aadharCard"
+                      checked={docForm.aadharCard}
+                      onChange={(e) => handleCheckboxChange("aadharCard", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="aadharCard" className="ml-2 block text-sm text-gray-900">
+                      Aadhar Card
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Cancellation Cheque</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.cancellationCheque}
-                      onChange={(e) => handleInputChange("cancellationCheque", e.target.value)}
-                      placeholder="Enter cancellation cheque details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="cancellationCheque"
+                      checked={docForm.cancellationCheque}
+                      onChange={(e) => handleCheckboxChange("cancellationCheque", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="cancellationCheque" className="ml-2 block text-sm text-gray-900">
+                      Cancellation Cheque
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Electricity Bill</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.electricityBill}
-                      onChange={(e) => handleInputChange("electricityBill", e.target.value)}
-                      placeholder="Enter electricity bill details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="electricityBill"
+                      checked={docForm.electricityBill}
+                      onChange={(e) => handleCheckboxChange("electricityBill", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="electricityBill" className="ml-2 block text-sm text-gray-900">
+                      Electricity Bill
+                    </label>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Witness Id Proof</label>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={docForm.witnessIdProof}
-                      onChange={(e) => handleInputChange("witnessIdProof", e.target.value)}
-                      placeholder="Enter witness ID proof details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      type="checkbox"
+                      id="witnessIdProof"
+                      checked={docForm.witnessIdProof}
+                      onChange={(e) => handleCheckboxChange("witnessIdProof", e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                    <label htmlFor="witnessIdProof" className="ml-2 block text-sm text-gray-900">
+                      Witness Id Proof
+                    </label>
                   </div>
                 </div>
 

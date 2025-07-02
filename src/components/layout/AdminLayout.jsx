@@ -93,7 +93,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/SurveyReport",
-      label: "Survey Report",
+      label: "Site Survey",
       icon: Search,
       active: location.pathname === "/dashboard/SurveyReport",
       showFor: ["admin", "user"]
@@ -184,7 +184,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/Redemption",
-      label: "Redemption",
+      label: "Subsidy e-Token",
       icon: RotateCcw,
       active: location.pathname === "/dashboard/Redemption",
       showFor: ["admin", "user"]

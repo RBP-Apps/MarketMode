@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Receipt } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
-// Configuration object
+// Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1A1-QDgKUGl8Chy5wPFXdFxM7-_OKYmg1",
+  // Updated Sheet ID
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   // Updated page configuration
@@ -25,14 +27,17 @@ const CONFIG = {
 // Debounce hook for search optimization
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value)
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value)
     }, delay)
+
     return () => {
       clearTimeout(handler)
     }
   }, [value, delay])
+
   return debouncedValue
 }
 
@@ -92,7 +97,7 @@ function BillingsPage() {
     setUsername(user || "")
   }, [])
 
-  // Optimized data fetching
+  // Optimized data fetching with corrected column mappings
   const fetchSheetData = useCallback(async () => {
     try {
       setLoading(true)
@@ -145,12 +150,12 @@ function BillingsPage() {
           return
         }
 
-        // Check conditions: Column CL (index 89) not null and Column CM (index 90)
-        const columnCL = rowValues[89] // Column CL
+        // Updated conditions: Column CM (index 90) not null and Column CN (index 91)
         const columnCM = rowValues[90] // Column CM
+        const columnCN = rowValues[91] // Column CN
 
-        const hasColumnCL = !isEmpty(columnCL)
-        if (!hasColumnCL) return // Skip if column CL is empty
+        const hasColumnCM = !isEmpty(columnCM)
+        if (!hasColumnCM) return // Skip if column CM is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
@@ -163,37 +168,37 @@ function BillingsPage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
-          // Basic info columns
+          // Basic info columns with corrected mappings
           enquiryNumber: rowValues[1] || "", // B
           beneficiaryName: rowValues[2] || "", // C
           address: rowValues[3] || "", // D
           contactNumber: rowValues[6] || "", // G
           surveyorName: rowValues[29] || "", // AD
-          dispatchMaterial: rowValues[67] || "", // BP
-          informToCustomer: rowValues[71] || "", // BT
-          copyOfReceipt: rowValues[75] || "", // BX
-          dateOfReceipt: rowValues[76] || "", // BY
-          dateOfInstallation: rowValues[80] || "", // CC
-          routing: rowValues[81] || "", // CD
-          earthing: rowValues[82] || "", // CE
-          baseFoundation: rowValues[83] || "", // CF
-          wiring: rowValues[84] || "", // CG
-          foundationPhoto: rowValues[85] || "", // CH
-          afterInstallationPhoto: rowValues[86] || "", // CI
-          photoWithCustomer: rowValues[87] || "", // CJ
-          completeInstallationPhoto: rowValues[88] || "", // CK
-          // Billing data
-          actual: rowValues[90] || "", // CM
-          consumerBillNumber: rowValues[92] || "", // CO
-          consumerBillCopy: rowValues[93] || "", // CP
-          vendorBillNumber: rowValues[94] || "", // CQ
-          vendorCopy: rowValues[95] || "", // CR
+          dispatchMaterial: rowValues[68] || "", // BQ (corrected from 67 to 68)
+          informToCustomer: rowValues[72] || "", // BU (corrected from 71 to 72)
+          copyOfReceipt: rowValues[76] || "", // BY (corrected from 75 to 76)
+          dateOfReceipt: rowValues[77] || "", // BZ (corrected from 76 to 77)
+          dateOfInstallation: rowValues[81] || "", // CD (corrected from 80 to 81)
+          routing: rowValues[82] || "", // CE (corrected from 81 to 82)
+          earthing: rowValues[83] || "", // CF (corrected from 82 to 83)
+          baseFoundation: rowValues[84] || "", // CG (corrected from 83 to 84)
+          wiring: rowValues[85] || "", // CH (corrected from 84 to 85)
+          foundationPhoto: rowValues[86] || "", // CI (corrected from 85 to 86)
+          afterInstallationPhoto: rowValues[87] || "", // CJ (corrected from 86 to 87)
+          photoWithCustomer: rowValues[88] || "", // CK (corrected from 87 to 88)
+          completeInstallationPhoto: rowValues[89] || "", // CL (corrected from 88 to 89)
+          // Billing data with corrected mappings
+          actual: rowValues[91] || "", // CN (corrected from 90 to 91)
+          consumerBillNumber: rowValues[93] || "", // CP (corrected from 92 to 93)
+          consumerBillCopy: rowValues[94] || "", // CQ (corrected from 93 to 94)
+          vendorBillNumber: rowValues[95] || "", // CR (corrected from 94 to 95)
+          vendorCopy: rowValues[96] || "", // CS (corrected from 95 to 96)
         }
 
-        // Check if Column CM is null for pending, not null for history
-        const isColumnCMEmpty = isEmpty(columnCM)
+        // Check if Column CN is null for pending, not null for history
+        const isColumnCNEmpty = isEmpty(columnCN)
 
-        if (isColumnCMEmpty) {
+        if (isColumnCNEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -313,19 +318,19 @@ function BillingsPage() {
         vendorCopyUrl = await uploadImageToDrive(billingForm.vendorCopy)
       }
 
-      // Prepare update data
+      // Prepare update data with corrected column positions
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
         rowData: JSON.stringify([
-          ...Array(90).fill(""), // Fill columns A to CM (index 89) with empty strings to keep existing data
-          formatTimestamp(), // CM - Actual timestamp (index 90)
-          "", // CN - keep existing
-          billingForm.consumerBillNumber, // CO - Consumer Bill Number (index 92)
-          consumerBillCopyUrl, // CP - Consumer Bill Copy (index 93)
-          billingForm.vendorBillNumber, // CQ - Vendor Bill Number (index 94)
-          vendorCopyUrl, // CR - Vendor Copy (index 95)
+          ...Array(91).fill(""), // Fill columns A to CN (index 90) with empty strings to keep existing data
+          formatTimestamp(), // CN - Actual timestamp (index 91)
+          "", // CO - keep existing (index 92)
+          billingForm.consumerBillNumber, // CP - Consumer Bill Number (index 93)
+          consumerBillCopyUrl, // CQ - Consumer Bill Copy (index 94)
+          billingForm.vendorBillNumber, // CR - Vendor Bill Number (index 95)
+          vendorCopyUrl, // CS - Vendor Copy (index 96)
         ]),
       }
 
@@ -355,7 +360,6 @@ function BillingsPage() {
           vendorBillNumber: billingForm.vendorBillNumber,
           vendorCopy: vendorCopyUrl,
         }
-
         setHistoryData((prev) => [updatedRecord, ...prev])
 
         // Clear success message after 3 seconds

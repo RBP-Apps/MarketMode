@@ -1,16 +1,16 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, ClipboardCheck } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, ClipboardCheck, Calendar } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
-// Configuration object
+// Updated Configuration object
 const CONFIG = {
-  // Apps Script URL
+  // Updated Apps Script URL
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
-  // Google Drive folder ID for file uploads
-  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
+  // Updated Google Sheets ID
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -54,6 +54,7 @@ function InspectionPage() {
   const [username, setUsername] = useState("")
   const [selectedRows, setSelectedRows] = useState({})
   const [statusValues, setStatusValues] = useState({})
+  const [dateValues, setDateValues] = useState({})
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -69,6 +70,15 @@ function InspectionPage() {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
   }, [])
 
+  const formatDate = useCallback((dateString) => {
+    if (!dateString) return ""
+    const date = new Date(dateString)
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
+  }, [])
+
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
   }, [])
@@ -80,7 +90,7 @@ function InspectionPage() {
     setUsername(user || "")
   }, [])
 
-  // Fetch dropdown options
+  // Fetch dropdown options from "Drop-Down Value" sheet Column H2:H
   const fetchDropdownOptions = useCallback(async () => {
     try {
       const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=${CONFIG.DROPDOWN_SHEET_NAME}&action=fetch`)
@@ -114,11 +124,11 @@ function InspectionPage() {
         rows = data.values.map((row) => ({ c: row.map((val) => ({ v: val })) }))
       }
 
-      // Extract values from column H (index 7) starting from row 2
+      // Extract values from column H (index 7) starting from row 2 (H2:H)
       const options = []
       rows.forEach((row, rowIndex) => {
         if (rowIndex >= 1) {
-          // Skip header row (row 1)
+          // Skip header row, start from row 2
           let rowValues = []
           if (row.c) {
             rowValues = row.c.map((cell) => (cell && cell.v !== undefined ? cell.v : ""))
@@ -140,7 +150,7 @@ function InspectionPage() {
     }
   }, [isEmpty])
 
-  // Optimized data fetching
+  // Fetch data from FMS sheet starting from row 7
   const fetchSheetData = useCallback(async () => {
     try {
       setLoading(true)
@@ -184,7 +194,7 @@ function InspectionPage() {
       }
 
       rows.forEach((row, rowIndex) => {
-        // Skip header rows and only process from row 7 onwards (rowIndex 6 in 0-based indexing)
+        // Process data starting from row 7 (rowIndex 6 in 0-based indexing)
         if (rowIndex < 6) return
 
         let rowValues = []
@@ -196,15 +206,18 @@ function InspectionPage() {
           return
         }
 
-        // Check conditions: Column DG (index 110) not null and Column DH (index 111)
-        const columnDG = rowValues[110] // Column DG
+        // Column mappings:
+        // DH = index 111 (column 112 in 1-based)
+        // DI = index 112 (column 113 in 1-based)
         const columnDH = rowValues[111] // Column DH
+        const columnDI = rowValues[112] // Column DI
 
-        const hasColumnDG = !isEmpty(columnDG)
-        if (!hasColumnDG) return // Skip if column DG is empty
+        // Condition: Column DH = 'Not Null'
+        const hasColumnDH = !isEmpty(columnDH)
+        if (!hasColumnDH) return // Skip if column DH is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
+        const enquiryNumber = rowValues[1] || "" // Column B
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -214,28 +227,30 @@ function InspectionPage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
-          // Basic info columns
-          enquiryNumber: rowValues[1] || "", // B
-          beneficiaryName: rowValues[2] || "", // C
-          address: rowValues[3] || "", // D
-          contactNumber: rowValues[6] || "", // G
-          surveyorName: rowValues[29] || "", // AD
-          // Inspection specific columns
-          powerPurchaseAgreement: rowValues[99] || "", // CV
-          vendorConsumerAgreement: rowValues[100] || "", // CW
-          quotationCopy: rowValues[101] || "", // CX
-          applicationCopy: rowValues[102] || "", // CY
-          cancellationCheque: rowValues[107] || "", // DD
-          electricityBill: rowValues[108] || "", // DE
-          witnessIdProof: rowValues[109] || "", // DF
-          actual: rowValues[111] || "", // DH
-          inspection: rowValues[113] || "", // DJ
+          // Data columns as per specifications
+          enquiryNumber: rowValues[1] || "", // Column B
+          beneficiaryName: rowValues[2] || "", // Column C
+          address: rowValues[3] || "", // Column D
+          contactNumber: rowValues[6] || "", // Column G
+          surveyorName: rowValues[29] || "", // Column AD (index 29)
+          // Document columns
+          powerPurchaseAgreement: rowValues[100] || "", // Column CW (index 100)
+          vendorConsumerAgreement: rowValues[101] || "", // Column CX (index 101)
+          quotationCopy: rowValues[102] || "", // Column CY (index 102)
+          applicationCopy: rowValues[103] || "", // Column CZ (index 103)
+          electricityBill: rowValues[109] || "", // Column DF (index 109)
+          witnessIdProof: rowValues[110] || "", // Column DG (index 110)
+          // Status columns
+          inspection: rowValues[113] || "", // Column DK (index 113)
+          date: rowValues[114] || "", // Column DL (index 114)
+          actual: rowValues[112] || "", // Column DI (index 112)
         }
 
-        // Check if Column DH is null for pending, not null for history
-        const isColumnDHEmpty = isEmpty(columnDH)
+        // Pending: Column DH = 'Not Null' and Column DI = 'Null'
+        // History: Column DH = 'Not Null' and Column DI = 'Not Null'
+        const isColumnDIEmpty = isEmpty(columnDI)
 
-        if (isColumnDHEmpty) {
+        if (isColumnDIEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -256,15 +271,22 @@ function InspectionPage() {
     fetchSheetData()
   }, [fetchSheetData])
 
-  // Initialize status values with existing inspection values
+  // Initialize status and date values with existing data
   useEffect(() => {
     const initialStatusValues = {}
+    const initialDateValues = {}
+
     pendingData.forEach((record) => {
       if (record.inspection && record.inspection !== "") {
         initialStatusValues[record._id] = record.inspection
       }
+      if (record.date && record.date !== "") {
+        initialDateValues[record._id] = record.date
+      }
     })
+
     setStatusValues(initialStatusValues)
+    setDateValues(initialDateValues)
   }, [pendingData])
 
   // Optimized filtered data with debounced search
@@ -300,6 +322,20 @@ function InspectionPage() {
       ...prev,
       [recordId]: status,
     }))
+    // Clear date if status is not "Done"
+    if (status !== "Done") {
+      setDateValues((prev) => ({
+        ...prev,
+        [recordId]: "",
+      }))
+    }
+  }, [])
+
+  const handleDateChange = useCallback((recordId, date) => {
+    setDateValues((prev) => ({
+      ...prev,
+      [recordId]: date,
+    }))
   }, [])
 
   const handleSubmit = async () => {
@@ -317,24 +353,40 @@ function InspectionPage() {
       return
     }
 
+    // Check if records with "Done" status have dates
+    const missingDates = selectedRecordIds.filter(
+      (id) => statusValues[id] === "Done" && (!dateValues[id] || dateValues[id] === ""),
+    )
+    if (missingDates.length > 0) {
+      alert("Please select date for all records with 'Done' status")
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+        const selectedDate = dateValues[recordId]
 
         if (!record) return
 
-        // Create array with 120 empty strings to ensure we have enough columns
+        // Create array with enough columns to cover all needed indices
         const rowData = Array(120).fill("")
 
-        // Set specific columns:
-        // Column DJ (index 113) - Status (Inspection)
+        // Update columns as per specifications:
+        // Status store in Column DK (index 113)
         rowData[113] = status
 
-        // Column DH (index 111) - Actual timestamp (only if status is "Done")
+        // Date store in Column DL (index 114) - format DD/MM/YYYY
+        if (selectedDate) {
+          rowData[114] = formatDate(selectedDate)
+        }
+
+        // Actual date store in Column DI (index 112) - format DD/MM/YYYY hh:mm:ss
+        // Condition: when user select Status = "Done"
         if (status === "Done") {
-          rowData[111] = formatTimestamp()
+          rowData[112] = formatTimestamp()
         }
 
         // Prepare update data for this specific record
@@ -369,15 +421,17 @@ function InspectionPage() {
       const updatedRecords = selectedRecordIds.map((recordId) => {
         const record = pendingData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+        const selectedDate = dateValues[recordId]
 
         return {
           ...record,
           inspection: status,
-          actual: status === "Done" ? formatTimestamp() : record.actual, // Keep existing actual date if not "Done"
+          date: selectedDate ? formatDate(selectedDate) : record.date,
+          actual: status === "Done" ? formatTimestamp() : record.actual,
         }
       })
 
-      // Only move records to history if status is "Done", keep all others in pending
+      // Only move records to history if status is "Done" (when Column DI gets populated)
       const doneRecords = updatedRecords.filter((record) => record.inspection === "Done")
 
       // Update pending data: remove only "Done" records, keep and update all others
@@ -403,9 +457,10 @@ function InspectionPage() {
         setHistoryData((prev) => [...doneRecords, ...prev])
       }
 
-      // Clear selections and status values
+      // Clear selections and values
       setSelectedRows({})
       setStatusValues({})
+      setDateValues({})
 
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -424,6 +479,7 @@ function InspectionPage() {
     setSearchTerm("")
     setSelectedRows({})
     setStatusValues({})
+    setDateValues({})
   }, [])
 
   return (
@@ -564,6 +620,9 @@ function InspectionPage() {
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
                       </>
                     )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -593,11 +652,6 @@ function InspectionPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Application Copy
                     </th>
-                    {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cancellation Cheque
-                      </th>
-                    )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Electricity Bill
                     </th>
@@ -605,9 +659,14 @@ function InspectionPage() {
                       Witness Id Proof
                     </th>
                     {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Inspection
-                      </th>
+                      <>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Inspection
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
+                      </>
                     )}
                   </tr>
                 </thead>
@@ -677,9 +736,6 @@ function InspectionPage() {
                             <div className="text-xs text-gray-900">{record.applicationCopy || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.cancellationCheque || "—"}</div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.electricityBill || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
@@ -690,11 +746,17 @@ function InspectionPage() {
                               {record.inspection || "—"}
                             </span>
                           </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900 flex items-center">
+                              <Calendar className="h-3 w-3 mr-1 text-gray-400" />
+                              {record.date || "—"}
+                            </div>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={14} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={15} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm ? "No history records matching your search" : "No completed inspection found"}
                         </td>
                       </tr>
@@ -724,6 +786,15 @@ function InspectionPage() {
                               </option>
                             ))}
                           </select>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <input
+                            type="date"
+                            value={dateValues[record._id] || ""}
+                            onChange={(e) => handleDateChange(record._id, e.target.value)}
+                            disabled={!selectedRows[record._id] || statusValues[record._id] !== "Done"}
+                            className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs font-medium text-blue-900">{record.enquiryNumber || "—"}</div>
@@ -795,7 +866,7 @@ function InspectionPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={13} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={14} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm ? "No pending inspection matching your search" : "No pending inspection found"}
                       </td>
                     </tr>

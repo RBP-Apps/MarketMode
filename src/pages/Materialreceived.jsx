@@ -26,14 +26,17 @@ const CONFIG = {
 // Debounce hook for search optimization
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value)
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value)
     }, delay)
+
     return () => {
       clearTimeout(handler)
     }
   }, [value, delay])
+
   return debouncedValue
 }
 
@@ -144,16 +147,15 @@ function MaterialReceivedSitePage() {
           return
         }
 
-        // Check conditions: Column BU (index 72) not null and Column BV (index 73)
-        const columnBU = rowValues[72] // Column BU
+        // Check conditions: Column BV (index 73) not null and Column BW (index 74)
         const columnBV = rowValues[73] // Column BV
+        const columnBW = rowValues[74] // Column BW
 
-        const hasColumnBU = !isEmpty(columnBU)
-        if (!hasColumnBU) return // Skip if column BU is empty
+        const hasColumnBV = !isEmpty(columnBV)
+        if (!hasColumnBV) return // Skip if column BV is empty
 
         const googleSheetsRowIndex = rowIndex + 1
         const enquiryNumber = rowValues[1] || ""
-
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -162,7 +164,7 @@ function MaterialReceivedSitePage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
-          // Basic info columns
+          // Basic info columns - Updated column mappings
           enquiryNumber: rowValues[1] || "", // B
           beneficiaryName: rowValues[2] || "", // C
           address: rowValues[3] || "", // D
@@ -175,23 +177,24 @@ function MaterialReceivedSitePage() {
           ipName: rowValues[56] || "", // BE
           ipContact: rowValues[57] || "", // BF
           gstNumber: rowValues[58] || "", // BG
-          bankAccountDetails: rowValues[59] || "", // BH
-          aadharCard: rowValues[60] || "", // BI
-          panCard: rowValues[61] || "", // BJ
-          workOrderNumber: rowValues[62] || "", // BK
-          workOrderCopy: rowValues[63] || "", // BL
-          dispatchMaterial: rowValues[67] || "", // BP
-          informToCustomer: rowValues[71] || "", // BT
+          gstCertificates: rowValues[59] || "", // BH - Added GST Certificates
+          bankAccountDetails: rowValues[60] || "", // BI - Fixed index
+          aadharCard: rowValues[61] || "", // BJ - Fixed index
+          panCard: rowValues[62] || "", // BK - Fixed index
+          workOrderNumber: rowValues[63] || "", // BL - Fixed index
+          workOrderCopy: rowValues[64] || "", // BM - Fixed index
+          dispatchMaterial: rowValues[68] || "", // BQ - Fixed index
+          informToCustomer: rowValues[72] || "", // BU - Fixed index
           // Material Receipt specific columns
-          actual: rowValues[73] || "", // BV
-          copyOfReceipt: rowValues[75] || "", // BX
-          dateOfReceipt: rowValues[76] || "", // BY
+          actual: rowValues[74] || "", // BW - Fixed index
+          copyOfReceipt: rowValues[76] || "", // BY - Fixed index
+          dateOfReceipt: rowValues[77] || "", // BZ - Fixed index
         }
 
-        // Check if Column BV is null for pending, not null for history
-        const isColumnBVEmpty = isEmpty(columnBV)
+        // Check if Column BW is null for pending, not null for history
+        const isColumnBWEmpty = isEmpty(columnBW)
 
-        if (isColumnBVEmpty) {
+        if (isColumnBWEmpty) {
           pending.push(rowData)
         } else {
           history.push(rowData)
@@ -309,7 +312,7 @@ function MaterialReceivedSitePage() {
       // Format date for storage
       const formattedDate = formatDateForDisplay(receiptForm.dateOfReceipt)
 
-      // Prepare update data - we need to send the complete row data
+      // Prepare update data with correct column indices
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
@@ -388,10 +391,11 @@ function MaterialReceivedSitePage() {
           "", // BS - keep existing
           "", // BT - keep existing
           "", // BU - keep existing
-          formatTimestamp(), // BV - Actual timestamp (index 73)
-          "", // BW - keep existing
-          copyOfReceiptUrl, // BX - Copy of Receipt (index 75)
-          formattedDate, // BY - Date of Receipt (index 76)
+          "", // BV - keep existing
+          formatTimestamp(), // BW - Actual timestamp (index 74)
+          "", // BX - keep existing
+          copyOfReceiptUrl, // BY - Copy of Receipt (index 76)
+          formattedDate, // BZ - Date of Receipt (index 77)
         ]),
       }
 
@@ -404,6 +408,7 @@ function MaterialReceivedSitePage() {
       })
 
       const result = await response.json()
+
       if (result.success) {
         setSuccessMessage(`Material receipt recorded successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowReceiptModal(false)
@@ -593,6 +598,9 @@ function MaterialReceivedSitePage() {
                       GST Number
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      GST Certificates
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Bank Account Details
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -679,6 +687,21 @@ function MaterialReceivedSitePage() {
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.gstNumber || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            {record.gstCertificates ? (
+                              <a
+                                href={record.gstCertificates}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             {record.bankAccountDetails ? (
@@ -771,7 +794,7 @@ function MaterialReceivedSitePage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={22} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={23} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm
                             ? "No history records matching your search"
                             : "No completed material receipts found"}
@@ -848,6 +871,21 @@ function MaterialReceivedSitePage() {
                           <div className="text-xs text-gray-900">{record.gstNumber || "—"}</div>
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
+                          {record.gstCertificates ? (
+                            <a
+                              href={record.gstCertificates}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
                           {record.bankAccountDetails ? (
                             <a
                               href={record.bankAccountDetails}
@@ -920,7 +958,7 @@ function MaterialReceivedSitePage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={20} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={21} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm
                           ? "No pending material receipts matching your search"
                           : "No pending material receipts found"}
