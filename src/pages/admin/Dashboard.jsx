@@ -12,6 +12,7 @@ import {
   Wrench,
   Network,
   RefreshCw,
+  DollarSign,
 } from "lucide-react"
 
 import AdminLayout from "../../components/layout/AdminLayout.jsx"
@@ -40,6 +41,7 @@ export default function FMSDashboard() {
     totalEnquiry: 0,
     installation: 0,
     pendingInstallation: 0,
+    commissions: 0,
     ipAssignment: 0,
     projectTypesData: [],
     allRecords: [],
@@ -63,13 +65,14 @@ export default function FMSDashboard() {
   const fetchFMSData = async () => {
     try {
       setFmsData((prev) => ({ ...prev, loading: true, error: null }))
-
       const response = await fetch(
         `https://docs.google.com/spreadsheets/d/1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4/gviz/tq?tqx=out:json&sheet=FMS`,
       )
+
       if (!response.ok) {
         throw new Error(`Failed to fetch FMS sheet data: ${response.status}`)
       }
+
       const text = await response.text()
       const jsonStart = text.indexOf("{")
       const jsonEnd = text.lastIndexOf("}")
@@ -88,6 +91,7 @@ export default function FMSDashboard() {
       let totalEnquiry = 0
       let installation = 0
       let pendingInstallation = 0
+      let commissions = 0
       let ipAssignment = 0
 
       // Project types tracking
@@ -110,21 +114,31 @@ export default function FMSDashboard() {
           totalEnquiry++
         }
 
-        // Installation logic: BZ (index 77) NOT NULL AND CA (index 78) NOT NULL
-        const bzValue = getCellValue(row, 77) // Column BZ
+        // Installation logic: CA (index 78) NOT NULL AND CB (index 79) NOT NULL
         const caValue = getCellValue(row, 78) // Column CA
-        if (isNotNull(bzValue) && isNotNull(caValue)) {
+        const cbValue = getCellValue(row, 79) // Column CB
+
+        if (isNotNull(caValue) && isNotNull(cbValue)) {
           installation++
         }
 
-        // Pending Installation: BZ (index 77) NOT NULL AND CA (index 78) NULL
-        if (isNotNull(bzValue) && !isNotNull(caValue)) {
+        // Pending Installation: CA (index 78) NOT NULL AND CB (index 79) NULL
+        if (isNotNull(caValue) && !isNotNull(cbValue)) {
           pendingInstallation++
+        }
+
+        // Commissions: DM (index 116) NOT NULL AND DN (index 117) NOT NULL
+        const dmValue = getCellValue(row, 116) // Column DM
+        const dnValue = getCellValue(row, 117) // Column DN
+
+        if (isNotNull(dmValue) && isNotNull(dnValue)) {
+          commissions++
         }
 
         // IP Assignment: BB (index 53) NOT NULL AND BC (index 54) NOT NULL
         const bbValue = getCellValue(row, 53) // Column BB
         const bcValue = getCellValue(row, 54) // Column BC
+
         if (isNotNull(bbValue) && isNotNull(bcValue)) {
           ipAssignment++
         }
@@ -146,13 +160,16 @@ export default function FMSDashboard() {
             id: rowIndex,
             enquiry: enquiryValue,
             projectType: projectType || "Unknown",
-            bzValue,
             caValue,
+            cbValue,
             bbValue,
             bcValue,
+            dmValue,
+            dnValue,
             installationStatus:
-              isNotNull(bzValue) && isNotNull(caValue) ? "Completed" : isNotNull(bzValue) ? "Pending" : "Not Started",
+              isNotNull(caValue) && isNotNull(cbValue) ? "Completed" : isNotNull(caValue) ? "Pending" : "Not Started",
             ipStatus: isNotNull(bbValue) && isNotNull(bcValue) ? "Assigned" : "Not Assigned",
+            commissionStatus: isNotNull(dmValue) && isNotNull(dnValue) ? "Completed" : "Pending",
           })
         }
       })
@@ -177,6 +194,7 @@ export default function FMSDashboard() {
         totalEnquiry,
         installation,
         pendingInstallation,
+        commissions,
         ipAssignment,
         projectTypesData,
         allRecords,
@@ -188,6 +206,7 @@ export default function FMSDashboard() {
         totalEnquiry,
         installation,
         pendingInstallation,
+        commissions,
         ipAssignment,
         projectTypesData,
       })
@@ -216,11 +235,9 @@ export default function FMSDashboard() {
     // Filter by search query
     if (searchQuery && searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase().trim()
-
       if (record.projectType && record.projectType.toLowerCase().includes(query)) return true
       if (record.enquiry && record.enquiry.toString().toLowerCase().includes(query)) return true
       if (record.installationStatus && record.installationStatus.toLowerCase().includes(query)) return true
-
       return false
     }
 
@@ -309,6 +326,12 @@ export default function FMSDashboard() {
                 >
                   IP Assignment
                 </th>
+                <th
+                  scope="col"
+                  className="px-6 py-4 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider"
+                >
+                  Commission
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-purple-50">
@@ -338,6 +361,17 @@ export default function FMSDashboard() {
                       }`}
                     >
                       {record.ipStatus}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                        record.commissionStatus === "Completed"
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : "bg-amber-100 text-amber-800 border border-amber-200"
+                      }`}
+                    >
+                      {record.commissionStatus}
                     </span>
                   </td>
                 </tr>
@@ -405,9 +439,8 @@ export default function FMSDashboard() {
     <AdminLayout>
       <div className="space-y-8 p-6">
         {/* Header */}
-
         {/* Main Metrics Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
           <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-cyan-500/5"></div>
             <div className="relative p-6">
@@ -458,6 +491,24 @@ export default function FMSDashboard() {
               <div className="space-y-1">
                 <p className="text-3xl font-bold text-amber-700">{fmsData.pendingInstallation}</p>
                 <p className="text-sm text-amber-600">Awaiting installation</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5"></div>
+            <div className="relative p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-green-100 rounded-xl">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-green-600">Commissions</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-3xl font-bold text-green-700">{fmsData.commissions}</p>
+                <p className="text-sm text-green-600">Completed commissions</p>
               </div>
             </div>
           </div>
@@ -538,7 +589,7 @@ export default function FMSDashboard() {
               </div>
               <div className="p-6">
                 <div className="space-y-8">
-                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-100">
                       <div className="text-sm font-semibold text-purple-700">Installation Rate</div>
                       <div className="text-2xl font-bold text-purple-800">
@@ -574,6 +625,22 @@ export default function FMSDashboard() {
                         ></div>
                       </div>
                     </div>
+
+                    <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100">
+                      <div className="text-sm font-semibold text-green-700">Commission Rate</div>
+                      <div className="text-2xl font-bold text-green-800">
+                        {fmsData.totalEnquiry > 0 ? ((fmsData.commissions / fmsData.totalEnquiry) * 100).toFixed(1) : 0}
+                        %
+                      </div>
+                      <div className="w-full h-3 bg-green-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${fmsData.totalEnquiry > 0 ? (fmsData.commissions / fmsData.totalEnquiry) * 100 : 0}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-violet-50 p-6">
@@ -583,6 +650,7 @@ export default function FMSDashboard() {
                         { label: "Total Enquiries Processed", value: fmsData.totalEnquiry, color: "purple" },
                         { label: "Installations Completed", value: fmsData.installation, color: "emerald" },
                         { label: "Pending Installations", value: fmsData.pendingInstallation, color: "amber" },
+                        { label: "Commissions Completed", value: fmsData.commissions, color: "green" },
                         { label: "IP Assignments", value: fmsData.ipAssignment, color: "blue" },
                       ].map((item, index) => (
                         <div
