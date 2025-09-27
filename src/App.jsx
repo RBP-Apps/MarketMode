@@ -72,7 +72,7 @@ function App() {
         <Route
           path="/dashboard/assign-task"
           element={
-            <ProtectedRoute allowedRoles={["admin"]}>
+            <ProtectedRoute allowedRoles={["admin","user"]}>
               <AdminAssignTask />
             </ProtectedRoute>
           }
