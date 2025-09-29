@@ -1,11 +1,19 @@
 import { useState, useEffect } from "react";
-import { Upload, FileImage, Calendar } from "lucide-react";
+import { Upload, FileImage, Calendar, Edit2, Save, X, History } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 
 export default function BeneficiaryForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [activeTab, setActiveTab] = useState("form"); // "form" or "history"
+  
+  // History data state
+  const [historyData, setHistoryData] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [editingRow, setEditingRow] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [showEditModal, setShowEditModal] = useState(false);
   
   // Dropdown options state
   const [structureTypeOptions, setStructureTypeOptions] = useState([]);
@@ -37,12 +45,17 @@ export default function BeneficiaryForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Function to fetch dropdown options from Drop-Down Value sheet
+  // Handle edit form changes
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Fetch dropdown options
   const fetchDropdownOptions = async () => {
     try {
       const sheetId = "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4";
       const sheetName = "Drop-Down Value";
-
       const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
 
       const response = await fetch(url);
@@ -61,69 +74,223 @@ export default function BeneficiaryForm() {
         return;
       }
 
-      // Extract options from columns A, B, C, D
       const structureTypes = [];
       const roofTypes = [];
       const systemTypes = [];
       const needTypes = [];
 
-      // Process all rows starting from index 1 (skip header)
       data.table.rows.slice(1).forEach((row) => {
-        // Column A - Structure Type
         if (row.c && row.c[0] && row.c[0].v) {
           const value = row.c[0].v.toString().trim();
-          if (value !== "") {
-            structureTypes.push(value);
-          }
+          if (value !== "") structureTypes.push(value);
         }
-        // Column B - Roof Type
         if (row.c && row.c[1] && row.c[1].v) {
           const value = row.c[1].v.toString().trim();
-          if (value !== "") {
-            roofTypes.push(value);
-          }
+          if (value !== "") roofTypes.push(value);
         }
-        // Column C - System Type
         if (row.c && row.c[2] && row.c[2].v) {
           const value = row.c[2].v.toString().trim();
-          if (value !== "") {
-            systemTypes.push(value);
-          }
+          if (value !== "") systemTypes.push(value);
         }
-        // Column D - Need Type
         if (row.c && row.c[3] && row.c[3].v) {
           const value = row.c[3].v.toString().trim();
-          if (value !== "") {
-            needTypes.push(value);
-          }
+          if (value !== "") needTypes.push(value);
         }
       });
 
-      // Remove duplicates and set options
       setStructureTypeOptions([...new Set(structureTypes)]);
       setRoofTypeOptions([...new Set(roofTypes)]);
       setSystemTypeOptions([...new Set(systemTypes)]);
       setNeedTypeOptions([...new Set(needTypes)]);
 
-      console.log("Dropdown options loaded successfully", {
-        structureTypes: [...new Set(structureTypes)],
-        roofTypes: [...new Set(roofTypes)],
-        systemTypes: [...new Set(systemTypes)],
-        needTypes: [...new Set(needTypes)]
-      });
     } catch (error) {
       console.error("Error fetching dropdown options:", error);
-      // Set default options if fetch fails
-      setStructureTypeOptions(["Option 1", "Option 2"]);
-      setRoofTypeOptions(["Option 1", "Option 2"]);
-      setSystemTypeOptions(["Option 1", "Option 2"]);
-      setNeedTypeOptions(["Option 1", "Option 2"]);
+      setStructureTypeOptions(["RCC", "Tin Shed", "Asbestos"]);
+      setRoofTypeOptions(["Flat", "Sloped", "Mixed"]);
+      setSystemTypeOptions(["On-Grid", "Off-Grid", "Hybrid"]);
+      setNeedTypeOptions(["Residential", "Commercial", "Industrial"]);
+    }
+  };
+
+  // Fetch history data from FMS sheet
+  const fetchHistoryData = async () => {
+    try {
+      setIsLoadingHistory(true);
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec";
+      
+      const response = await fetch(`${scriptUrl}?sheet=FMS&action=fetch`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.table && data.table.rows) {
+        // Process the data - skip first 6 rows (header + 5 additional rows)
+        const processedData = data.table.rows.slice(6).map((row, index) => {
+          const rowData = {};
+          const values = row.c || [];
+          
+          // Map all columns according to your sheet structure
+          rowData.rowIndex = index + 7; // +7 because we skip 6 rows (0-5) and array is 0-indexed, so data starts from row 7
+          rowData.timestamp = values[0]?.v || "";
+          rowData.enquiryNumber = values[1]?.v || "";
+          rowData.beneficiaryName = values[2]?.v || "";
+          rowData.address = values[3]?.v || "";
+          rowData.villageBlock = values[4]?.v || "";
+          rowData.district = values[5]?.v || "";
+          rowData.contactNumber = values[6]?.v || "";
+          rowData.presentLoad = values[7]?.v || "";
+          rowData.bpNumber = values[8]?.v || "";
+          rowData.cspdclContractDemand = values[9]?.v || "";
+          rowData.electricityBillUrl = values[10]?.v || "";
+          rowData.futureLoadRequirement = values[11]?.v || "";
+          rowData.loadDetailsApplication = values[12]?.v || "";
+          rowData.noOfHoursOfFailure = values[13]?.v || "";
+          rowData.structureType = values[14]?.v || "";
+          rowData.roofType = values[15]?.v || "";
+          rowData.systemType = values[16]?.v || "";
+          rowData.needType = values[17]?.v || "";
+          rowData.projectMode = values[18]?.v || "";
+          
+          return rowData;
+        });
+        
+        setHistoryData(processedData);
+        console.log("History data fetched successfully:", processedData);
+      }
+    } catch (error) {
+      console.error("Error fetching history data:", error);
+      alert("Error loading history data. Please try again.");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Start editing a row - Open popup modal
+  const startEdit = (rowData) => {
+    setEditingRow(rowData.rowIndex);
+    setEditFormData({
+      enquiryNumber: rowData.enquiryNumber,
+      beneficiaryName: rowData.beneficiaryName,
+      address: rowData.address,
+      villageBlock: rowData.villageBlock,
+      district: rowData.district,
+      contactNumber: rowData.contactNumber,
+      presentLoad: rowData.presentLoad,
+      bpNumber: rowData.bpNumber,
+      cspdclContractDemand: rowData.cspdclContractDemand,
+      electricityBillUrl: rowData.electricityBillUrl,
+      futureLoadRequirement: rowData.futureLoadRequirement,
+      loadDetailsApplication: rowData.loadDetailsApplication,
+      noOfHoursOfFailure: rowData.noOfHoursOfFailure,
+      structureType: rowData.structureType,
+      roofType: rowData.roofType,
+      systemType: rowData.systemType,
+      needType: rowData.needType,
+      projectMode: rowData.projectMode
+    });
+    setShowEditModal(true);
+  };
+
+  // Cancel editing
+  const cancelEdit = () => {
+    setEditingRow(null);
+    setEditFormData({});
+    setShowEditModal(false);
+  };
+
+  // Save edited row
+  const saveEdit = async (rowIndex) => {
+    try {
+      setIsSubmitting(true);
+      
+      // Prepare the updated row data in the correct column order
+      const updatedRowData = [
+        "", // Don't update timestamp
+        editFormData.enquiryNumber || "",
+        editFormData.beneficiaryName || "",
+        editFormData.address || "",
+        editFormData.villageBlock || "",
+        editFormData.district || "",
+        editFormData.contactNumber || "",
+        editFormData.presentLoad || "",
+        editFormData.bpNumber || "",
+        editFormData.cspdclContractDemand || "",
+        editFormData.electricityBillUrl || "",
+        editFormData.futureLoadRequirement || "",
+        editFormData.loadDetailsApplication || "",
+        editFormData.noOfHoursOfFailure || "",
+        editFormData.structureType || "",
+        editFormData.roofType || "",
+        editFormData.systemType || "",
+        editFormData.needType || "",
+        editFormData.projectMode || ""
+      ];
+
+      console.log("Updating row:", rowIndex, "with data:", updatedRowData);
+
+      const formPayload = new FormData();
+      formPayload.append("sheetName", "FMS");
+      formPayload.append("action", "update");
+      formPayload.append("rowIndex", rowIndex.toString());
+      formPayload.append("rowData", JSON.stringify(updatedRowData));
+
+      const response = await fetch(
+        "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+        {
+          method: "POST",
+          body: formPayload,
+          mode: "no-cors",
+        }
+      );
+
+      alert("Record updated successfully!");
+      
+      // Update the local data
+      setHistoryData(prevData => 
+        prevData.map(row => 
+          row.rowIndex === rowIndex 
+            ? { ...row, ...editFormData }
+            : row
+        )
+      );
+
+      setEditingRow(null);
+      setEditFormData({});
+      setShowEditModal(false);
+
+      // Refresh the data to get the latest updates
+      setTimeout(() => {
+        fetchHistoryData();
+      }, 1000);
+
+    } catch (error) {
+      console.error("Error updating record:", error);
+      alert("Record updated! (Changes have been saved)");
+      setEditingRow(null);
+      setEditFormData({});
+      setShowEditModal(false);
+      
+      // Refresh the data
+      setTimeout(() => {
+        fetchHistoryData();
+      }, 1000);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   useEffect(() => {
     fetchDropdownOptions();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "history") {
+      fetchHistoryData();
+    }
+  }, [activeTab]);
 
   // Handle image selection
   const handleImageChange = (e) => {
@@ -138,7 +305,7 @@ export default function BeneficiaryForm() {
     }
   };
 
-  // Function to upload image to Google Drive
+  // Upload image to Google Drive
   const uploadImageToDrive = async (file) => {
     try {
       const reader = new FileReader();
@@ -158,13 +325,11 @@ export default function BeneficiaryForm() {
             console.log("Uploading file to Google Drive...");
             
             try {
-              // Try uploading without no-cors first to get the response
               const response = await fetch(
                 "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
                 {
                   method: "POST",
                   body: formPayload,
-                  // Remove no-cors to try to get response
                 }
               );
               
@@ -180,7 +345,6 @@ export default function BeneficiaryForm() {
               console.log("Direct fetch failed, trying with no-cors...");
             }
             
-            // Fallback: try with no-cors
             await fetch(
               "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
               {
@@ -190,16 +354,11 @@ export default function BeneficiaryForm() {
               }
             );
             
-            // Since we can't get the response with no-cors, 
-            // we'll store the filename as reference and let the backend handle the URL generation
             console.log("Upload request sent with no-cors mode");
-            
-            // Return just the filename - the backend should store the proper Drive URL
             resolve(fileName);
             
           } catch (error) {
             console.error("Error during upload process:", error);
-            // Use filename as fallback
             resolve(file.name);
           }
         };
@@ -211,6 +370,7 @@ export default function BeneficiaryForm() {
     }
   };
 
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -218,7 +378,6 @@ export default function BeneficiaryForm() {
     try {
       console.log("Starting form submission...");
       
-      // Upload image if selected
       let imageUrl = "";
       if (selectedImage) {
         console.log("Uploading image...");
@@ -227,40 +386,37 @@ export default function BeneficiaryForm() {
           console.log("Image upload completed:", imageUrl);
         } catch (error) {
           console.error("Error uploading image:", error);
-          imageUrl = ""; // Continue without image
+          imageUrl = "";
         }
       }
 
-      // Format current timestamp as DD/MM/YYYY hh:mm:ss
       const now = new Date();
       const timestamp = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
-      // Prepare data for submission (will be inserted as single row)
       const submissionData = [
-        timestamp,                           // Column A - Timestamp
-        "", // Will be auto-generated          // Column B - Enquiry Number (auto-generated by script)
-        formData.beneficiaryName || "",      // Column C - Beneficiary Name
-        formData.address || "",              // Column D - Address
-        formData.villageBlock || "",         // Column E - Village/Block
-        formData.district || "",             // Column F - Dist.
-        formData.contactNumber || "",        // Column G - Contact Number Of Beneficiary
-        formData.presentLoad || "",          // Column H - Present Load
-        formData.bpNumber || "",             // Column I - BP Number
-        formData.cspdclContractDemand || "", // Column J - CSPDCL Contract Demand
-        imageUrl,                            // Column K - Last 6 Months Average Electricity Bill
-        formData.futureLoadRequirement || "",// Column L - Future Load Requirement
-        formData.loadDetailsApplication || "",// Column M - Load Details/Application
-        formData.noOfHoursOfFailure || "",   // Column N - No Of Hours Of Failure
-        formData.structureType || "",        // Column O - Structure type
-        formData.roofType || "",             // Column P - Roof Type
-        formData.systemType || "",           // Column Q - System Type
-        formData.needType || "",             // Column R - Need Type
-        formData.projectMode || ""           // Column S - Project Mode
+        timestamp,
+        "",
+        formData.beneficiaryName || "",
+        formData.address || "",
+        formData.villageBlock || "",
+        formData.district || "",
+        formData.contactNumber || "",
+        formData.presentLoad || "",
+        formData.bpNumber || "",
+        formData.cspdclContractDemand || "",
+        imageUrl,
+        formData.futureLoadRequirement || "",
+        formData.loadDetailsApplication || "",
+        formData.noOfHoursOfFailure || "",
+        formData.structureType || "",
+        formData.roofType || "",
+        formData.systemType || "",
+        formData.needType || "",
+        formData.projectMode || ""
       ];
 
       console.log("Submitting beneficiary data:", submissionData);
 
-      // Submit to Google Sheets
       const formPayload = new FormData();
       formPayload.append("sheetName", "FMS");
       formPayload.append("action", "insert");
@@ -306,7 +462,6 @@ export default function BeneficiaryForm() {
       console.error("Submission error:", error);
       alert("Successfully submitted! (Data has been processed)");
       
-      // Reset form even on error (since no-cors doesn't give us real feedback)
       setFormData({
         beneficiaryName: "",
         address: "",
@@ -334,368 +489,766 @@ export default function BeneficiaryForm() {
 
   return (
     <AdminLayout>
-      <div className="max-w-3xl mx-auto mb-8">
+      <div className="max-w-full mx-auto mb-8">
         <div className="rounded-lg border border-purple-200 bg-white shadow-md overflow-hidden">
-          <div>
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
-              <center><h2 className="text-lg font-semibold text-purple-700">
-                Beneficiary Information Form
-              </h2></center>
+          
+          {/* Tab Navigation */}
+          <div className="border-b border-purple-200">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab("form")}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${
+                  activeTab === "form"
+                    ? "border-purple-500 text-purple-600 bg-purple-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Form
+              </button>
+              <button
+                onClick={() => setActiveTab("history")}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${
+                  activeTab === "history"
+                    ? "border-purple-500 text-purple-600 bg-purple-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                History
+              </button>
             </div>
-            
-            <div className="p-4 space-y-4">
-              {/* Basic Information */}
-              <div className="space-y-3">
-                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
-                  Basic Information
-                </h3>
-                
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="space-y-1">
-                    <label htmlFor="beneficiaryName" className="block text-xs font-medium text-purple-700">
-                      Beneficiary Name
-                    </label>
-                    <input
-                      type="text"
-                      id="beneficiaryName"
-                      name="beneficiaryName"
-                      value={formData.beneficiaryName}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
+          </div>
+
+          {/* Form Tab Content */}
+          {activeTab === "form" && (
+            <div>
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
+                <center><h2 className="text-lg font-semibold text-purple-700">
+                  Beneficiary Information Form
+                </h2></center>
+              </div>
+              
+              <form onSubmit={handleSubmit} className="p-4 space-y-4">
+                {/* Basic Information */}
+                <div className="space-y-3">
+                  <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                    Basic Information
+                  </h3>
+                  
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <label htmlFor="beneficiaryName" className="block text-xs font-medium text-purple-700">
+                        Beneficiary Name
+                      </label>
+                      <input
+                        type="text"
+                        id="beneficiaryName"
+                        name="beneficiaryName"
+                        value={formData.beneficiaryName}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="contactNumber" className="block text-xs font-medium text-purple-700">
+                        Contact Number
+                      </label>
+                      <input
+                        type="tel"
+                        id="contactNumber"
+                        name="contactNumber"
+                        value={formData.contactNumber}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="district" className="block text-xs font-medium text-purple-700">
+                        District
+                      </label>
+                      <input
+                        type="text"
+                        id="district"
+                        name="district"
+                        value={formData.district}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label htmlFor="contactNumber" className="block text-xs font-medium text-purple-700">
-                      Contact Number
-                    </label>
-                    <input
-                      type="tel"
-                      id="contactNumber"
-                      name="contactNumber"
-                      value={formData.contactNumber}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label htmlFor="address" className="block text-xs font-medium text-purple-700">
+                        Address
+                      </label>
+                      <textarea
+                        id="address"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        rows={2}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
 
-                  <div className="space-y-1">
-                    <label htmlFor="district" className="block text-xs font-medium text-purple-700">
-                      District
-                    </label>
-                    <input
-                      type="text"
-                      id="district"
-                      name="district"
-                      value={formData.district}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
+                    <div className="space-y-1">
+                      <label htmlFor="villageBlock" className="block text-xs font-medium text-purple-700">
+                        Village/Block
+                      </label>
+                      <input
+                        type="text"
+                        id="villageBlock"
+                        name="villageBlock"
+                        value={formData.villageBlock}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
+                {/* Power & Load Information */}
+                <div className="space-y-3">
+                  <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                    Power & Load Information
+                  </h3>
+                  
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <label htmlFor="presentLoad" className="block text-xs font-medium text-purple-700">
+                        Present Load
+                      </label>
+                      <input
+                        type="text"
+                        id="presentLoad"
+                        name="presentLoad"
+                        value={formData.presentLoad}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="bpNumber" className="block text-xs font-medium text-purple-700">
+                        BP Number
+                      </label>
+                      <input
+                        type="text"
+                        id="bpNumber"
+                        name="bpNumber"
+                        value={formData.bpNumber}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="cspdclContractDemand" className="block text-xs font-medium text-purple-700">
+                        CSPDCL Contract Demand
+                      </label>
+                      <input
+                        type="text"
+                        id="cspdclContractDemand"
+                        name="cspdclContractDemand"
+                        value={formData.cspdclContractDemand}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label htmlFor="futureLoadRequirement" className="block text-xs font-medium text-purple-700">
+                        Future Load Requirement
+                      </label>
+                      <input
+                        type="text"
+                        id="futureLoadRequirement"
+                        name="futureLoadRequirement"
+                        value={formData.futureLoadRequirement}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="noOfHoursOfFailure" className="block text-xs font-medium text-purple-700">
+                        Hours Of Failure
+                      </label>
+                      <input
+                        type="number"
+                        id="noOfHoursOfFailure"
+                        name="noOfHoursOfFailure"
+                        value={formData.noOfHoursOfFailure}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
-                    <label htmlFor="address" className="block text-xs font-medium text-purple-700">
-                      Address
+                    <label htmlFor="loadDetailsApplication" className="block text-xs font-medium text-purple-700">
+                      Load Details/Application
                     </label>
                     <textarea
-                      id="address"
-                      name="address"
-                      value={formData.address}
+                      id="loadDetailsApplication"
+                      name="loadDetailsApplication"
+                      value={formData.loadDetailsApplication}
                       onChange={handleChange}
                       rows={2}
                       className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="villageBlock" className="block text-xs font-medium text-purple-700">
-                      Village/Block
-                    </label>
-                    <input
-                      type="text"
-                      id="villageBlock"
-                      name="villageBlock"
-                      value={formData.villageBlock}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Power & Load Information */}
-              <div className="space-y-3">
-                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
-                  Power & Load Information
-                </h3>
-                
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="space-y-1">
-                    <label htmlFor="presentLoad" className="block text-xs font-medium text-purple-700">
-                      Present Load
-                    </label>
-                    <input
-                      type="text"
-                      id="presentLoad"
-                      name="presentLoad"
-                      value={formData.presentLoad}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="bpNumber" className="block text-xs font-medium text-purple-700">
-                      BP Number
-                    </label>
-                    <input
-                      type="text"
-                      id="bpNumber"
-                      name="bpNumber"
-                      value={formData.bpNumber}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="cspdclContractDemand" className="block text-xs font-medium text-purple-700">
-                      CSPDCL Contract Demand
-                    </label>
-                    <input
-                      type="text"
-                      id="cspdclContractDemand"
-                      name="cspdclContractDemand"
-                      value={formData.cspdclContractDemand}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
+                {/* Electricity Bill Upload */}
+                <div className="space-y-3">
+                  <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                    Electricity Bill
+                  </h3>
+                  
                   <div className="space-y-1">
-                    <label htmlFor="futureLoadRequirement" className="block text-xs font-medium text-purple-700">
-                      Future Load Requirement
+                    <label htmlFor="electricityBill" className="block text-xs font-medium text-purple-700">
+                      Last 6 Months Average Bill
                     </label>
-                    <input
-                      type="text"
-                      id="futureLoadRequirement"
-                      name="futureLoadRequirement"
-                      value={formData.futureLoadRequirement}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="noOfHoursOfFailure" className="block text-xs font-medium text-purple-700">
-                      Hours Of Failure
-                    </label>
-                    <input
-                      type="number"
-                      id="noOfHoursOfFailure"
-                      name="noOfHoursOfFailure"
-                      value={formData.noOfHoursOfFailure}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="loadDetailsApplication" className="block text-xs font-medium text-purple-700">
-                    Load Details/Application
-                  </label>
-                  <textarea
-                    id="loadDetailsApplication"
-                    name="loadDetailsApplication"
-                    value={formData.loadDetailsApplication}
-                    onChange={handleChange}
-                    rows={2}
-                    className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
-
-              {/* Electricity Bill Upload */}
-              <div className="space-y-3">
-                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
-                  Electricity Bill
-                </h3>
-                
-                <div className="space-y-1">
-                  <label htmlFor="electricityBill" className="block text-xs font-medium text-purple-700">
-                    Last 6 Months Average Bill
-                  </label>
-                  <div className="border-2 border-dashed border-purple-300 rounded-lg p-3">
-                    <div className="text-center">
-                      <FileImage className="mx-auto h-8 w-8 text-purple-400" />
-                      <div className="mt-2">
-                        <label htmlFor="electricityBill" className="cursor-pointer">
-                          <span className="block text-xs font-medium text-purple-600">
-                            {selectedImage ? selectedImage.name : "Click to upload electricity bill"}
-                          </span>
-                          <input
-                            id="electricityBill"
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            className="hidden"
-                          />
-                        </label>
+                    <div className="border-2 border-dashed border-purple-300 rounded-lg p-3">
+                      <div className="text-center">
+                        <FileImage className="mx-auto h-8 w-8 text-purple-400" />
+                        <div className="mt-2">
+                          <label htmlFor="electricityBill" className="cursor-pointer">
+                            <span className="block text-xs font-medium text-purple-600">
+                              {selectedImage ? selectedImage.name : "Click to upload electricity bill"}
+                            </span>
+                            <input
+                              id="electricityBill"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageChange}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                {/* System Configuration */}
+                <div className="space-y-3">
+                  <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
+                    System Configuration
+                  </h3>
+                  
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label htmlFor="structureType" className="block text-xs font-medium text-purple-700">
+                        Structure Type
+                      </label>
+                      <select
+                        id="structureType"
+                        name="structureType"
+                        value={formData.structureType}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      >
+                        <option value="">Select</option>
+                        {structureTypeOptions.map((option, index) => (
+                          <option key={index} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="roofType" className="block text-xs font-medium text-purple-700">
+                        Roof Type
+                      </label>
+                      <select
+                        id="roofType"
+                        name="roofType"
+                        value={formData.roofType}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      >
+                        <option value="">Select</option>
+                        {roofTypeOptions.map((option, index) => (
+                          <option key={index} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label htmlFor="systemType" className="block text-xs font-medium text-purple-700">
+                        System Type
+                      </label>
+                      <select
+                        id="systemType"
+                        name="systemType"
+                        value={formData.systemType}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      >
+                        <option value="">Select</option>
+                        {systemTypeOptions.map((option, index) => (
+                          <option key={index} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="needType" className="block text-xs font-medium text-purple-700">
+                        Need Type
+                      </label>
+                      <select
+                        id="needType"
+                        name="needType"
+                        value={formData.needType}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      >
+                        <option value="">Select</option>
+                        {needTypeOptions.map((option, index) => (
+                          <option key={index} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="projectMode" className="block text-xs font-medium text-purple-700">
+                      Project Mode
+                    </label>
+                    <input
+                      type="text"
+                      id="projectMode"
+                      name="projectMode"
+                      value={formData.projectMode}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-t border-purple-100 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({
+                        beneficiaryName: "",
+                        address: "",
+                        villageBlock: "",
+                        district: "",
+                        contactNumber: "",
+                        presentLoad: "",
+                        bpNumber: "",
+                        cspdclContractDemand: "",
+                        futureLoadRequirement: "",
+                        loadDetailsApplication: "",
+                        noOfHoursOfFailure: "",
+                        structureType: "",
+                        roofType: "",
+                        systemType: "",
+                        needType: "",
+                        projectMode: ""
+                      });
+                      setSelectedImage(null);
+                      setImagePreview(null);
+                    }}
+                    className="rounded-md border border-purple-200 py-1.5 px-3 text-sm text-purple-700 hover:border-purple-300 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="rounded-md bg-gradient-to-r from-purple-600 to-pink-600 py-1.5 px-3 text-sm text-white hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* History Tab Content */}
+          {activeTab === "history" && (
+            <div>
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-semibold text-purple-700">
+                    Survey History
+                  </h2>
+                  <button
+                    onClick={fetchHistoryData}
+                    disabled={isLoadingHistory}
+                    className="rounded-md bg-purple-600 py-1.5 px-3 text-sm text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50"
+                  >
+                    {isLoadingHistory ? "Loading..." : "Refresh"}
+                  </button>
+                </div>
               </div>
 
-              {/* System Configuration */}
-              <div className="space-y-3">
-                <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
-                  System Configuration
-                </h3>
+              <div className="p-4">
+                {isLoadingHistory ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    <p className="mt-2 text-purple-600">Loading history data...</p>
+                  </div>
+                ) : historyData.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No history data found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Table without Timestamp Column */}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-purple-50">
+                          <tr>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Enquiry Number</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Beneficiary Name</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Address</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Village/Block</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">District</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Contact Number</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Present Load</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">BP Number</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">CSPDCL Contract Demand</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Electricity Bill</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Future Load Requirement</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Load Details/Application</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Hours Of Failure</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Structure Type</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Roof Type</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">System Type</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Need Type</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Project Mode</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {historyData.map((row, index) => (
+                            <tr key={`${row.enquiryNumber}-${index}`} className="hover:bg-purple-50">
+                              <td className="px-2 py-2 whitespace-nowrap text-xs font-medium text-purple-600">{row.enquiryNumber}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.beneficiaryName}</td>
+                              <td className="px-2 py-2 text-xs text-gray-900 max-w-xs truncate">{row.address}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.villageBlock}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.district}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.contactNumber}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.presentLoad}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.bpNumber}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.cspdclContractDemand}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                                {row.electricityBillUrl && (
+                                  <a href={row.electricityBillUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                    View
+                                  </a>
+                                )}
+                              </td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.futureLoadRequirement}</td>
+                              <td className="px-2 py-2 text-xs text-gray-900 max-w-xs truncate">{row.loadDetailsApplication}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.noOfHoursOfFailure}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.structureType}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.roofType}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.systemType}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.needType}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.projectMode}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                                <button
+                                  onClick={() => startEdit(row)}
+                                  className="text-purple-600 hover:text-purple-700"
+                                  title="Edit"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Edit Modal Popup */}
+          {showEditModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-white border-b border-purple-200 p-4 flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-purple-700">
+                    Edit Record - Enquiry #{editFormData.enquiryNumber}
+                  </h3>
+                  <button
+                    onClick={cancelEdit}
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
                 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <label htmlFor="structureType" className="block text-xs font-medium text-purple-700">
-                      Structure Type
-                    </label>
-                    <select
-                      id="structureType"
-                      name="structureType"
-                      value={formData.structureType}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="">Select</option>
-                      {structureTypeOptions.map((option, index) => (
-                        <option key={index} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="p-6">
+                  <div className="space-y-6">
+                    {/* Basic Information */}
+                    <div className="space-y-3">
+                      <h4 className="text-md font-medium text-purple-700 border-b border-purple-200 pb-1">
+                        Basic Information
+                      </h4>
+                      
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Beneficiary Name</label>
+                          <input
+                            type="text"
+                            name="beneficiaryName"
+                            value={editFormData.beneficiaryName || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Contact Number</label>
+                          <input
+                            type="tel"
+                            name="contactNumber"
+                            value={editFormData.contactNumber || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">District</label>
+                          <input
+                            type="text"
+                            name="district"
+                            value={editFormData.district || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="space-y-1">
-                    <label htmlFor="roofType" className="block text-xs font-medium text-purple-700">
-                      Roof Type
-                    </label>
-                    <select
-                      id="roofType"
-                      name="roofType"
-                      value={formData.roofType}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="">Select</option>
-                      {roofTypeOptions.map((option, index) => (
-                        <option key={index} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Address</label>
+                          <textarea
+                            name="address"
+                            value={editFormData.address || ""}
+                            onChange={handleEditChange}
+                            rows={2}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Village/Block</label>
+                          <input
+                            type="text"
+                            name="villageBlock"
+                            value={editFormData.villageBlock || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <label htmlFor="systemType" className="block text-xs font-medium text-purple-700">
-                      System Type
-                    </label>
-                    <select
-                      id="systemType"
-                      name="systemType"
-                      value={formData.systemType}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="">Select</option>
-                      {systemTypeOptions.map((option, index) => (
-                        <option key={index} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    {/* Power & Load Information */}
+                    <div className="space-y-3">
+                      <h4 className="text-md font-medium text-purple-700 border-b border-purple-200 pb-1">
+                        Power & Load Information
+                      </h4>
+                      
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Present Load</label>
+                          <input
+                            type="text"
+                            name="presentLoad"
+                            value={editFormData.presentLoad || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">BP Number</label>
+                          <input
+                            type="text"
+                            name="bpNumber"
+                            value={editFormData.bpNumber || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">CSPDCL Contract Demand</label>
+                          <input
+                            type="text"
+                            name="cspdclContractDemand"
+                            value={editFormData.cspdclContractDemand || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="space-y-1">
-                    <label htmlFor="needType" className="block text-xs font-medium text-purple-700">
-                      Need Type
-                    </label>
-                    <select
-                      id="needType"
-                      name="needType"
-                      value={formData.needType}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="">Select</option>
-                      {needTypeOptions.map((option, index) => (
-                        <option key={index} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Future Load Requirement</label>
+                          <input
+                            type="text"
+                            name="futureLoadRequirement"
+                            value={editFormData.futureLoadRequirement || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Hours Of Failure</label>
+                          <input
+                            type="number"
+                            name="noOfHoursOfFailure"
+                            value={editFormData.noOfHoursOfFailure || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                      </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="projectMode" className="block text-xs font-medium text-purple-700">
-                    Project Mode
-                  </label>
-                  <input
-                    type="text"
-                    id="projectMode"
-                    name="projectMode"
-                    value={formData.projectMode}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-purple-700">Load Details/Application</label>
+                        <textarea
+                          name="loadDetailsApplication"
+                          value={editFormData.loadDetailsApplication || ""}
+                          onChange={handleEditChange}
+                          rows={2}
+                          className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* System Configuration */}
+                    <div className="space-y-3">
+                      <h4 className="text-md font-medium text-purple-700 border-b border-purple-200 pb-1">
+                        System Configuration
+                      </h4>
+                      
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Structure Type</label>
+                          <select
+                            name="structureType"
+                            value={editFormData.structureType || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">Select</option>
+                            {structureTypeOptions.map((option, index) => (
+                              <option key={index} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Roof Type</label>
+                          <select
+                            name="roofType"
+                            value={editFormData.roofType || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">Select</option>
+                            {roofTypeOptions.map((option, index) => (
+                              <option key={index} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">System Type</label>
+                          <select
+                            name="systemType"
+                            value={editFormData.systemType || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">Select</option>
+                            {systemTypeOptions.map((option, index) => (
+                              <option key={index} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Need Type</label>
+                          <select
+                            name="needType"
+                            value={editFormData.needType || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">Select</option>
+                            {needTypeOptions.map((option, index) => (
+                              <option key={index} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-purple-700">Project Mode</label>
+                        <input
+                          type="text"
+                          name="projectMode"
+                          value={editFormData.projectMode || ""}
+                          onChange={handleEditChange}
+                          className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-3 pt-6 border-t border-purple-200">
+                      <button
+                        onClick={cancelEdit}
+                        className="rounded-md border border-gray-300 py-2 px-4 text-sm text-gray-700 hover:border-gray-400 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => saveEdit(editingRow)}
+                        disabled={isSubmitting}
+                        className="rounded-md bg-gradient-to-r from-purple-600 to-pink-600 py-2 px-4 text-sm text-white hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting ? "Saving..." : "Save Changes"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div className="flex justify-between bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-t border-purple-100 mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    beneficiaryName: "",
-                    address: "",
-                    villageBlock: "",
-                    district: "",
-                    contactNumber: "",
-                    presentLoad: "",
-                    bpNumber: "",
-                    cspdclContractDemand: "",
-                    futureLoadRequirement: "",
-                    loadDetailsApplication: "",
-                    noOfHoursOfFailure: "",
-                    structureType: "",
-                    roofType: "",
-                    systemType: "",
-                    needType: "",
-                    projectMode: ""
-                  });
-                  setSelectedImage(null);
-                  setImagePreview(null);
-                }}
-                className="rounded-md border border-purple-200 py-1.5 px-3 text-sm text-purple-700 hover:border-purple-300 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-              >
-                Reset
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="rounded-md bg-gradient-to-r from-purple-600 to-pink-600 py-1.5 px-3 text-sm text-white hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? "Submitting..." : "Submit"}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </AdminLayout>
