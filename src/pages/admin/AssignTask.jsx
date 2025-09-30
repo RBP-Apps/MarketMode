@@ -6,7 +6,7 @@ export default function BeneficiaryForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [activeTab, setActiveTab] = useState("form"); // "form" or "history"
+  const [activeTab, setActiveTab] = useState("form");
   
   // History data state
   const [historyData, setHistoryData] = useState([]);
@@ -20,6 +20,7 @@ export default function BeneficiaryForm() {
   const [roofTypeOptions, setRoofTypeOptions] = useState([]);
   const [systemTypeOptions, setSystemTypeOptions] = useState([]);
   const [needTypeOptions, setNeedTypeOptions] = useState([]);
+  const [vendorNameOptions, setVendorNameOptions] = useState([]);
 
   const [formData, setFormData] = useState({
     beneficiaryName: "",
@@ -37,7 +38,8 @@ export default function BeneficiaryForm() {
     roofType: "",
     systemType: "",
     needType: "",
-    projectMode: ""
+    projectMode: "",
+    vendorName: ""
   });
 
   const handleChange = (e) => {
@@ -45,7 +47,6 @@ export default function BeneficiaryForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle edit form changes
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditFormData((prev) => ({ ...prev, [name]: value }));
@@ -78,6 +79,7 @@ export default function BeneficiaryForm() {
       const roofTypes = [];
       const systemTypes = [];
       const needTypes = [];
+      const vendorNames = [];
 
       data.table.rows.slice(1).forEach((row) => {
         if (row.c && row.c[0] && row.c[0].v) {
@@ -96,12 +98,17 @@ export default function BeneficiaryForm() {
           const value = row.c[3].v.toString().trim();
           if (value !== "") needTypes.push(value);
         }
+        if (row.c && row.c[14] && row.c[14].v) {
+          const value = row.c[14].v.toString().trim();
+          if (value !== "") vendorNames.push(value);
+        }
       });
 
       setStructureTypeOptions([...new Set(structureTypes)]);
       setRoofTypeOptions([...new Set(roofTypes)]);
       setSystemTypeOptions([...new Set(systemTypes)]);
       setNeedTypeOptions([...new Set(needTypes)]);
+      setVendorNameOptions([...new Set(vendorNames)]);
 
     } catch (error) {
       console.error("Error fetching dropdown options:", error);
@@ -109,6 +116,7 @@ export default function BeneficiaryForm() {
       setRoofTypeOptions(["Flat", "Sloped", "Mixed"]);
       setSystemTypeOptions(["On-Grid", "Off-Grid", "Hybrid"]);
       setNeedTypeOptions(["Residential", "Commercial", "Industrial"]);
+      setVendorNameOptions(["Vendor A", "Vendor B", "Vendor C"]);
     }
   };
 
@@ -127,13 +135,11 @@ export default function BeneficiaryForm() {
       const data = await response.json();
       
       if (data && data.table && data.table.rows) {
-        // Process the data - skip first 6 rows (header + 5 additional rows)
         const processedData = data.table.rows.slice(6).map((row, index) => {
           const rowData = {};
           const values = row.c || [];
           
-          // Map all columns according to your sheet structure
-          rowData.rowIndex = index + 7; // +7 because we skip 6 rows (0-5) and array is 0-indexed, so data starts from row 7
+          rowData.rowIndex = index + 7;
           rowData.timestamp = values[0]?.v || "";
           rowData.enquiryNumber = values[1]?.v || "";
           rowData.beneficiaryName = values[2]?.v || "";
@@ -153,12 +159,12 @@ export default function BeneficiaryForm() {
           rowData.systemType = values[16]?.v || "";
           rowData.needType = values[17]?.v || "";
           rowData.projectMode = values[18]?.v || "";
+          rowData.vendorName = values[150]?.v || "";
           
           return rowData;
         });
         
         setHistoryData(processedData);
-        console.log("History data fetched successfully:", processedData);
       }
     } catch (error) {
       console.error("Error fetching history data:", error);
@@ -168,7 +174,7 @@ export default function BeneficiaryForm() {
     }
   };
 
-  // Start editing a row - Open popup modal
+  // Start editing a row
   const startEdit = (rowData) => {
     setEditingRow(rowData.rowIndex);
     setEditFormData({
@@ -189,7 +195,8 @@ export default function BeneficiaryForm() {
       roofType: rowData.roofType,
       systemType: rowData.systemType,
       needType: rowData.needType,
-      projectMode: rowData.projectMode
+      projectMode: rowData.projectMode,
+      vendorName: rowData.vendorName
     });
     setShowEditModal(true);
   };
@@ -206,30 +213,27 @@ export default function BeneficiaryForm() {
     try {
       setIsSubmitting(true);
       
-      // Prepare the updated row data in the correct column order
-      const updatedRowData = [
-        "", // Don't update timestamp
-        editFormData.enquiryNumber || "",
-        editFormData.beneficiaryName || "",
-        editFormData.address || "",
-        editFormData.villageBlock || "",
-        editFormData.district || "",
-        editFormData.contactNumber || "",
-        editFormData.presentLoad || "",
-        editFormData.bpNumber || "",
-        editFormData.cspdclContractDemand || "",
-        editFormData.electricityBillUrl || "",
-        editFormData.futureLoadRequirement || "",
-        editFormData.loadDetailsApplication || "",
-        editFormData.noOfHoursOfFailure || "",
-        editFormData.structureType || "",
-        editFormData.roofType || "",
-        editFormData.systemType || "",
-        editFormData.needType || "",
-        editFormData.projectMode || ""
-      ];
-
-      console.log("Updating row:", rowIndex, "with data:", updatedRowData);
+      const updatedRowData = new Array(150).fill("");
+      updatedRowData[0] = "";
+      updatedRowData[1] = editFormData.enquiryNumber || "";
+      updatedRowData[2] = editFormData.beneficiaryName || "";
+      updatedRowData[3] = editFormData.address || "";
+      updatedRowData[4] = editFormData.villageBlock || "";
+      updatedRowData[5] = editFormData.district || "";
+      updatedRowData[6] = editFormData.contactNumber || "";
+      updatedRowData[7] = editFormData.presentLoad || "";
+      updatedRowData[8] = editFormData.bpNumber || "";
+      updatedRowData[9] = editFormData.cspdclContractDemand || "";
+      updatedRowData[10] = editFormData.electricityBillUrl || "";
+      updatedRowData[11] = editFormData.futureLoadRequirement || "";
+      updatedRowData[12] = editFormData.loadDetailsApplication || "";
+      updatedRowData[13] = editFormData.noOfHoursOfFailure || "";
+      updatedRowData[14] = editFormData.structureType || "";
+      updatedRowData[15] = editFormData.roofType || "";
+      updatedRowData[16] = editFormData.systemType || "";
+      updatedRowData[17] = editFormData.needType || "";
+      updatedRowData[18] = editFormData.projectMode || "";
+      updatedRowData[150] = editFormData.vendorName || "";
 
       const formPayload = new FormData();
       formPayload.append("sheetName", "FMS");
@@ -248,7 +252,6 @@ export default function BeneficiaryForm() {
 
       alert("Record updated successfully!");
       
-      // Update the local data
       setHistoryData(prevData => 
         prevData.map(row => 
           row.rowIndex === rowIndex 
@@ -261,7 +264,6 @@ export default function BeneficiaryForm() {
       setEditFormData({});
       setShowEditModal(false);
 
-      // Refresh the data to get the latest updates
       setTimeout(() => {
         fetchHistoryData();
       }, 1000);
@@ -273,7 +275,6 @@ export default function BeneficiaryForm() {
       setEditFormData({});
       setShowEditModal(false);
       
-      // Refresh the data
       setTimeout(() => {
         fetchHistoryData();
       }, 1000);
@@ -322,8 +323,6 @@ export default function BeneficiaryForm() {
             formPayload.append("mimeType", file.type);
             formPayload.append("folderId", "1v42L6YoAXqHcX_Q2BZ_4GpAW-X8xWFZX");
 
-            console.log("Uploading file to Google Drive...");
-            
             try {
               const response = await fetch(
                 "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
@@ -336,7 +335,6 @@ export default function BeneficiaryForm() {
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.fileUrl) {
-                  console.log("File uploaded successfully:", result.fileUrl);
                   resolve(result.fileUrl);
                   return;
                 }
@@ -354,7 +352,6 @@ export default function BeneficiaryForm() {
               }
             );
             
-            console.log("Upload request sent with no-cors mode");
             resolve(fileName);
             
           } catch (error) {
@@ -376,14 +373,10 @@ export default function BeneficiaryForm() {
     setIsSubmitting(true);
 
     try {
-      console.log("Starting form submission...");
-      
       let imageUrl = "";
       if (selectedImage) {
-        console.log("Uploading image...");
         try {
           imageUrl = await uploadImageToDrive(selectedImage);
-          console.log("Image upload completed:", imageUrl);
         } catch (error) {
           console.error("Error uploading image:", error);
           imageUrl = "";
@@ -393,36 +386,32 @@ export default function BeneficiaryForm() {
       const now = new Date();
       const timestamp = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
-      const submissionData = [
-        timestamp,
-        "",
-        formData.beneficiaryName || "",
-        formData.address || "",
-        formData.villageBlock || "",
-        formData.district || "",
-        formData.contactNumber || "",
-        formData.presentLoad || "",
-        formData.bpNumber || "",
-        formData.cspdclContractDemand || "",
-        imageUrl,
-        formData.futureLoadRequirement || "",
-        formData.loadDetailsApplication || "",
-        formData.noOfHoursOfFailure || "",
-        formData.structureType || "",
-        formData.roofType || "",
-        formData.systemType || "",
-        formData.needType || "",
-        formData.projectMode || ""
-      ];
-
-      console.log("Submitting beneficiary data:", submissionData);
+      const submissionData = new Array(150).fill("");
+      submissionData[0] = timestamp;
+      submissionData[1] = "";
+      submissionData[2] = formData.beneficiaryName || "";
+      submissionData[3] = formData.address || "";
+      submissionData[4] = formData.villageBlock || "";
+      submissionData[5] = formData.district || "";
+      submissionData[6] = formData.contactNumber || "";
+      submissionData[7] = formData.presentLoad || "";
+      submissionData[8] = formData.bpNumber || "";
+      submissionData[9] = formData.cspdclContractDemand || "";
+      submissionData[10] = imageUrl;
+      submissionData[11] = formData.futureLoadRequirement || "";
+      submissionData[12] = formData.loadDetailsApplication || "";
+      submissionData[13] = formData.noOfHoursOfFailure || "";
+      submissionData[14] = formData.structureType || "";
+      submissionData[15] = formData.roofType || "";
+      submissionData[16] = formData.systemType || "";
+      submissionData[17] = formData.needType || "";
+      submissionData[18] = formData.projectMode || "";
+      submissionData[150] = formData.vendorName || "";
 
       const formPayload = new FormData();
       formPayload.append("sheetName", "FMS");
       formPayload.append("action", "insert");
       formPayload.append("rowData", JSON.stringify(submissionData));
-
-      console.log("Sending data to Google Sheets...");
 
       const response = await fetch(
         "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
@@ -433,7 +422,6 @@ export default function BeneficiaryForm() {
         }
       );
 
-      console.log("Data submission completed");
       alert(`Successfully submitted beneficiary information!`);
 
       // Reset form
@@ -453,7 +441,8 @@ export default function BeneficiaryForm() {
         roofType: "",
         systemType: "",
         needType: "",
-        projectMode: ""
+        projectMode: "",
+        vendorName: ""
       });
       setSelectedImage(null);
       setImagePreview(null);
@@ -478,7 +467,8 @@ export default function BeneficiaryForm() {
         roofType: "",
         systemType: "",
         needType: "",
-        projectMode: ""
+        projectMode: "",
+        vendorName: ""
       });
       setSelectedImage(null);
       setImagePreview(null);
@@ -826,18 +816,41 @@ export default function BeneficiaryForm() {
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label htmlFor="projectMode" className="block text-xs font-medium text-purple-700">
-                      Project Mode
-                    </label>
-                    <input
-                      type="text"
-                      id="projectMode"
-                      name="projectMode"
-                      value={formData.projectMode}
-                      onChange={handleChange}
-                      className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label htmlFor="projectMode" className="block text-xs font-medium text-purple-700">
+                        Project Mode
+                      </label>
+                      <input
+                        type="text"
+                        id="projectMode"
+                        name="projectMode"
+                        value={formData.projectMode}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    {/* Vendor Name dropdown */}
+                    <div className="space-y-1">
+                      <label htmlFor="vendorName" className="block text-xs font-medium text-purple-700">
+                        Vendor Name
+                      </label>
+                      <select
+                        id="vendorName"
+                        name="vendorName"
+                        value={formData.vendorName}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      >
+                        <option value="">Select Vendor</option>
+                        {vendorNameOptions.map((option, index) => (
+                          <option key={index} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -861,7 +874,8 @@ export default function BeneficiaryForm() {
                         roofType: "",
                         systemType: "",
                         needType: "",
-                        projectMode: ""
+                        projectMode: "",
+                        vendorName: ""
                       });
                       setSelectedImage(null);
                       setImagePreview(null);
@@ -882,7 +896,7 @@ export default function BeneficiaryForm() {
             </div>
           )}
 
-          {/* History Tab Content */}
+          {/* History Tab Content with Vendor Name Column */}
           {activeTab === "history" && (
             <div>
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
@@ -912,13 +926,14 @@ export default function BeneficiaryForm() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Table without Timestamp Column */}
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-purple-50">
                           <tr>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Enquiry Number</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Beneficiary Name</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Vender Name</th>
+
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Address</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Village/Block</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">District</th>
@@ -943,6 +958,7 @@ export default function BeneficiaryForm() {
                             <tr key={`${row.enquiryNumber}-${index}`} className="hover:bg-purple-50">
                               <td className="px-2 py-2 whitespace-nowrap text-xs font-medium text-purple-600">{row.enquiryNumber}</td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.beneficiaryName}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.vendorName}</td>
                               <td className="px-2 py-2 text-xs text-gray-900 max-w-xs truncate">{row.address}</td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.villageBlock}</td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.district}</td>
@@ -985,7 +1001,7 @@ export default function BeneficiaryForm() {
             </div>
           )}
 
-          {/* Edit Modal Popup */}
+          {/* Edit Modal Popup with Vendor Name Field */}
           {showEditModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -1216,15 +1232,35 @@ export default function BeneficiaryForm() {
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block text-xs font-medium text-purple-700">Project Mode</label>
-                        <input
-                          type="text"
-                          name="projectMode"
-                          value={editFormData.projectMode || ""}
-                          onChange={handleEditChange}
-                          className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Project Mode</label>
+                          <input
+                            type="text"
+                            name="projectMode"
+                            value={editFormData.projectMode || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        
+                        {/* Vendor Name Field in Edit Modal */}
+                        <div className="space-y-1">
+                          <label className="block text-xs font-medium text-purple-700">Vendor Name</label>
+                          <select
+                            name="vendorName"
+                            value={editFormData.vendorName || ""}
+                            onChange={handleEditChange}
+                            className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          >
+                            <option value="">Select Vendor</option>
+                            {vendorNameOptions.map((option, index) => (
+                              <option key={index} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
 
