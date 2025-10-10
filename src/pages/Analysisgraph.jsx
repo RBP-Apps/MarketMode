@@ -485,7 +485,7 @@ const AnalysisGraph = () => {
   }, [filterDataByTimeRange]);
 
   const timeRangeOptions = [
-    { value: "day", label: "ToDay" },
+    { value: "day", label: "Today" },
     { value: "week", label: "Week" },
     { value: "month", label: "Month" },
     { value: "sixmonths", label: "6 Months" },

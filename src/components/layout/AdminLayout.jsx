@@ -114,7 +114,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/OrderPlace",
-      label: "Varya",
+      label: "Varyaa",
       icon: ShoppingCart,
       active: location.pathname === "/dashboard/OrderPlace",
       showFor: ["admin", "user"]
@@ -255,7 +255,14 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       <aside className="hidden w-64 flex-shrink-0 border-r border-blue-200 bg-white md:flex md:flex-col">
         <div className="flex h-14 items-center border-b border-blue-200 px-4 bg-gradient-to-r from-blue-100 to-purple-100">
           <Link to="/dashboard/admin" className="flex items-center gap-2 font-semibold text-blue-700">
-            <ClipboardList className="h-5 w-5 text-blue-600" />
+           <div className="w-14 h-14 overflow-hidden rounded">
+              <img
+                src="/Rbpimage.jpg"
+                alt="RBP Logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            {/* <ClipboardList className="h-5 w-5 text-blue-600" /> */}
             <span>Market Mode</span>
           </Link>
         </div>
