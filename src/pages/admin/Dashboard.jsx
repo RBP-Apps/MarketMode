@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 
 import {
   BarChart3,
@@ -13,9 +13,9 @@ import {
   Network,
   RefreshCw,
   DollarSign,
-} from "lucide-react"
+} from "lucide-react";
 
-import AdminLayout from "../../components/layout/AdminLayout.jsx"
+import AdminLayout from "../../components/layout/AdminLayout.jsx";
 
 import {
   BarChart,
@@ -29,12 +29,12 @@ import {
   PieChart,
   Pie,
   Cell,
-} from "recharts"
+} from "recharts";
 
 export default function FMSDashboard() {
-  const [activeTab, setActiveTab] = useState("overview")
-  const [filterStatus, setFilterStatus] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
+  const [activeTab, setActiveTab] = useState("overview");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // State for FMS data
   const [fmsData, setFmsData] = useState({
@@ -47,37 +47,37 @@ export default function FMSDashboard() {
     allRecords: [],
     loading: true,
     error: null,
-  })
+  });
 
   // Safe access to cell value
   const getCellValue = (row, index) => {
-    if (!row || !row.c || index >= row.c.length) return null
-    const cell = row.c[index]
-    return cell && "v" in cell ? cell.v : null
-  }
+    if (!row || !row.c || index >= row.c.length) return null;
+    const cell = row.c[index];
+    return cell && "v" in cell ? cell.v : null;
+  };
 
   // Check if value is not null or empty
   const isNotNull = (value) => {
-    return value !== null && value !== undefined && value !== "" && value !== 0
-  }
+    return value !== null && value !== undefined && value !== "" && value !== 0;
+  };
 
   // Fetch FMS data from Google Sheets
   const fetchFMSData = async () => {
     try {
-      setFmsData((prev) => ({ ...prev, loading: true, error: null }))
+      setFmsData((prev) => ({ ...prev, loading: true, error: null }));
       const response = await fetch(
-        `https://docs.google.com/spreadsheets/d/1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4/gviz/tq?tqx=out:json&sheet=FMS`,
-      )
+        `https://docs.google.com/spreadsheets/d/1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4/gviz/tq?tqx=out:json&sheet=FMS`
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch FMS sheet data: ${response.status}`)
+        throw new Error(`Failed to fetch FMS sheet data: ${response.status}`);
       }
 
-      const text = await response.text()
-      const jsonStart = text.indexOf("{")
-      const jsonEnd = text.lastIndexOf("}")
-      const jsonString = text.substring(jsonStart, jsonEnd + 1)
-      const data = JSON.parse(jsonString)
+      const text = await response.text();
+      const jsonStart = text.indexOf("{");
+      const jsonEnd = text.lastIndexOf("}");
+      const jsonString = text.substring(jsonStart, jsonEnd + 1);
+      const data = JSON.parse(jsonString);
 
       console.log("Fetched FMS data:", {
         totalRows: data.table.rows.length,
@@ -85,14 +85,14 @@ export default function FMSDashboard() {
           rowIndex: idx,
           rowData: row.c ? row.c.map((cell) => cell?.v) : row,
         })),
-      })
+      });
 
       // Initialize counters
-      let totalEnquiry = 0
-      let installation = 0
-      let pendingInstallation = 0
-      let commissions = 0
-      let ipAssignment = 0
+      let totalEnquiry = 0;
+      let installation = 0;
+      let pendingInstallation = 0;
+      let commissions = 0;
+      let ipAssignment = 0;
 
       // Project types tracking
       const projectTypesCount = {
@@ -100,57 +100,58 @@ export default function FMSDashboard() {
         Society: 0,
         Commercial: 0,
         Others: 0,
-      }
+      };
 
-      const allRecords = []
+      const allRecords = [];
 
       // Process rows starting from row 11 (slice from index 10)
+      // Process all rows from the sheet
       data.table.rows.slice(2).forEach((row, index) => {
-        const rowIndex = index + 2 // Adjust for original row index
+        const rowIndex = index + 2; // Adjust for original row index
 
         // Column B (index 1) - Total Enquiry
-        const enquiryValue = getCellValue(row, 1)
+        const enquiryValue = getCellValue(row, 1);
         if (isNotNull(enquiryValue)) {
-          totalEnquiry++
+          totalEnquiry++;
         }
 
         // Installation logic: CA (index 78) NOT NULL AND CB (index 79) NOT NULL
-        const caValue = getCellValue(row, 78) // Column CA
-        const cbValue = getCellValue(row, 79) // Column CB
+        const caValue = getCellValue(row, 78); // Column CA
+        const cbValue = getCellValue(row, 79); // Column CB
 
         if (isNotNull(caValue) && isNotNull(cbValue)) {
-          installation++
+          installation++;
         }
 
         // Pending Installation: CA (index 78) NOT NULL AND CB (index 79) NULL
         if (isNotNull(caValue) && !isNotNull(cbValue)) {
-          pendingInstallation++
+          pendingInstallation++;
         }
 
         // Commissions: DM (index 116) NOT NULL AND DN (index 117) NOT NULL
-        const dmValue = getCellValue(row, 116) // Column DM
-        const dnValue = getCellValue(row, 117) // Column DN
+        const dmValue = getCellValue(row, 116); // Column DM
+        const dnValue = getCellValue(row, 117); // Column DN
 
         if (isNotNull(dmValue) && isNotNull(dnValue)) {
-          commissions++
+          commissions++;
         }
 
         // IP Assignment: BB (index 53) NOT NULL AND BC (index 54) NOT NULL
-        const bbValue = getCellValue(row, 53) // Column BB
-        const bcValue = getCellValue(row, 54) // Column BC
+        const bbValue = getCellValue(row, 53); // Column BB
+        const bcValue = getCellValue(row, 54); // Column BC
 
         if (isNotNull(bbValue) && isNotNull(bcValue)) {
-          ipAssignment++
+          ipAssignment++;
         }
 
         // Project Types from Column R (index 17)
-        const projectType = getCellValue(row, 17)
+        const projectType = getCellValue(row, 17);
         if (projectType && typeof projectType === "string") {
-          const type = projectType.trim()
+          const type = projectType.trim();
           if (projectTypesCount.hasOwnProperty(type)) {
-            projectTypesCount[type]++
+            projectTypesCount[type]++;
           } else {
-            projectTypesCount["Others"]++
+            projectTypesCount["Others"]++;
           }
         }
 
@@ -160,6 +161,25 @@ export default function FMSDashboard() {
             id: rowIndex,
             enquiry: enquiryValue,
             projectType: projectType || "Unknown",
+            // New fields from columns C to S
+            beneficiaryName: getCellValue(row, 2), // Column C
+            address: getCellValue(row, 3), // Column D
+            villageBlock: getCellValue(row, 4), // Column E
+            district: getCellValue(row, 5), // Column F
+            contactNumber: getCellValue(row, 6), // Column G
+            presentLoad: getCellValue(row, 7), // Column H
+            bpNumber: getCellValue(row, 8), // Column I
+            cspdclContractDemand: getCellValue(row, 9), // Column J
+            avgElectricityBill: getCellValue(row, 10), // Column K
+            futureLoadRequirement: getCellValue(row, 11), // Column L
+            loadDetails: getCellValue(row, 12), // Column M
+            hoursOfFailure: getCellValue(row, 13), // Column N
+            structureType: getCellValue(row, 14), // Column O
+            roofType: getCellValue(row, 15), // Column P
+            systemType: getCellValue(row, 16), // Column Q
+            needType: getCellValue(row, 17), // Column R (already in projectType)
+            projectMode: getCellValue(row, 18), // Column S
+            // Existing fields
             caValue,
             cbValue,
             bbValue,
@@ -167,12 +187,22 @@ export default function FMSDashboard() {
             dmValue,
             dnValue,
             installationStatus:
-              isNotNull(caValue) && isNotNull(cbValue) ? "Completed" : isNotNull(caValue) ? "Pending" : "Not Started",
-            ipStatus: isNotNull(bbValue) && isNotNull(bcValue) ? "Assigned" : "Not Assigned",
-            commissionStatus: isNotNull(dmValue) && isNotNull(dnValue) ? "Completed" : "Pending",
-          })
+              isNotNull(caValue) && isNotNull(cbValue)
+                ? "Completed"
+                : isNotNull(caValue)
+                ? "Pending"
+                : "Not Started",
+            ipStatus:
+              isNotNull(bbValue) && isNotNull(bcValue)
+                ? "Assigned"
+                : "Not Assigned",
+            commissionStatus:
+              isNotNull(dmValue) && isNotNull(dnValue)
+                ? "Completed"
+                : "Pending",
+          });
         }
-      })
+      }); // End of forEach loop
 
       // Convert project types to chart data
       const projectTypesData = Object.entries(projectTypesCount)
@@ -184,11 +214,11 @@ export default function FMSDashboard() {
             type === "Residential"
               ? "#8b5cf6"
               : type === "Society"
-                ? "#06b6d4"
-                : type === "Commercial"
-                  ? "#f59e0b"
-                  : "#ef4444",
-        }))
+              ? "#06b6d4"
+              : type === "Commercial"
+              ? "#f59e0b"
+              : "#ef4444",
+        }));
 
       setFmsData({
         totalEnquiry,
@@ -200,7 +230,7 @@ export default function FMSDashboard() {
         allRecords,
         loading: false,
         error: null,
-      })
+      });
 
       console.log("FMS Data Summary:", {
         totalEnquiry,
@@ -209,40 +239,60 @@ export default function FMSDashboard() {
         commissions,
         ipAssignment,
         projectTypesData,
-      })
+      });
     } catch (error) {
-      console.error("Error fetching FMS data:", error)
+      console.error("Error fetching FMS data:", error);
       setFmsData((prev) => ({
         ...prev,
         loading: false,
         error: error.message,
-      }))
+      }));
     }
-  }
+  };
 
   useEffect(() => {
-    fetchFMSData()
-  }, [])
+    fetchFMSData();
+  }, []);
 
   // Filter records based on search and status
   const filteredRecords = fmsData.allRecords.filter((record) => {
     // Filter by status
     if (filterStatus !== "all") {
-      if (filterStatus === "installation-complete" && record.installationStatus !== "Completed") return false
-      if (filterStatus === "installation-pending" && record.installationStatus !== "Pending") return false
+      if (
+        filterStatus === "installation-complete" &&
+        record.installationStatus !== "Completed"
+      )
+        return false;
+      if (
+        filterStatus === "installation-pending" &&
+        record.installationStatus !== "Pending"
+      )
+        return false;
     }
 
     // Filter by search query
     if (searchQuery && searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase().trim()
-      if (record.projectType && record.projectType.toLowerCase().includes(query)) return true
-      if (record.enquiry && record.enquiry.toString().toLowerCase().includes(query)) return true
-      if (record.installationStatus && record.installationStatus.toLowerCase().includes(query)) return true
-      return false
+      const query = searchQuery.toLowerCase().trim();
+      if (
+        record.projectType &&
+        record.projectType.toLowerCase().includes(query)
+      )
+        return true;
+      if (
+        record.enquiry &&
+        record.enquiry.toString().toLowerCase().includes(query)
+      )
+        return true;
+      if (
+        record.installationStatus &&
+        record.installationStatus.toLowerCase().includes(query)
+      )
+        return true;
+      return false;
     }
 
-    return true
-  })
+    return true;
+  });
 
   // Project Types Chart Component
   const ProjectTypesChart = () => {
@@ -266,8 +316,8 @@ export default function FMSDashboard() {
           <Legend />
         </PieChart>
       </ResponsiveContainer>
-    )
-  }
+    );
+  };
 
   // Installation Chart
   const InstallationChart = () => {
@@ -277,22 +327,33 @@ export default function FMSDashboard() {
         Completed: fmsData.installation,
         Pending: fmsData.pendingInstallation,
       },
-    ]
+    ];
 
     return (
       <ResponsiveContainer width="100%" height={350}>
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey="name" fontSize={12} stroke="#888888" tickLine={false} axisLine={false} />
-          <YAxis fontSize={12} stroke="#888888" tickLine={false} axisLine={false} />
+          <XAxis
+            dataKey="name"
+            fontSize={12}
+            stroke="#888888"
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            fontSize={12}
+            stroke="#888888"
+            tickLine={false}
+            axisLine={false}
+          />
           <Tooltip />
           <Legend />
           <Bar dataKey="Completed" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
           <Bar dataKey="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
-    )
-  }
+    );
+  };
 
   // Records Table Component
   const RecordsTable = () => {
@@ -302,57 +363,156 @@ export default function FMSDashboard() {
           <table className="min-w-full divide-y divide-purple-100">
             <thead className="bg-gradient-to-r from-purple-50 to-violet-50">
               <tr>
-                <th
-                  scope="col"
-                  className="px-6 py-4 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider"
-                >
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
                   Enquiry ID
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-4 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider"
-                >
-                  Project Type
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Beneficiary Name
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-4 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider"
-                >
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Address
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Village/Block
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  District
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Contact Number
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Present Load
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  BP Number
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  CSPDCL Contract Demand
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Avg. Bill (6 months)
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Future Load Req.
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Load Details
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Failure Hours
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Structure Type
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Roof Type
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  System Type
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Need Type
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                  Project Mode
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
                   Installation
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-4 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider"
-                >
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
                   IP Assignment
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-4 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider"
-                >
+                <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase tracking-wider">
                   Commission
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-purple-50">
               {filteredRecords.slice(0, 100).map((record) => (
-                <tr key={record.id} className="hover:bg-purple-25 transition-colors duration-150">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{record.enquiry}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{record.projectType}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                <tr
+                  key={record.id}
+                  className="hover:bg-purple-25 transition-colors duration-150"
+                >
+                  <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                    {record.enquiry || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.beneficiaryName || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.address || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.villageBlock || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.district || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.contactNumber || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.presentLoad || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.bpNumber || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.cspdclContractDemand || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.avgElectricityBill ? (
+                      <button
+                        onClick={() =>
+                          window.open(record.avgElectricityBill, "_blank")
+                        }
+                        className="text-blue-600 hover:text-blue-800 underline"
+                      >
+                        View Bill
+                      </button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.futureLoadRequirement || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.loadDetails || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.hoursOfFailure || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.structureType || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.roofType || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.systemType || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.needType || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {record.projectMode || "-"}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                         record.installationStatus === "Completed"
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                           : record.installationStatus === "Pending"
-                            ? "bg-amber-100 text-amber-800 border border-amber-200"
-                            : "bg-gray-100 text-gray-800 border border-gray-200"
+                          ? "bg-amber-100 text-amber-800 border border-amber-200"
+                          : "bg-gray-100 text-gray-800 border border-gray-200"
                       }`}
                     >
-                      {record.installationStatus}
+                      {record.installationStatus || "N/A"}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                         record.ipStatus === "Assigned"
@@ -360,10 +520,10 @@ export default function FMSDashboard() {
                           : "bg-red-100 text-red-800 border border-red-200"
                       }`}
                     >
-                      {record.ipStatus}
+                      {record.ipStatus || "N/A"}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                         record.commissionStatus === "Completed"
@@ -371,7 +531,7 @@ export default function FMSDashboard() {
                           : "bg-amber-100 text-amber-800 border border-amber-200"
                       }`}
                     >
-                      {record.commissionStatus}
+                      {record.commissionStatus || "N/A"}
                     </span>
                   </td>
                 </tr>
@@ -381,12 +541,14 @@ export default function FMSDashboard() {
         </div>
         {filteredRecords.length > 100 && (
           <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-violet-50 border-t border-purple-100">
-            <p className="text-sm text-purple-600 font-medium">Showing first 100 of {filteredRecords.length} records</p>
+            <p className="text-sm text-purple-600 font-medium">
+              Showing first 100 of {filteredRecords.length} records
+            </p>
           </div>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   if (fmsData.loading) {
     return (
@@ -397,17 +559,24 @@ export default function FMSDashboard() {
               <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto"></div>
               <div
                 className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-purple-400 rounded-full animate-spin mx-auto"
-                style={{ animationDirection: "reverse", animationDuration: "1.5s" }}
+                style={{
+                  animationDirection: "reverse",
+                  animationDuration: "1.5s",
+                }}
               ></div>
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-purple-700">Loading FMS Dashboard</h3>
-              <p className="text-purple-600">Fetching latest data from Google Sheets...</p>
+              <h3 className="text-lg font-semibold text-purple-700">
+                Loading FMS Dashboard
+              </h3>
+              <p className="text-purple-600">
+                Fetching latest data from Google Sheets...
+              </p>
             </div>
           </div>
         </div>
       </AdminLayout>
-    )
+    );
   }
 
   if (fmsData.error) {
@@ -419,7 +588,9 @@ export default function FMSDashboard() {
               <AlertTriangle className="h-8 w-8 text-red-600" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-red-700">Error Loading Data</h3>
+              <h3 className="text-lg font-semibold text-red-700">
+                Error Loading Data
+              </h3>
               <p className="text-red-600 text-sm">{fmsData.error}</p>
             </div>
             <button
@@ -432,7 +603,7 @@ export default function FMSDashboard() {
           </div>
         </div>
       </AdminLayout>
-    )
+    );
   }
 
   return (
@@ -449,12 +620,18 @@ export default function FMSDashboard() {
                   <ListTodo className="h-6 w-6 text-blue-600" />
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-blue-600">Total Enquiry</p>
+                  <p className="text-sm font-medium text-blue-600">
+                    Total Enquiry
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-blue-700">{fmsData.totalEnquiry}</p>
-                <p className="text-sm text-blue-600">Total enquiries received</p>
+                <p className="text-3xl font-bold text-blue-700">
+                  {fmsData.totalEnquiry}
+                </p>
+                <p className="text-sm text-blue-600">
+                  Total enquiries received
+                </p>
               </div>
             </div>
           </div>
@@ -467,12 +644,18 @@ export default function FMSDashboard() {
                   <Wrench className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-emerald-600">Installation</p>
+                  <p className="text-sm font-medium text-emerald-600">
+                    Installation
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-emerald-700">{fmsData.installation}</p>
-                <p className="text-sm text-emerald-600">Completed installations</p>
+                <p className="text-3xl font-bold text-emerald-700">
+                  {fmsData.installation}
+                </p>
+                <p className="text-sm text-emerald-600">
+                  Completed installations
+                </p>
               </div>
             </div>
           </div>
@@ -485,11 +668,15 @@ export default function FMSDashboard() {
                   <Clock className="h-6 w-6 text-amber-600" />
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-amber-600">Pending Installation</p>
+                  <p className="text-sm font-medium text-amber-600">
+                    Pending Installation
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-amber-700">{fmsData.pendingInstallation}</p>
+                <p className="text-3xl font-bold text-amber-700">
+                  {fmsData.pendingInstallation}
+                </p>
                 <p className="text-sm text-amber-600">Awaiting installation</p>
               </div>
             </div>
@@ -503,11 +690,15 @@ export default function FMSDashboard() {
                   <DollarSign className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-green-600">Commissions</p>
+                  <p className="text-sm font-medium text-green-600">
+                    Commissions
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-green-700">{fmsData.commissions}</p>
+                <p className="text-3xl font-bold text-green-700">
+                  {fmsData.commissions}
+                </p>
                 <p className="text-sm text-green-600">Completed commissions</p>
               </div>
             </div>
@@ -521,11 +712,15 @@ export default function FMSDashboard() {
                   <Network className="h-6 w-6 text-purple-600" />
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-purple-600">IP Assignment</p>
+                  <p className="text-sm font-medium text-purple-600">
+                    IP Assignment
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-purple-700">{fmsData.ipAssignment}</p>
+                <p className="text-3xl font-bold text-purple-700">
+                  {fmsData.ipAssignment}
+                </p>
                 <p className="text-sm text-purple-600">IP addresses assigned</p>
               </div>
             </div>
@@ -560,8 +755,12 @@ export default function FMSDashboard() {
               <div className="grid gap-6 lg:grid-cols-7">
                 <div className="lg:col-span-4 rounded-2xl border border-purple-200 shadow-lg bg-white overflow-hidden">
                   <div className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100 p-6">
-                    <h3 className="text-lg font-semibold text-purple-700">Installation Status</h3>
-                    <p className="text-purple-600 text-sm mt-1">Completed and pending installations</p>
+                    <h3 className="text-lg font-semibold text-purple-700">
+                      Installation Status
+                    </h3>
+                    <p className="text-purple-600 text-sm mt-1">
+                      Completed and pending installations
+                    </p>
                   </div>
                   <div className="p-6">
                     <InstallationChart />
@@ -570,8 +769,12 @@ export default function FMSDashboard() {
 
                 <div className="lg:col-span-3 rounded-2xl border border-purple-200 shadow-lg bg-white overflow-hidden">
                   <div className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100 p-6">
-                    <h3 className="text-lg font-semibold text-purple-700">Project Types</h3>
-                    <p className="text-purple-600 text-sm mt-1">Distribution by project category</p>
+                    <h3 className="text-lg font-semibold text-purple-700">
+                      Project Types
+                    </h3>
+                    <p className="text-purple-600 text-sm mt-1">
+                      Distribution by project category
+                    </p>
                   </div>
                   <div className="p-6">
                     <ProjectTypesChart />
@@ -584,17 +787,26 @@ export default function FMSDashboard() {
           {activeTab === "analytics" && (
             <div className="rounded-2xl border border-purple-200 shadow-lg bg-white overflow-hidden">
               <div className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100 p-6">
-                <h3 className="text-lg font-semibold text-purple-700">FMS Analytics</h3>
-                <p className="text-purple-600 text-sm mt-1">Detailed performance metrics and insights</p>
+                <h3 className="text-lg font-semibold text-purple-700">
+                  FMS Analytics
+                </h3>
+                <p className="text-purple-600 text-sm mt-1">
+                  Detailed performance metrics and insights
+                </p>
               </div>
               <div className="p-6">
                 <div className="space-y-8">
                   <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-100">
-                      <div className="text-sm font-semibold text-purple-700">Installation Rate</div>
+                      <div className="text-sm font-semibold text-purple-700">
+                        Installation Rate
+                      </div>
                       <div className="text-2xl font-bold text-purple-800">
                         {fmsData.totalEnquiry > 0
-                          ? ((fmsData.installation / fmsData.totalEnquiry) * 100).toFixed(1)
+                          ? (
+                              (fmsData.installation / fmsData.totalEnquiry) *
+                              100
+                            ).toFixed(1)
                           : 0}
                         %
                       </div>
@@ -602,17 +814,28 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${fmsData.totalEnquiry > 0 ? (fmsData.installation / fmsData.totalEnquiry) * 100 : 0}%`,
+                            width: `${
+                              fmsData.totalEnquiry > 0
+                                ? (fmsData.installation /
+                                    fmsData.totalEnquiry) *
+                                  100
+                                : 0
+                            }%`,
                           }}
                         ></div>
                       </div>
                     </div>
 
                     <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-100">
-                      <div className="text-sm font-semibold text-blue-700">IP Assignment Rate</div>
+                      <div className="text-sm font-semibold text-blue-700">
+                        IP Assignment Rate
+                      </div>
                       <div className="text-2xl font-bold text-blue-800">
                         {fmsData.totalEnquiry > 0
-                          ? ((fmsData.ipAssignment / fmsData.totalEnquiry) * 100).toFixed(1)
+                          ? (
+                              (fmsData.ipAssignment / fmsData.totalEnquiry) *
+                              100
+                            ).toFixed(1)
                           : 0}
                         %
                       </div>
@@ -620,23 +843,41 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${fmsData.totalEnquiry > 0 ? (fmsData.ipAssignment / fmsData.totalEnquiry) * 100 : 0}%`,
+                            width: `${
+                              fmsData.totalEnquiry > 0
+                                ? (fmsData.ipAssignment /
+                                    fmsData.totalEnquiry) *
+                                  100
+                                : 0
+                            }%`,
                           }}
                         ></div>
                       </div>
                     </div>
 
                     <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100">
-                      <div className="text-sm font-semibold text-green-700">Commission Rate</div>
+                      <div className="text-sm font-semibold text-green-700">
+                        Commission Rate
+                      </div>
                       <div className="text-2xl font-bold text-green-800">
-                        {fmsData.totalEnquiry > 0 ? ((fmsData.commissions / fmsData.totalEnquiry) * 100).toFixed(1) : 0}
+                        {fmsData.totalEnquiry > 0
+                          ? (
+                              (fmsData.commissions / fmsData.totalEnquiry) *
+                              100
+                            ).toFixed(1)
+                          : 0}
                         %
                       </div>
                       <div className="w-full h-3 bg-green-200 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${fmsData.totalEnquiry > 0 ? (fmsData.commissions / fmsData.totalEnquiry) * 100 : 0}%`,
+                            width: `${
+                              fmsData.totalEnquiry > 0
+                                ? (fmsData.commissions / fmsData.totalEnquiry) *
+                                  100
+                                : 0
+                            }%`,
                           }}
                         ></div>
                       </div>
@@ -644,21 +885,47 @@ export default function FMSDashboard() {
                   </div>
 
                   <div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-violet-50 p-6">
-                    <h4 className="text-lg font-semibold text-purple-700 mb-6">Performance Summary</h4>
+                    <h4 className="text-lg font-semibold text-purple-700 mb-6">
+                      Performance Summary
+                    </h4>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
                       {[
-                        { label: "Total Enquiries Processed", value: fmsData.totalEnquiry, color: "purple" },
-                        { label: "Installations Completed", value: fmsData.installation, color: "emerald" },
-                        { label: "Pending Installations", value: fmsData.pendingInstallation, color: "amber" },
-                        { label: "Commissions Completed", value: fmsData.commissions, color: "green" },
-                        { label: "IP Assignments", value: fmsData.ipAssignment, color: "blue" },
+                        {
+                          label: "Total Enquiries Processed",
+                          value: fmsData.totalEnquiry,
+                          color: "purple",
+                        },
+                        {
+                          label: "Installations Completed",
+                          value: fmsData.installation,
+                          color: "emerald",
+                        },
+                        {
+                          label: "Pending Installations",
+                          value: fmsData.pendingInstallation,
+                          color: "amber",
+                        },
+                        {
+                          label: "Commissions Completed",
+                          value: fmsData.commissions,
+                          color: "green",
+                        },
+                        {
+                          label: "IP Assignments",
+                          value: fmsData.ipAssignment,
+                          color: "blue",
+                        },
                       ].map((item, index) => (
                         <div
                           key={index}
                           className="flex justify-between items-center p-3 bg-white rounded-lg border border-purple-100"
                         >
-                          <span className="text-sm text-gray-600 font-medium">{item.label}</span>
-                          <span className={`font-bold text-${item.color}-700`}>{item.value}</span>
+                          <span className="text-sm text-gray-600 font-medium">
+                            {item.label}
+                          </span>
+                          <span className={`font-bold text-${item.color}-700`}>
+                            {item.value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -671,13 +938,20 @@ export default function FMSDashboard() {
           {activeTab === "records" && (
             <div className="rounded-2xl border border-purple-200 shadow-lg bg-white overflow-hidden">
               <div className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100 p-6">
-                <h3 className="text-lg font-semibold text-purple-700">FMS Records</h3>
-                <p className="text-purple-600 text-sm mt-1">Detailed view of all FMS records</p>
+                <h3 className="text-lg font-semibold text-purple-700">
+                  FMS Records
+                </h3>
+                <p className="text-purple-600 text-sm mt-1">
+                  Detailed view of all FMS records
+                </p>
               </div>
               <div className="p-6">
                 <div className="flex flex-col gap-4 md:flex-row mb-6">
                   <div className="flex-1 space-y-2">
-                    <label htmlFor="search" className="flex items-center text-purple-700 font-medium">
+                    <label
+                      htmlFor="search"
+                      className="flex items-center text-purple-700 font-medium"
+                    >
                       <Filter className="h-4 w-4 mr-2" />
                       Search Records
                     </label>
@@ -690,7 +964,10 @@ export default function FMSDashboard() {
                     />
                   </div>
                   <div className="space-y-2 md:w-[200px]">
-                    <label htmlFor="status-filter" className="flex items-center text-purple-700 font-medium">
+                    <label
+                      htmlFor="status-filter"
+                      className="flex items-center text-purple-700 font-medium"
+                    >
                       <Filter className="h-4 w-4 mr-2" />
                       Filter by Status
                     </label>
@@ -701,8 +978,12 @@ export default function FMSDashboard() {
                       className="w-full rounded-xl border border-purple-200 p-3 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all duration-200"
                     >
                       <option value="all">All Records</option>
-                      <option value="installation-complete">Installation Complete</option>
-                      <option value="installation-pending">Installation Pending</option>
+                      <option value="installation-complete">
+                        Installation Complete
+                      </option>
+                      <option value="installation-pending">
+                        Installation Pending
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -713,10 +994,15 @@ export default function FMSDashboard() {
                       <ListTodo className="w-8 h-8 text-gray-400" />
                     </div>
                     <p className="text-lg font-medium">No records found</p>
-                    <p className="text-sm">Try adjusting your search or filter criteria</p>
+                    <p className="text-sm">
+                      Try adjusting your search or filter criteria
+                    </p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden" style={{ maxHeight: "600px", overflowY: "auto" }}>
+                  <div
+                    className="overflow-hidden"
+                    style={{ maxHeight: "600px", overflowY: "auto" }}
+                  >
                     <RecordsTable />
                   </div>
                 )}
@@ -726,5 +1012,5 @@ export default function FMSDashboard() {
         </div>
       </div>
     </AdminLayout>
-  )
+  );
 }
