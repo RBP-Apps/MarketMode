@@ -69,7 +69,7 @@ function InstallationPage() {
     afterInstallationPhoto: null,
     photoWithCustomer: null,
     completeInstallationPhoto: null,
-    investorId: "",
+    inverterId: "",
   })
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -1244,12 +1244,12 @@ function InstallationPage() {
 
                   {/* Investor ID */}
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Investor ID</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Inverter ID</label>
                     <input
                       type="text"
-                      value={installForm.investorId}
-                      onChange={(e) => handleInputChange("investorId", e.target.value)}
-                      placeholder="Enter Investor ID"
+                      value={installForm.inverterId}
+                      onChange={(e) => handleInputChange("inverterId", e.target.value)}
+                      placeholder="Enter Inverter ID"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
                   </div>
