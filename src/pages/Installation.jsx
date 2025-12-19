@@ -69,6 +69,7 @@ function InstallationPage() {
     afterInstallationPhoto: null,
     photoWithCustomer: null,
     completeInstallationPhoto: null,
+    investorId: "",
   })
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -261,6 +262,7 @@ function InstallationPage() {
           moduleCapacity: rowValues[140] || "",
           moduleType: rowValues[141] || "",
           structureMake: rowValues[142] || "",
+          investorId: rowValues[151] || "",
         }
 
         const isColumnCBEmpty = isEmpty(columnCB)
@@ -289,20 +291,20 @@ function InstallationPage() {
   const filteredPendingData = useMemo(() => {
     return debouncedSearchTerm
       ? pendingData.filter((record) =>
-          Object.values(record).some(
-            (value) => value && value.toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
-          ),
-        )
+        Object.values(record).some(
+          (value) => value && value.toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
+        ),
+      )
       : pendingData
   }, [pendingData, debouncedSearchTerm])
 
   const filteredHistoryData = useMemo(() => {
     return debouncedSearchTerm
       ? historyData.filter((record) =>
-          Object.values(record).some(
-            (value) => value && value.toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
-          ),
-        )
+        Object.values(record).some(
+          (value) => value && value.toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
+        ),
+      )
       : historyData
   }, [historyData, debouncedSearchTerm])
 
@@ -323,7 +325,9 @@ function InstallationPage() {
       foundationPhoto: null,
       afterInstallationPhoto: null,
       photoWithCustomer: null,
+      photoWithCustomer: null,
       completeInstallationPhoto: null,
+      investorId: record.investorId || "",
     })
     setShowInstallModal(true)
   }, [])
@@ -431,6 +435,8 @@ function InstallationPage() {
           installForm.moduleCapacity, // EK - 140
           installForm.moduleType, // EL - 141
           installForm.structureMake, // EM - 142
+          ...Array(151 - 143).fill(""),
+          installForm.investorId, // EV - 151
         ]),
       }
 
@@ -465,7 +471,9 @@ function InstallationPage() {
           moduleMake: installForm.moduleMake,
           moduleCapacity: installForm.moduleCapacity,
           moduleType: installForm.moduleType,
+          moduleType: installForm.moduleType,
           structureMake: installForm.structureMake,
+          investorId: installForm.investorId,
         }
         setHistoryData((prev) => [updatedRecord, ...prev])
 
@@ -506,7 +514,9 @@ function InstallationPage() {
       foundationPhoto: null,
       afterInstallationPhoto: null,
       photoWithCustomer: null,
+      photoWithCustomer: null,
       completeInstallationPhoto: null,
+      investorId: "",
     })
   }, [])
 
@@ -534,11 +544,10 @@ function InstallationPage() {
         <div className="flex space-x-2 border-b border-gray-200">
           <button
             onClick={() => toggleSection("pending")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 ${
-              !showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 ${!showHistory
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
           >
             <div className="flex items-center">
               <Wrench className="h-4 w-4 mr-2" />
@@ -547,11 +556,10 @@ function InstallationPage() {
           </button>
           <button
             onClick={() => toggleSection("history")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 ${
-              showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 ${showHistory
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
           >
             <div className="flex items-center">
               <History className="h-4 w-4 mr-2" />
@@ -734,6 +742,9 @@ function InstallationPage() {
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Structure Make
                         </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Inverter ID
+                        </th>
                       </>
                     )}
                   </tr>
@@ -881,6 +892,9 @@ function InstallationPage() {
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.structureMake || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-900">{record.investorId || "—"}</div>
                           </td>
                         </tr>
                       ))
@@ -1121,21 +1135,21 @@ function InstallationPage() {
 
                   {/* Inverter Capacity */}
                   <div className="mb-4">
-  <label className="block text-sm font-medium text-gray-700 mb-2">Inverter Capacity</label>
-  {dropdownLoading ? (
-    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-sm">
-      Loading options...
-    </div>
-  ) : (
-    <input
-      type="text"
-      value={installForm.inverterCapacity}
-      onChange={(e) => handleInputChange("inverterCapacity", e.target.value)}
-      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-      placeholder="-- Enter Inverter Capacity --"
-    />
-  )}
-</div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Inverter Capacity</label>
+                    {dropdownLoading ? (
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-sm">
+                        Loading options...
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={installForm.inverterCapacity}
+                        onChange={(e) => handleInputChange("inverterCapacity", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="-- Enter Inverter Capacity --"
+                      />
+                    )}
+                  </div>
 
                   {/* Module Make */}
                   <div className="mb-4">
@@ -1163,22 +1177,22 @@ function InstallationPage() {
 
                   {/* Module Capacity */}
                   <div className="mb-4">
-  <label className="block text-sm font-medium text-gray-700 mb-2">Module Capacity</label>
-  {dropdownLoading ? (
-    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-sm">
-      Loading options...
-    </div>
-  ) : (
-    <input
-      type="text"
-      value={installForm.moduleCapacity}
-      onChange={(e) => handleInputChange("moduleCapacity", e.target.value)}
-      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-      placeholder="-- Enter Module Capacity --"
-      disabled={dropdownLoading}
-    />
-  )}
-</div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Module Capacity</label>
+                    {dropdownLoading ? (
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-sm">
+                        Loading options...
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={installForm.moduleCapacity}
+                        onChange={(e) => handleInputChange("moduleCapacity", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="-- Enter Module Capacity --"
+                        disabled={dropdownLoading}
+                      />
+                    )}
+                  </div>
 
                   {/* Module Type */}
                   <div className="mb-4">
@@ -1226,6 +1240,18 @@ function InstallationPage() {
                         </>
                       )}
                     </select>
+                  </div>
+
+                  {/* Investor ID */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Investor ID</label>
+                    <input
+                      type="text"
+                      value={installForm.investorId}
+                      onChange={(e) => handleInputChange("investorId", e.target.value)}
+                      placeholder="Enter Investor ID"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
                   </div>
 
                   {/* Date Of Installation */}
