@@ -10,6 +10,7 @@ import {
   Legend,
 } from "chart.js";
 import AdminLayout from "../components/layout/AdminLayout";
+import CombinedAreaChart from "./graph/CombinedAreaChart";
 
 // Register ChartJS components
 ChartJS.register(
@@ -495,145 +496,9 @@ const AnalysisGraph = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* Time Range + Beneficiary Filter */}
-        <div className="p-4 bg-white rounded-lg shadow-md">
-          <div className="flex flex-wrap gap-3 justify-between items-center">
-            {/* Left: Beneficiary dropdown */}
-            <div className="flex gap-2 items-center">
-              <label className="text-sm font-medium text-gray-700">
-                Beneficiary
-              </label>
-              <select
-                value={selectedBeneficiary}
-                onChange={(e) => setSelectedBeneficiary(e.target.value)}
-                className="px-3 py-2 rounded-lg border"
-              >
-                <option value="">All Names</option>
-                {beneficiaryNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Right: Time range buttons and extra selectors */}
-            <div className="flex flex-wrap gap-2 justify-center">
-              {timeRangeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    setTimeRange(option.value);
-
-                    if (option.value === "month") {
-                      // current month auto select
-                      setSelectedMonth(new Date().getMonth());
-                    } else {
-                      setSelectedMonth(null);
-                    }
-
-                    setSelectedHalf(null);
-                  }}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    timeRange === option.value
-                      ? "bg-green-600 text-white shadow-lg transform scale-105"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-
-              {/* Dropdown for Month */}
-              {timeRange === "month" && (
-                <div className="flex justify-center mt-3">
-                  <select
-                    value={selectedMonth ?? ""}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    className="px-3 py-2 rounded-lg border"
-                  >
-                    <option value="">Select Month</option>
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <option key={i} value={i}>
-                        {new Date(0, i).toLocaleString("en-US", {
-                          month: "long",
-                        })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Dropdown for 6 Months */}
-              {timeRange === "sixmonths" && (
-                <div className="flex justify-center mt-3">
-                  <select
-                    value={selectedHalf ?? ""}
-                    onChange={(e) => setSelectedHalf(e.target.value)}
-                    className="px-3 py-2 rounded-lg border"
-                  >
-                    <option value="">Select Range</option>
-                    <option value="H1">Jan - Jun</option>
-                    <option value="H2">Jul - Dec</option>
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Chart Container */}
-        <div className="p-8 bg-white rounded-lg shadow-lg">
-          {error ? (
-            <div className="flex justify-center items-center h-96 text-red-500 bg-red-50 rounded-lg border border-red-200">
-              <div className="text-center">
-                <div className="mb-4 text-6xl">⚠️</div>
-                <p className="text-lg font-semibold">Error loading data</p>
-                <p className="mt-2 text-sm text-red-600">{error}</p>
-                <button
-                  onClick={fetchEnergyData}
-                  className="px-6 py-2 mt-4 font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
-                >
-                  Try Again
-                </button>
-              </div>
-            </div>
-          ) : isLoading ? (
-            <div className="flex justify-center items-center h-96">
-              <div className="text-center">
-                <div className="mx-auto mb-6 w-16 h-16 rounded-full border-b-4 border-green-600 animate-spin"></div>
-                <p className="text-lg font-medium text-gray-600">
-                  Loading energy data...
-                </p>
-                <p className="mt-2 text-sm text-gray-500">
-                  Fetching from Google Sheets
-                </p>
-              </div>
-            </div>
-          ) : filteredData.length === 0 ? (
-            <div className="flex justify-center items-center h-96 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-center">
-                <div className="mb-4 text-6xl">📊</div>
-                <p className="text-lg font-semibold">No data available</p>
-                <p className="mt-2 text-sm">
-                  {rawEnergyData.length === 0
-                    ? "No energy production data found in the sheet"
-                    : `No data available for the selected ${timeRange} period`}
-                </p>
-                <button
-                  onClick={fetchEnergyData}
-                  className="px-6 py-2 mt-4 font-medium text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
-                >
-                  Refresh Data
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="h-96">
-              <Bar data={chartData} options={chartOptions} />
-            </div>
-          )}
-        </div>
+  
+    
+        <CombinedAreaChart />
       </div>
     </AdminLayout>
   );

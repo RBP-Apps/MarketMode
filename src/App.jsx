@@ -23,6 +23,7 @@ import SubsidyDisbursalPage from "./pages/SubsidyDisbursal"
 import PaymentPage from "./pages/Payment"
 import EnergyAnalysis from "./pages/EnergyAnalysis"
 import AnalysisGraphPage from "./pages/Analysisgraph"
+import { DeviceProvider } from "./pages/graph/DeviceContext"
 
 import "./index.css"
 
@@ -47,7 +48,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 function App() {
 
   return (
-    <Router>
+    <DeviceProvider>
+      <Router>
       <Routes>
         {/* Root redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -262,6 +264,7 @@ function App() {
         <Route path="/user/*" element={<Navigate to="/dashboard/admin" replace />} />
       </Routes>
     </Router>
+    </DeviceProvider>
   )
 }
 

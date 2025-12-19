@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { 
-  CheckSquare, 
-  ClipboardList, 
-  Home, 
-  LogOut, 
-  Menu, 
-  Database, 
-  ChevronDown, 
+import {
+  CheckSquare,
+  ClipboardList,
+  Home,
+  LogOut,
+  Menu,
+  Database,
+  ChevronDown,
   ChevronRight,
   FileText,
   Send,
@@ -41,13 +41,13 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
   useEffect(() => {
     const storedUsername = sessionStorage.getItem('username')
     const storedRole = sessionStorage.getItem('role')
-    
+
     if (!storedUsername) {
       // Redirect to login if not authenticated
       navigate("/login")
       return
     }
-  
+
     setUsername(storedUsername)
     setUserRole(storedRole || "user")
   }, [navigate])
@@ -203,26 +203,26 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       active: location.pathname === "/dashboard/Payment",
       showFor: ["admin", "user"]
     },
+    // {
+    //   href: "/dashboard/energy-analysis",
+    //   label: "Energy Analysis",
+    //   icon: CreditCard,
+    //   active: location.pathname === "/dashboard/energy-analysis",
+    //   showFor: ["admin", "user"]
+    // },
     {
-      href: "/dashboard/energy-analysis",
-      label: "Energy Analysis",
-      icon: CreditCard,
-      active: location.pathname === "/dashboard/energy-analysis",
+      href: "/dashboard/analysis-graph",
+      label: "Analysis Graph",
+      icon: CreditCard, // yahan tum koi bhi icon rakh sakte ho
+      active: location.pathname === "/dashboard/analysis-graph",
       showFor: ["admin", "user"]
-    },
-    {
-  href: "/dashboard/analysis-graph",
-  label: "Analysis Graph",
-  icon: CreditCard, // yahan tum koi bhi icon rakh sakte ho
-  active: location.pathname === "/dashboard/analysis-graph",
-  showFor: ["admin", "user"]
-}
+    }
 
   ]
 
   const getAccessibleDepartments = () => {
     const userRole = sessionStorage.getItem('role') || 'user'
-    return dataCategories.filter(cat => 
+    return dataCategories.filter(cat =>
       !cat.showFor || cat.showFor.includes(userRole)
     )
   }
@@ -230,14 +230,14 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
   // Filter routes based on user role
   const getAccessibleRoutes = () => {
     const userRole = sessionStorage.getItem('role') || 'user'
-    return routes.filter(route => 
+    return routes.filter(route =>
       route.showFor.includes(userRole)
     )
   }
 
   // Check if the current path is a data category page
   const isDataPage = location.pathname.includes("/dashboard/data/")
-  
+
   // If it's a data page, expand the submenu by default
   useEffect(() => {
     if (isDataPage && !isDataSubmenuOpen) {
@@ -255,7 +255,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       <aside className="hidden w-64 flex-shrink-0 border-r border-blue-200 bg-white md:flex md:flex-col">
         <div className="flex h-14 items-center border-b border-blue-200 px-4 bg-gradient-to-r from-blue-100 to-purple-100">
           <Link to="/dashboard/admin" className="flex items-center gap-2 font-semibold text-blue-700">
-           <div className="w-14 h-14 overflow-hidden rounded">
+            <div className="w-14 h-14 overflow-hidden rounded">
               <img
                 src="/Rbpimage.jpg"
                 alt="RBP Logo"
@@ -274,11 +274,10 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                   <div>
                     <button
                       onClick={() => setIsDataSubmenuOpen(!isDataSubmenuOpen)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                        route.active
+                      className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
                           ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
                           : "text-gray-700 hover:bg-blue-50"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <route.icon className={`h-4 w-4 ${route.active ? "text-blue-600" : ""}`} />
@@ -292,11 +291,10 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                           <li key={category.id}>
                             <Link
                               to={category.link || `/dashboard/data/${category.id}`}
-                              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                                location.pathname === (category.link || `/dashboard/data/${category.id}`)
+                              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${location.pathname === (category.link || `/dashboard/data/${category.id}`)
                                   ? "bg-blue-50 text-blue-700 font-medium"
                                   : "text-gray-600 hover:bg-blue-50 hover:text-blue-700 "
-                              }`}
+                                }`}
                               onClick={() => setIsMobileMenuOpen(false)}
                             >
                               {category.name}
@@ -309,11 +307,10 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                 ) : (
                   <Link
                     to={route.href}
-                    className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      route.active
+                    className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
                         ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
                         : "text-gray-700 hover:bg-blue-50"
-                    }`}
+                      }`}
                   >
                     <route.icon className={`h-4 w-4 ${route.active ? "text-blue-600" : ""}`} />
                     {route.label}
@@ -340,8 +337,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
             </div>
             <div className="flex items-center gap-2">
               {toggleDarkMode && (
-                <button 
-                  onClick={toggleDarkMode} 
+                <button
+                  onClick={toggleDarkMode}
                   className="text-blue-700 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100"
                 >
                   {darkMode ? (
@@ -356,7 +353,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                   <span className="sr-only">{darkMode ? "Light mode" : "Dark mode"}</span>
                 </button>
               )}
-              <button 
+              <button
                 onClick={handleLogout}
                 className="text-blue-700 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100"
               >
@@ -400,11 +397,10 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                       <div>
                         <button
                           onClick={() => setIsDataSubmenuOpen(!isDataSubmenuOpen)}
-                          className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                            route.active
+                          className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
                               ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
                               : "text-gray-700 hover:bg-blue-50"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <route.icon className={`h-4 w-4 ${route.active ? "text-blue-600" : ""}`} />
@@ -422,11 +418,10 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                               <li key={category.id}>
                                 <Link
                                   to={category.link || `/dashboard/data/${category.id}`}
-                                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                                    location.pathname === (category.link || `/dashboard/data/${category.id}`)
+                                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${location.pathname === (category.link || `/dashboard/data/${category.id}`)
                                       ? "bg-blue-50 text-blue-700 font-medium"
                                       : "text-gray-600 hover:bg-blue-50 hover:text-blue-700"
-                                  }`}
+                                    }`}
                                   onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                   {category.name}
@@ -439,11 +434,10 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                     ) : (
                       <Link
                         to={route.href}
-                        className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                          route.active
+                        className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
                             ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
                             : "text-gray-700 hover:bg-blue-50"
-                        }`}
+                          }`}
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
                         <route.icon className={`h-4 w-4 ${route.active ? "text-blue-600" : ""}`} />
@@ -471,8 +465,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                 </div>
                 <div className="flex items-center gap-2">
                   {toggleDarkMode && (
-                    <button 
-                      onClick={toggleDarkMode} 
+                    <button
+                      onClick={toggleDarkMode}
                       className="text-blue-700 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100"
                     >
                       {darkMode ? (
@@ -487,7 +481,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                       <span className="sr-only">{darkMode ? "Light mode" : "Dark mode"}</span>
                     </button>
                   )}
-                  <button 
+                  <button
                     onClick={handleLogout}
                     className="text-blue-700 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100 "
                   >
@@ -511,18 +505,18 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gradient-to-br from-blue-50 to-purple-50">
           {children}
           <div className="fixed md:left-64 left-0 right-0 bottom-0 py-1 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-center text-sm shadow-md z-10">
-          <a
-    href="https://www.botivate.in/" // Replace with actual URL
-    target="_blank"
-    rel="noopener noreferrer"
-    className="hover:underline"
-  >
-    Powered by-<span className="font-semibold">Botivate</span>
-  </a>
-    </div>
+            <a
+              href="https://www.botivate.in/" // Replace with actual URL
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              Powered by-<span className="font-semibold">Botivate</span>
+            </a>
+          </div>
         </main>
       </div>
-      
+
     </div>
   )
 }
