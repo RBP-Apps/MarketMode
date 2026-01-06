@@ -26,7 +26,8 @@ import {
   CheckCircle,
   RotateCcw,
   DollarSign,
-  CreditCard
+  CreditCard,
+  ChartColumn
 } from 'lucide-react'
 
 export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
@@ -213,11 +214,17 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     {
       href: "/dashboard/analysis-graph",
       label: "Analysis Graph",
-      icon: CreditCard, // yahan tum koi bhi icon rakh sakte ho
+      icon: ChartColumn, // yahan tum koi bhi icon rakh sakte ho
       active: location.pathname === "/dashboard/analysis-graph",
       showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/all-graph",
+      label: "All Graph",
+      icon: ChartColumn,
+      active: location.pathname === "/dashboard/all-graph",
+      showFor: ["admin", "user"]
     }
-
   ]
 
   const getAccessibleDepartments = () => {
@@ -275,8 +282,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                     <button
                       onClick={() => setIsDataSubmenuOpen(!isDataSubmenuOpen)}
                       className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
-                          ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
-                          : "text-gray-700 hover:bg-blue-50"
+                        ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
+                        : "text-gray-700 hover:bg-blue-50"
                         }`}
                     >
                       <div className="flex items-center gap-3">
@@ -292,8 +299,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                             <Link
                               to={category.link || `/dashboard/data/${category.id}`}
                               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${location.pathname === (category.link || `/dashboard/data/${category.id}`)
-                                  ? "bg-blue-50 text-blue-700 font-medium"
-                                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-700 "
+                                ? "bg-blue-50 text-blue-700 font-medium"
+                                : "text-gray-600 hover:bg-blue-50 hover:text-blue-700 "
                                 }`}
                               onClick={() => setIsMobileMenuOpen(false)}
                             >
@@ -308,8 +315,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                   <Link
                     to={route.href}
                     className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
-                        ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
-                        : "text-gray-700 hover:bg-blue-50"
+                      ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
+                      : "text-gray-700 hover:bg-blue-50"
                       }`}
                   >
                     <route.icon className={`h-4 w-4 ${route.active ? "text-blue-600" : ""}`} />
@@ -398,8 +405,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                         <button
                           onClick={() => setIsDataSubmenuOpen(!isDataSubmenuOpen)}
                           className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
-                              ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
-                              : "text-gray-700 hover:bg-blue-50"
+                            ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
+                            : "text-gray-700 hover:bg-blue-50"
                             }`}
                         >
                           <div className="flex items-center gap-3">
@@ -419,8 +426,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                                 <Link
                                   to={category.link || `/dashboard/data/${category.id}`}
                                   className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${location.pathname === (category.link || `/dashboard/data/${category.id}`)
-                                      ? "bg-blue-50 text-blue-700 font-medium"
-                                      : "text-gray-600 hover:bg-blue-50 hover:text-blue-700"
+                                    ? "bg-blue-50 text-blue-700 font-medium"
+                                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-700"
                                     }`}
                                   onClick={() => setIsMobileMenuOpen(false)}
                                 >
@@ -435,8 +442,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                       <Link
                         to={route.href}
                         className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${route.active
-                            ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
-                            : "text-gray-700 hover:bg-blue-50"
+                          ? "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700"
+                          : "text-gray-700 hover:bg-blue-50"
                           }`}
                         onClick={() => setIsMobileMenuOpen(false)}
                       >

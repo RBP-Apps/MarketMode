@@ -55,13 +55,15 @@ const CombinedAreaChart = () => {
     daily: false,
     monthly: false,
     yearly: false,
-    device: false
+    device: false,
+    monthly_daily: false
   });
   const [error, setError] = useState('');
 
   // Data state
   const [minuteData, setMinuteData] = useState(null);
   const [dailyData, setDailyData] = useState(null);
+  const [monthlyDailyData, setMonthlyDailyData] = useState(null);
   const [monthlyData, setMonthlyData] = useState(null);
   const [yearlyData, setYearlyData] = useState(null);
   const [deviceData, setDeviceData] = useState(null);
@@ -78,6 +80,16 @@ const CombinedAreaChart = () => {
   });
 
   const [dailyForm, setDailyForm] = useState({
+    ps_key: psKey || '1589518_1_1_1',
+    data_point: 'p2',
+    start_date: '',
+    end_date: '',
+    data_type: '2',
+    query_type: '1',
+    order: '0'
+  });
+
+  const [monthlyDailyForm, setMonthlyDailyForm] = useState({
     ps_key: psKey || '1589518_1_1_1',
     data_point: 'p2',
     start_date: '',
@@ -126,6 +138,11 @@ const CombinedAreaChart = () => {
   });
 
   const [dailyDateRange, setDailyDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+
+  const [monthlyDailyDateRange, setMonthlyDailyDateRange] = useState({
     startDate: '',
     endDate: ''
   });
@@ -199,6 +216,7 @@ const CombinedAreaChart = () => {
     if (psKey) {
       setMinuteForm(prev => ({ ...prev, ps_key_list: psKey }));
       setDailyForm(prev => ({ ...prev, ps_key: psKey }));
+      setMonthlyDailyForm(prev => ({ ...prev, ps_key: psKey }));
       setMonthlyForm(prev => ({ ...prev, ps_key: psKey }));
       setYearlyForm(prev => ({ ...prev, ps_key: psKey }));
     }
@@ -224,6 +242,18 @@ const CombinedAreaChart = () => {
     date.setDate(date.getDate() - 1);
     return formatDateForAPI(date);
   }, [formatDateForAPI]);
+
+  // Filter data by date range (timestamp match)
+  const filterByDateRange = useCallback((data, startDate, endDate) => {
+    if (!startDate || !endDate || !Array.isArray(data)) return data;
+    const startStr = startDate.replace(/-/g, '');
+    const endStr = endDate.replace(/-/g, '');
+    return data.filter(item => {
+      const ts = item.timestamp || item.time_stamp || '';
+      const datePart = ts.length > 8 ? ts.slice(0, 8) : ts;
+      return datePart >= startStr && datePart <= endStr;
+    });
+  }, []);
 
   // Initialize dates on mount
   useEffect(() => {
@@ -281,6 +311,21 @@ const CombinedAreaChart = () => {
       end_date: formatDateForAPI(new Date(displayEndDate))
     }));
 
+    // Set default date range for monthly-daily view (last 30 days)
+    const thirtyDaysAgo = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000); // 30 days including today
+    const thirtyDaysAgoDate = formatDateForInput(thirtyDaysAgo);
+
+    setMonthlyDailyDateRange({
+      startDate: thirtyDaysAgoDate,
+      endDate: today
+    });
+
+    setMonthlyDailyForm(prev => ({
+      ...prev,
+      start_date: formatDateForAPI(thirtyDaysAgo),
+      end_date: formatDateForAPI(new Date(today))
+    }));
+
     // Convert to timestamp format for minute data API
     const convertToTimestamp = (dateStr, timeStr) => {
       const datePart = dateStr.replace(/-/g, '');
@@ -297,35 +342,48 @@ const CombinedAreaChart = () => {
       end_time_stamp: endTimestamp
     }));
 
-    // Set default month range for monthly view (current year)
-    const currentYear = now.getFullYear().toString();
-    const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+    // Set default month range for monthly view (last 12 months ending at current month)
+    const currentYearNum = now.getFullYear();
+    const currentMonthNum = now.getMonth() + 1;
+
+    // Calculate start month (11 months ago to show a full year including current)
+    let startMonthNum = currentMonthNum - 11;
+    let startYearNum = currentYearNum;
+    if (startMonthNum <= 0) {
+      startMonthNum += 12;
+      startYearNum -= 1;
+    }
+
+    const startYear = startYearNum.toString();
+    const startMonth = startMonthNum.toString().padStart(2, '0');
+    const endYear = currentYearNum.toString();
+    const endMonth = currentMonthNum.toString().padStart(2, '0');
 
     setMonthRange({
-      startYear: currentYear,
-      startMonth: '01',
-      endYear: currentYear,
-      endMonth: currentMonth
+      startYear,
+      startMonth,
+      endYear,
+      endMonth
     });
 
     setMonthlyForm(prev => ({
       ...prev,
-      start_year: currentYear,
-      start_month: '01',
-      end_year: currentYear,
-      end_month: currentMonth
+      start_year: startYear,
+      start_month: startMonth,
+      end_year: endYear,
+      end_month: endMonth
     }));
 
     // Set default year range for yearly view (last 4 years)
     setYearRange({
-      startYear: (parseInt(currentYear) - 3).toString(),
-      endYear: currentYear
+      startYear: (parseInt(endYear) - 3).toString(),
+      endYear: endYear
     });
 
     setYearlyForm(prev => ({
       ...prev,
-      start_year: (parseInt(currentYear) - 3).toString(),
-      end_year: currentYear
+      start_year: (parseInt(endYear) - 3).toString(),
+      end_year: endYear
     }));
   }, [formatDateForAPI]);
 
@@ -344,6 +402,11 @@ const CombinedAreaChart = () => {
         case 'daily':
           if (dailyDateRange.startDate && dailyDateRange.endDate) {
             fetchDailyData();
+          }
+          break;
+        case 'monthly_daily':
+          if (monthlyDailyDateRange.startDate && monthlyDailyDateRange.endDate) {
+            fetchMonthlyDailyData();
           }
           break;
         case 'monthly':
@@ -376,55 +439,52 @@ const CombinedAreaChart = () => {
   ]);
 
   // Also add this effect to auto-fetch when psKey changes
-  // NEW: Simplified auto-fetch when psKey changes
+  // Consolidated Auto-Fetch Effect: Triggers when psKey, token, or any relevant view settings change
   useEffect(() => {
-    if (psKey && token && !loading.device) {
-      console.log('PS Key updated, checking if we should auto-fetch...');
+    if (!token || !psKey || loading.device) return;
 
-      // Only auto-fetch if we have valid form data
-      let shouldFetch = false;
+    // Determine if we should fetch based on active viewMode
+    let shouldFetch = false;
+    let fetchFn = null;
 
-      switch (viewMode) {
-        case 'minute':
-          shouldFetch = minuteForm.start_time_stamp && minuteForm.end_time_stamp;
-          break;
-        case 'daily':
-          shouldFetch = dailyDateRange.startDate && dailyDateRange.endDate;
-          break;
-        case 'monthly':
-          shouldFetch = monthRange.startYear && monthRange.startMonth;
-          break;
-        case 'yearly':
-          shouldFetch = yearRange.startYear;
-          break;
-        default:
-          shouldFetch = false;
-      }
-
-      if (shouldFetch) {
-        console.log(`Auto-fetching ${viewMode} data for PS Key: ${psKey}`);
-        // Small delay to ensure state is ready
-        const timeoutId = setTimeout(() => {
-          switch (viewMode) {
-            case 'minute':
-              fetchMinuteData();
-              break;
-            case 'daily':
-              fetchDailyData();
-              break;
-            case 'monthly':
-              fetchMonthlyData();
-              break;
-            case 'yearly':
-              fetchYearlyData();
-              break;
-          }
-        }, 500);
-
-        return () => clearTimeout(timeoutId);
-      }
+    switch (viewMode) {
+      case 'minute':
+        shouldFetch = dateTime.startDate && dateTime.startTime && dateTime.endDate && dateTime.endTime;
+        fetchFn = fetchMinuteData;
+        break;
+      case 'daily':
+        shouldFetch = dailyDateRange.startDate && dailyDateRange.endDate;
+        fetchFn = fetchDailyData;
+        break;
+      case 'monthly_daily':
+        shouldFetch = monthlyDailyDateRange.startDate && monthlyDailyDateRange.endDate;
+        fetchFn = fetchMonthlyDailyData;
+        break;
+      case 'monthly':
+        shouldFetch = monthRange.startYear && monthRange.startMonth && monthRange.endYear && monthRange.endMonth;
+        fetchFn = fetchMonthlyData;
+        break;
+      case 'yearly':
+        shouldFetch = yearRange.startYear && yearRange.endYear;
+        fetchFn = fetchYearlyData;
+        break;
+      default:
+        break;
     }
-  }, [psKey, token, viewMode, minuteForm, dailyDateRange, monthRange, yearRange]);
+
+    if (shouldFetch && fetchFn) {
+      console.log(`Auto-fetching ${viewMode} data...`);
+      const timeoutId = setTimeout(() => {
+        fetchFn();
+      }, 500); // Debounce to allow multiple rapid state updates to settle
+      return () => clearTimeout(timeoutId);
+    }
+  }, [
+    token, psKey, viewMode,
+    dateTime, dailyDateRange, monthlyDailyDateRange, monthRange, yearRange, // Trigger on date/range changes
+    selectedParameter, dailyForm.data_point, monthlyDailyForm.data_point, monthlyForm.data_point, yearlyForm.data_point, // Trigger on param changes
+    dailyForm.ps_key, monthlyDailyForm.ps_key, monthlyForm.ps_key, yearlyForm.ps_key // Trigger on device changes
+  ]);
 
   // Track when beneficiary is selected and auto-fetch
   useEffect(() => {
@@ -490,49 +550,10 @@ const CombinedAreaChart = () => {
     }
   }, [dateTime, convertToTimestamp]);
 
-  // Update daily form when date range changes WITH API START DATE LOGIC
-  useEffect(() => {
-    if (dailyDateRange.startDate && dailyDateRange.endDate) {
-      const start = new Date(dailyDateRange.startDate);
-      const end = new Date(dailyDateRange.endDate);
+  // Synchronization useEffects - REMOVED redundant syncs as fetch functions now use Range states directly
 
-      // Calculate API start date (one day before user's start date)
-      const apiStart = new Date(start);
-      apiStart.setDate(apiStart.getDate() - 1);
-      const newApiStartDate = formatDateForAPI(apiStart);
-      setApiStartDate(newApiStartDate);
 
-      setDailyForm(prev => ({
-        ...prev,
-        start_date: newApiStartDate,
-        end_date: formatDateForAPI(end)
-      }));
-    }
-  }, [dailyDateRange, formatDateForAPI]);
 
-  // Update monthly form when month range changes
-  useEffect(() => {
-    if (monthRange.startYear && monthRange.startMonth && monthRange.endYear && monthRange.endMonth) {
-      setMonthlyForm(prev => ({
-        ...prev,
-        start_year: monthRange.startYear,
-        start_month: monthRange.startMonth,
-        end_year: monthRange.endYear,
-        end_month: monthRange.endMonth
-      }));
-    }
-  }, [monthRange]);
-
-  // Update yearly form when year range changes
-  useEffect(() => {
-    if (yearRange.startYear && yearRange.endYear) {
-      setYearlyForm(prev => ({
-        ...prev,
-        start_year: yearRange.startYear,
-        end_year: yearRange.endYear
-      }));
-    }
-  }, [yearRange]);
 
   // Fetch minute data DIRECTLY to Solar API
   const fetchMinuteData = useCallback(async () => {
@@ -550,15 +571,19 @@ const CombinedAreaChart = () => {
     setError('');
 
     try {
+      // Calculate timestamps directly from dateTime state
+      const startTimestamp = convertToTimestamp(dateTime.startDate, dateTime.startTime);
+      const endTimestamp = convertToTimestamp(dateTime.endDate, dateTime.endTime);
+
       const requestBody = {
         appkey: SOLAR_APPKEY,
-        end_time_stamp: minuteForm.end_time_stamp,
+        end_time_stamp: endTimestamp,
         is_get_data_acquisition_time: minuteForm.is_get_data_acquisition_time,
         lang: minuteForm.lang,
         minute_interval: Number(minuteForm.minute_interval),
         points: minuteForm.points,
-        ps_key_list: minuteForm.ps_key_list.split(',').map(s => s.trim()),
-        start_time_stamp: minuteForm.start_time_stamp,
+        ps_key_list: psKey.split(',').map(s => s.trim()),
+        start_time_stamp: startTimestamp,
         sys_code: 207
       };
 
@@ -592,7 +617,7 @@ const CombinedAreaChart = () => {
     } finally {
       setLoading(prev => ({ ...prev, minute: false }));
     }
-  }, [token, minuteForm]);
+  }, [token, minuteForm, dateTime, psKey, convertToTimestamp]);
 
   // Fetch daily data DIRECTLY to Solar API WITH API START DATE LOGIC
   const fetchDailyData = useCallback(async () => {
@@ -620,16 +645,25 @@ const CombinedAreaChart = () => {
     setError('');
 
     try {
+      // Calculate API start date (one day before user's start date)
+      const start = new Date(dailyDateRange.startDate);
+      const end = new Date(dailyDateRange.endDate);
+      const apiStart = new Date(start);
+      apiStart.setDate(apiStart.getDate() - 1);
+
+      const apiStartDateVal = formatDateForAPI(apiStart);
+      const apiEndDateVal = formatDateForAPI(end);
+
       const requestBody = {
         appkey: SOLAR_APPKEY,
         data_point: dailyForm.data_point,
         data_type: dailyForm.data_type,
-        end_time: dailyForm.end_date,
+        end_time: apiEndDateVal,
         lang: '_en_US',
         order: dailyForm.order,
-        ps_key_list: [dailyForm.ps_key],
+        ps_key_list: [psKey || dailyForm.ps_key],
         query_type: dailyForm.query_type,
-        start_time: dailyForm.start_date,
+        start_time: apiStartDateVal,
         sys_code: 207
       };
 
@@ -663,7 +697,72 @@ const CombinedAreaChart = () => {
     } finally {
       setLoading(prev => ({ ...prev, daily: false }));
     }
-  }, [token, dailyForm, dailyDateRange]);
+  }, [token, dailyForm, dailyDateRange, psKey, formatDateForAPI]);
+
+  // Fetch monthly-daily data (daily data over 30 days)
+  const fetchMonthlyDailyData = useCallback(async () => {
+    if (!token) {
+      setError('No login token available. Please login first.');
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, monthly_daily: true }));
+    setError('');
+
+    try {
+      // Calculate API start date (one day before user's start date)
+      const start = new Date(monthlyDailyDateRange.startDate);
+      const end = new Date(monthlyDailyDateRange.endDate);
+      const apiStart = new Date(start);
+      apiStart.setDate(apiStart.getDate() - 1);
+
+      const apiStartDateVal = formatDateForAPI(apiStart);
+      const apiEndDateVal = formatDateForAPI(end);
+
+      const requestBody = {
+        appkey: SOLAR_APPKEY,
+        data_point: monthlyDailyForm.data_point,
+        data_type: monthlyDailyForm.data_type,
+        end_time: apiEndDateVal,
+        lang: '_en_US',
+        order: monthlyDailyForm.order,
+        ps_key_list: [psKey || monthlyDailyForm.ps_key],
+        query_type: monthlyDailyForm.query_type,
+        start_time: apiStartDateVal,
+        sys_code: 207
+      };
+
+      const response = await fetch('https://gateway.isolarcloud.com.hk/openapi/getDevicePointsDayMonthYearDataList', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-key': SOLAR_SECRET_KEY,
+          'sys_code': SOLAR_SYS_CODE,
+          'token': token
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.result_code === "1") {
+        setMonthlyDailyData(result);
+        setError('');
+      } else {
+        setError(`API Error: ${result.result_msg}`);
+        setMonthlyDailyData(null);
+      }
+    } catch (err) {
+      setError(`Fetch error: ${err.message || 'Unknown error'}`);
+      setMonthlyDailyData(null);
+    } finally {
+      setLoading(prev => ({ ...prev, monthly_daily: false }));
+    }
+  }, [token, monthlyDailyForm, monthlyDailyDateRange, psKey, formatDateForAPI]);
 
   // Fetch monthly data DIRECTLY to Solar API
   const fetchMonthlyData = useCallback(async () => {
@@ -676,16 +775,28 @@ const CombinedAreaChart = () => {
     setError('');
 
     try {
+      const startYear = parseInt(monthRange.startYear);
+      const startMonth = parseInt(monthRange.startMonth);
+      let apiStartYear = startYear;
+      let apiStartMonth = startMonth - 1;
+      if (apiStartMonth <= 0) {
+        apiStartMonth = 12;
+        apiStartYear -= 1;
+      }
+
+      const startTime = `${apiStartYear}${apiStartMonth.toString().padStart(2, '0')}`;
+      const endTime = `${monthRange.endYear}${monthRange.endMonth}`;
+
       const requestBody = {
         appkey: SOLAR_APPKEY,
         data_point: monthlyForm.data_point,
         data_type: monthlyForm.data_type,
-        end_time: `${monthlyForm.end_year}${monthlyForm.end_month}`,
+        end_time: endTime,
         lang: '_en_US',
         order: monthlyForm.order,
-        ps_key_list: [monthlyForm.ps_key],
+        ps_key_list: [psKey || monthlyForm.ps_key],
         query_type: monthlyForm.query_type,
-        start_time: `${monthlyForm.start_year}${monthlyForm.start_month}`,
+        start_time: startTime,
         sys_code: 207
       };
 
@@ -712,7 +823,7 @@ const CombinedAreaChart = () => {
     } finally {
       setLoading(prev => ({ ...prev, monthly: false }));
     }
-  }, [token, monthlyForm]);
+  }, [token, monthlyForm, monthRange, psKey]);
 
   // Fetch yearly data DIRECTLY to Solar API
   const fetchYearlyData = useCallback(async () => {
@@ -725,16 +836,22 @@ const CombinedAreaChart = () => {
     setError('');
 
     try {
+      const startYear = parseInt(yearRange.startYear);
+      const apiStartYear = (startYear - 1).toString();
+
+      const startTime = apiStartYear;
+      const endTime = yearRange.endYear;
+
       const requestBody = {
         appkey: SOLAR_APPKEY,
         data_point: yearlyForm.data_point,
         data_type: yearlyForm.data_type,
-        end_time: yearlyForm.end_year,
+        end_time: endTime,
         lang: '_en_US',
         order: yearlyForm.order,
-        ps_key_list: [yearlyForm.ps_key],
+        ps_key_list: [psKey || yearlyForm.ps_key],
         query_type: yearlyForm.query_type,
-        start_time: yearlyForm.start_year,
+        start_time: startTime,
         sys_code: 207
       };
 
@@ -761,7 +878,7 @@ const CombinedAreaChart = () => {
     } finally {
       setLoading(prev => ({ ...prev, yearly: false }));
     }
-  }, [token, yearlyForm]);
+  }, [token, yearlyForm, yearRange, psKey]);
 
   // Format minute data for chart
   const formatMinuteData = useCallback(() => {
@@ -805,17 +922,21 @@ const CombinedAreaChart = () => {
 
   // Format cumulative data from API (raw Wh to kWh)
   const formatCumulativeData = useCallback(() => {
-    if (!dailyData || !dailyData.result_data) {
+    const isMonthlyDaily = viewMode === 'monthly_daily';
+    const dataSource = isMonthlyDaily ? monthlyDailyData : dailyData;
+    const currentStartDate = isMonthlyDaily ? monthlyDailyDateRange.startDate : dailyDateRange.startDate;
+
+    if (!dataSource || !dataSource.result_data) {
       return [];
     }
 
-    const psKey = Object.keys(dailyData.result_data)[0];
+    const psKey = Object.keys(dataSource.result_data)[0];
     if (!psKey) {
       return [];
     }
 
-    const dataPoint = Object.keys(dailyData.result_data[psKey])[0];
-    const dataArray = dailyData.result_data[psKey][dataPoint];
+    const dataPoint = Object.keys(dataSource.result_data[psKey])[0];
+    const dataArray = dataSource.result_data[psKey][dataPoint];
 
     if (!dataArray || dataArray.length === 0) return [];
 
@@ -835,7 +956,7 @@ const CombinedAreaChart = () => {
           cumulativeKwh: 0,
           cumulativeWh: 0,
           period: 'Daily',
-          isFirstPeriod: timestamp === dailyDateRange.startDate.replace(/-/g, '')
+          isFirstPeriod: currentStartDate && timestamp === currentStartDate.replace(/-/g, '')
         };
       }
 
@@ -849,20 +970,23 @@ const CombinedAreaChart = () => {
         cumulativeKwh,
         cumulativeWh: originalWh,
         period: 'Daily',
-        isFirstPeriod: timestamp === dailyDateRange.startDate.replace(/-/g, '')
+        isFirstPeriod: currentStartDate && timestamp === currentStartDate.replace(/-/g, '')
       };
     });
-  }, [dailyData, dailyDateRange.startDate, formatDateFromAPI]);
+  }, [viewMode, dailyData, monthlyDailyData, dailyDateRange, monthlyDailyDateRange, formatDateFromAPI]);
 
   // Filter data to show only from user's start date onwards
   const filterDataFromStartDate = useCallback((data) => {
-    if (!dailyDateRange.startDate) return data;
+    const isMonthlyDaily = viewMode === 'monthly_daily';
+    const startDate = isMonthlyDaily ? monthlyDailyDateRange.startDate : dailyDateRange.startDate;
 
-    const startTimestamp = dailyDateRange.startDate.replace(/-/g, '');
+    if (!startDate) return data;
+
+    const startTimestamp = startDate.replace(/-/g, '');
     return data.filter(item => {
       return item.timestamp >= startTimestamp;
     });
-  }, [dailyDateRange.startDate]);
+  }, [dailyDateRange.startDate, monthlyDailyDateRange.startDate, viewMode]);
 
   // Professional conversion: Cumulative to Period Production WITH PREVIOUS DAY DATA
   const convertCumulativeToPeriodProduction = useCallback((cumulativeData) => {
@@ -903,17 +1027,26 @@ const CombinedAreaChart = () => {
         // No previous day data, this might be the first day after user's start date
         if (index === 0) {
           // This is the user's start date, check if we have data for the day before
-          const dayBeforeStart = getPreviousDayTimestamp(dailyDateRange.startDate.replace(/-/g, ''));
-          const dayBeforeData = allCumulativeData.find(item => item.timestamp === dayBeforeStart);
+          const isMonthlyDaily = viewMode === 'monthly_daily';
+          const startDate = isMonthlyDaily ? monthlyDailyDateRange.startDate : dailyDateRange.startDate;
 
-          if (dayBeforeData) {
-            periodKwh = current.cumulativeKwh - dayBeforeData.cumulativeKwh;
-            calculation = `${current.cumulativeKwh.toFixed(2)} kWh - ${dayBeforeData.cumulativeKwh.toFixed(2)} kWh = ${periodKwh.toFixed(2)} kWh`;
+          if (startDate) {
+            const dayBeforeStart = getPreviousDayTimestamp(startDate.replace(/-/g, ''));
+            const dayBeforeData = allCumulativeData.find(item => item.timestamp === dayBeforeStart);
+
+            if (dayBeforeData) {
+              periodKwh = current.cumulativeKwh - dayBeforeData.cumulativeKwh;
+              calculation = `${current.cumulativeKwh.toFixed(2)} kWh - ${dayBeforeData.cumulativeKwh.toFixed(2)} kWh = ${periodKwh.toFixed(2)} kWh`;
+            } else {
+              // No data for day before, set to 0
+              periodKwh = 0;
+              calculation = 'No previous day data available, set to 0 kWh';
+            }
           } else {
-            // No data for day before, set to 0
             periodKwh = 0;
-            calculation = 'No previous day data available, set to 0 kWh';
+            calculation = 'Start date not set';
           }
+
         } else {
           // Not the first day, use previous day in filtered data
           const previous = sortedData[index - 1];
@@ -952,11 +1085,11 @@ const CombinedAreaChart = () => {
         isFirstPeriod: index === 0
       };
     });
-  }, [filterDataFromStartDate, getPreviousDayTimestamp, dailyDateRange.startDate]);
+  }, [filterDataFromStartDate, getPreviousDayTimestamp, dailyDateRange.startDate, monthlyDailyDateRange.startDate, viewMode]);
 
   // Use useMemo for efficient period data calculation
   const periodData = useMemo(() => {
-    if (viewMode !== 'daily') return [];
+    if (viewMode !== 'daily' && viewMode !== 'monthly_daily') return [];
     const cumulativeData = formatCumulativeData();
     const result = convertCumulativeToPeriodProduction(cumulativeData);
     return result;
@@ -964,32 +1097,38 @@ const CombinedAreaChart = () => {
 
   // Format daily data for chart
   const formatDailyData = useCallback(() => {
-    if (!dailyData || !dailyData.result_data) {
+    const isMonthlyDaily = viewMode === 'monthly_daily';
+    const dataSource = isMonthlyDaily ? monthlyDailyData : dailyData;
+    const currentForm = isMonthlyDaily ? monthlyDailyForm : dailyForm;
+    const rangeSource = isMonthlyDaily ? monthlyDailyDateRange : dailyDateRange;
+
+    if (!dataSource || !dataSource.result_data) {
       return [];
     }
 
-    const psKey = Object.keys(dailyData.result_data)[0];
+    const psKey = Object.keys(dataSource.result_data)[0];
     if (!psKey) {
       return [];
     }
 
-    const dataPoint = Object.keys(dailyData.result_data[psKey])[0];
-    const dataArray = dailyData.result_data[psKey][dataPoint];
+    const dataPoint = Object.keys(dataSource.result_data[psKey])[0];
+    const dataArray = dataSource.result_data[psKey][dataPoint];
 
     if (!dataArray || !Array.isArray(dataArray) || dataArray.length === 0) {
       return [];
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const isEnergyParam = ['p2', 'p87'].includes(dailyForm.data_point);
+    const isEnergyParam = ['p2', 'p87'].includes(currentForm.data_point);
 
     // If not an energy parameter, use simple conversion
     if (!isEnergyParam) {
       const sortedData = [...dataArray].sort((a, b) => a.time_stamp.localeCompare(b.time_stamp));
-      const filteredData = filterDataFromStartDate(sortedData.map(item => ({
+      // Use filterByDateRange instead of filterDataFromStartDate to be explicit with range
+      const filteredData = filterByDateRange(sortedData.map(item => ({
         timestamp: item.time_stamp,
         value: parseFloat(item[Object.keys(item).find(key => key !== 'time_stamp') || ''] || '0')
-      })));
+      })), rangeSource.startDate, rangeSource.endDate);
 
       return filteredData.map((item, index) => {
         const date = formatDateFromAPI(item.timestamp);
@@ -1090,13 +1229,17 @@ const CombinedAreaChart = () => {
       });
     }
   }, [
+    viewMode,
     dailyData,
-    dailyForm.data_point,
+    monthlyDailyData,
+    dailyForm,
+    monthlyDailyForm,
+    dailyDateRange,
+    monthlyDailyDateRange,
     formatDateFromAPI,
-    filterDataFromStartDate,
+    filterByDateRange,
     conversionMode,
-    formatCumulativeData,
-    periodData
+    formatCumulativeData
   ]);
 
   // Format monthly data for chart
@@ -1161,11 +1304,13 @@ const CombinedAreaChart = () => {
       previousCumulativeKwh = cumulativeValueKwh;
     });
 
-    return result.sort((a, b) => {
-      if (a.year !== b.year) return parseInt(a.year) - parseInt(b.year);
-      return a.monthNum - b.monthNum;
-    });
-  }, [monthlyData]);
+    return result
+      .filter(item => parseInt(item.month) >= parseInt(`${monthRange.startYear}${monthRange.startMonth}`))
+      .sort((a, b) => {
+        if (a.year !== b.year) return parseInt(a.year) - parseInt(b.year);
+        return a.monthNum - b.monthNum;
+      });
+  }, [monthlyData, monthRange]);
 
   // Format yearly data for chart
   const formatYearlyData = useCallback(() => {
@@ -1223,8 +1368,10 @@ const CombinedAreaChart = () => {
       previousCumulativeKwh = cumulativeValueKwh;
     });
 
-    return result.sort((a, b) => parseInt(a.year) - parseInt(b.year));
-  }, [yearlyData]);
+    return result
+      .filter(item => parseInt(item.year) >= parseInt(yearRange.startYear))
+      .sort((a, b) => parseInt(a.year) - parseInt(b.year));
+  }, [yearlyData, yearRange]);
 
   // Get parameter configuration
   const getParamConfig = useCallback((param) => {
@@ -1260,7 +1407,16 @@ const CombinedAreaChart = () => {
       const max = Math.max(...values);
       const min = Math.min(...values);
       const avg = values.reduce((a, b) => a + b, 0) / values.length;
-      const sum = values.reduce((a, b) => a + b, 0);
+      let sum = values.reduce((a, b) => a + b, 0);
+      let unit = getParamConfig(selectedParameter).unit;
+
+      // Integration: Convert Power (W) to Energy (kWh) in minute view
+      // Energy (kWh) = Sum of Power(W) * (Interval / 60) / 1000
+      if (unit === 'W') {
+        const interval = Number(minuteForm.minute_interval) || 10;
+        sum = (sum * (interval / 60)) / 1000;
+        unit = 'kWh';
+      }
 
       return {
         max,
@@ -1268,11 +1424,14 @@ const CombinedAreaChart = () => {
         avg,
         sum,
         count: values.length,
-        unit: getParamConfig(selectedParameter).unit
+        unit: unit
       };
-    } else if (viewMode === 'daily') {
+    } else if (viewMode === 'daily' || viewMode === 'monthly_daily') {
       const data = formatDailyData();
       if (data.length === 0) return null;
+
+      const isMonthlyDaily = viewMode === 'monthly_daily';
+      const currentForm = isMonthlyDaily ? monthlyDailyForm : dailyForm;
 
       const values = data.map(d => d.value);
       const sum = values.reduce((a, b) => a + b, 0);
@@ -1298,7 +1457,7 @@ const CombinedAreaChart = () => {
             totalCumulativeKwh = lastValue;
           }
         } else {
-          const periodValues = periodData.map(d => d.periodProductionKwh);
+          const periodValues = data.map(d => d.periodProductionKwh || d.value);
           if (periodValues.length >= 2) {
             const firstNonZeroIndex = periodValues.findIndex((val, idx) => idx > 0 && val > 0);
             if (firstNonZeroIndex !== -1) {
@@ -1306,7 +1465,7 @@ const CombinedAreaChart = () => {
               const lastPeriodValue = periodValues[periodValues.length - 1];
               totalGrowth = firstNonZeroValue > 0 ? ((lastPeriodValue - firstNonZeroValue) / firstNonZeroValue * 100) : 0;
             }
-            totalCumulativeKwh = periodData.length > 0 ? periodData[periodData.length - 1].cumulativeKwh : 0;
+            totalCumulativeKwh = data.length > 0 ? (data[data.length - 1].cumulativeKwh || 0) : 0;
           }
         }
       }
@@ -1324,7 +1483,7 @@ const CombinedAreaChart = () => {
         nonZeroPeriods: values.filter(v => v > 0).length,
         firstValue: values[0] || 0,
         lastValue: values[values.length - 1] || 0,
-        unit: getParamConfig(dailyForm.data_point).unit
+        unit: getParamConfig(currentForm.data_point).unit
       };
     } else if (viewMode === 'monthly') {
       const data = formatMonthlyData();
@@ -1739,6 +1898,9 @@ const CombinedAreaChart = () => {
     }
   }, []);
 
+  // Calculate stats for chart header
+  const stats = useMemo(() => calculateStats(), [calculateStats]);
+
   // PROFESSIONAL RENDER CHART FUNCTION
   const renderChart = useCallback(() => {
     let data = [];
@@ -1750,9 +1912,9 @@ const CombinedAreaChart = () => {
       data = formatMinuteData();
       paramConfig = getParamConfig(selectedParameter);
       dataKey = selectedParameter;
-    } else if (viewMode === 'daily') {
+    } else if (viewMode === 'daily' || viewMode === 'monthly_daily') {
       data = formatDailyData();
-      paramConfig = getParamConfig(dailyForm.data_point);
+      paramConfig = getParamConfig(viewMode === 'monthly_daily' ? monthlyDailyForm.data_point : dailyForm.data_point);
       dataKey = 'value';
     } else if (viewMode === 'monthly') {
       data = formatMonthlyData();
@@ -1791,7 +1953,7 @@ const CombinedAreaChart = () => {
           [dataKey]: item[dataKey],
           ...item
         };
-      } else if (viewMode === 'daily') {
+      } else if (viewMode === 'daily' || viewMode === 'monthly_daily') {
         return {
           name: item.formattedDate || item.date,
           value: item.value,
@@ -1839,15 +2001,16 @@ const CombinedAreaChart = () => {
             }}
           />
         );
-      } else if (viewMode === 'daily') {
+      } else if (viewMode === 'daily' || viewMode === 'monthly_daily') {
         return (
           <XAxis
             dataKey="name"
             label={{ value: 'Date', position: 'insideBottom', offset: -10 }}
-            tick={{ fontSize: 12 }}
-            angle={chartData.length > 10 ? -45 : 0}
-            textAnchor={chartData.length > 10 ? 'end' : 'middle'}
-            height={chartData.length > 10 ? 80 : 40}
+            tick={{ fontSize: 10 }} // Reduce font size slightly to fit all
+            interval={0}
+            angle={-45}
+            textAnchor="end"
+            height={60}
           />
         );
       } else if (viewMode === 'monthly') {
@@ -2092,16 +2255,29 @@ const CombinedAreaChart = () => {
               />
               <div>
                 <h3 className="font-semibold text-gray-900 text-sm">
-                  {paramConfig.label} {viewMode.charAt(0).toUpperCase() + viewMode.slice(1)}
+                  {paramConfig.label} {
+                    viewMode === 'minute' ? 'Daily' :
+                      viewMode === 'daily' ? 'Weekly' :
+                        viewMode === 'monthly_daily' ? 'Monthly' :
+                          viewMode === 'monthly' ? 'Yearly' :
+                            'Life Time'
+                  } Data
+                  {['minute', 'daily', 'monthly_daily', 'monthly', 'yearly'].includes(viewMode) && stats && (
+                    <span className="ml-8 inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-blue-700 border border-blue-200 shadow-md ring-4 ring-blue-50 transition-all hover:shadow-lg">
+                      Total: {stats.sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-gray-500">
                   {viewMode === 'minute'
                     ? `${dateTime.startDate} ${dateTime.startTime} - ${dateTime.endDate} ${dateTime.endTime}`
                     : viewMode === 'daily'
                       ? `${dailyDateRange.startDate} - ${dailyDateRange.endDate}`
-                      : viewMode === 'monthly'
-                        ? `${monthRange.startYear}-${monthRange.startMonth} to ${monthRange.endYear}-${monthRange.endMonth}`
-                        : `${yearRange.startYear} - ${yearRange.endYear}`
+                      : viewMode === 'monthly_daily'
+                        ? `${monthlyDailyDateRange.startDate} - ${monthlyDailyDateRange.endDate}`
+                        : viewMode === 'monthly'
+                          ? `${monthRange.startYear}-${monthRange.startMonth} to ${monthRange.endYear}-${monthRange.endMonth}`
+                          : `${yearRange.startYear} - ${yearRange.endYear}`
                   }
                 </p>
               </div>
@@ -2156,7 +2332,8 @@ const CombinedAreaChart = () => {
     chartType,
     chartConfig,
     CustomTooltip,
-    conversionMode
+    conversionMode,
+    stats
   ]);
 
   // Get fetch function based on view mode
@@ -2212,6 +2389,16 @@ const CombinedAreaChart = () => {
                   Weekly Data
                 </button>
                 <button
+                  onClick={() => setViewMode('monthly_daily')}
+                  className={`px-6 py-3 rounded-md font-medium transition flex items-center gap-2 ${viewMode === 'monthly_daily'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-700 hover:text-gray-900'
+                    }`}
+                >
+                  <CalendarDays className="w-5 h-5" />
+                  Monthly Data
+                </button>
+                <button
                   onClick={() => setViewMode('monthly')}
                   className={`px-6 py-3 rounded-md font-medium transition flex items-center gap-2 ${viewMode === 'monthly'
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -2219,7 +2406,7 @@ const CombinedAreaChart = () => {
                     }`}
                 >
                   <Calendar className="w-5 h-5" />
-                  Monthly Data
+                  Yearly Data
                 </button>
                 <button
                   onClick={() => setViewMode('yearly')}
@@ -2229,7 +2416,7 @@ const CombinedAreaChart = () => {
                     }`}
                 >
                   <CalendarDays className="w-5 h-5" />
-                  Yearly Data
+                  Life Time Data
                 </button>
               </div>
             </div>
@@ -2269,6 +2456,13 @@ const CombinedAreaChart = () => {
                         setError('Please set valid date range for daily data');
                       }
                       break;
+                    case 'monthly_daily':
+                      if (monthlyDailyDateRange.startDate && monthlyDailyDateRange.endDate) {
+                        fetchMonthlyDailyData();
+                      } else {
+                        setError('Please set valid date range for monthly data');
+                      }
+                      break;
                     case 'monthly':
                       if (monthRange.startYear && monthRange.startMonth) {
                         fetchMonthlyData();
@@ -2300,6 +2494,10 @@ const CombinedAreaChart = () => {
                 setDailyDateRange={setDailyDateRange}
                 dailyForm={dailyForm}
                 setDailyForm={setDailyForm}
+                monthlyDailyDateRange={monthlyDailyDateRange}
+                setMonthlyDailyDateRange={setMonthlyDailyDateRange}
+                monthlyDailyForm={monthlyDailyForm}
+                setMonthlyDailyForm={setMonthlyDailyForm}
                 applyDailyPreset={applyDailyPreset}
                 monthRange={monthRange}
                 setMonthRange={setMonthRange}

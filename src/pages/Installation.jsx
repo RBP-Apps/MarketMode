@@ -325,7 +325,6 @@ function InstallationPage() {
       foundationPhoto: null,
       afterInstallationPhoto: null,
       photoWithCustomer: null,
-      photoWithCustomer: null,
       completeInstallationPhoto: null,
       investorId: record.investorId || "",
     })
@@ -471,7 +470,6 @@ function InstallationPage() {
           moduleMake: installForm.moduleMake,
           moduleCapacity: installForm.moduleCapacity,
           moduleType: installForm.moduleType,
-          moduleType: installForm.moduleType,
           structureMake: installForm.structureMake,
           investorId: installForm.investorId,
         }
@@ -513,7 +511,6 @@ function InstallationPage() {
       wiring: "",
       foundationPhoto: null,
       afterInstallationPhoto: null,
-      photoWithCustomer: null,
       photoWithCustomer: null,
       completeInstallationPhoto: null,
       investorId: "",

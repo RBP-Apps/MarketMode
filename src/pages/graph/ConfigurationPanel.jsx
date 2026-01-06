@@ -7,6 +7,7 @@ import {
   Sun,
   Calendar,
   CalendarDays,
+  Layers,
 } from 'lucide-react';
 
 const monthNames = [
@@ -28,6 +29,10 @@ const ConfigurationPanel = React.memo(({
   setDailyDateRange,
   dailyForm,
   setDailyForm,
+  monthlyDailyDateRange,
+  setMonthlyDailyDateRange,
+  monthlyDailyForm,
+  setMonthlyDailyForm,
   applyDailyPreset,
   monthRange,
   setMonthRange,
@@ -53,7 +58,7 @@ const ConfigurationPanel = React.memo(({
   formatMonthlyData,
   formatYearlyData,
   psKey,
-  onFetchData, // Add this prop for explicit fetch handler
+  onFetchData,
 }) => {
   // Memoized calculation of time difference
   const calculateTimeDifference = useCallback(() => {
@@ -133,23 +138,8 @@ const ConfigurationPanel = React.memo(({
     }
   }, [dateTime.startDate, dateTime.startTime, viewMode, setDateTime]);
 
-  useEffect(() => {
-    // Auto-fetch data when psKey changes and form is valid
-    if (token && psKey && !loading) {
-      const isValid =
-        (viewMode === 'minute' && minuteForm?.start_time_stamp && minuteForm?.end_time_stamp) ||
-        (viewMode === 'daily' && dailyDateRange?.startDate && dailyDateRange?.endDate) ||
-        (viewMode === 'monthly' && monthRange?.startYear && monthRange?.startMonth) ||
-        (viewMode === 'yearly' && yearRange?.startYear);
+  // Auto-fetch removed from child as it is now handled by the parent's consolidated useEffect
 
-      if (isValid && onFetchData) {
-        // Small delay to ensure state is updated
-        setTimeout(() => {
-          onFetchData();
-        }, 100);
-      }
-    }
-  }, [psKey, token, viewMode, minuteForm, dailyDateRange, monthRange, yearRange, loading, onFetchData]);
 
   // Memoized values
   const timeDifference = useMemo(() => calculateTimeDifference(), [calculateTimeDifference]);
@@ -201,20 +191,26 @@ const ConfigurationPanel = React.memo(({
       case 'daily':
         return {
           icon: <Sun className="w-5 h-5" />,
-          loadingText: 'Loading Daily Data...',
-          text: 'Fetch Daily Data'
+          loadingText: 'Loading Weekly Data...',
+          text: 'Fetch Weekly Data'
+        };
+      case 'monthly_daily':
+        return {
+          icon: <CalendarDays className="w-5 h-5" />,
+          loadingText: 'Loading Monthly Data...',
+          text: 'Fetch Monthly Data'
         };
       case 'monthly':
         return {
           icon: <Calendar className="w-5 h-5" />,
-          loadingText: 'Loading Monthly Data...',
-          text: 'Fetch Monthly Data'
+          loadingText: 'Loading Yearly Data...',
+          text: 'Fetch Yearly Data'
         };
       case 'yearly':
         return {
-          icon: <CalendarDays className="w-5 h-5" />,
-          loadingText: 'Loading Yearly Data...',
-          text: 'Fetch Yearly Data'
+          icon: <Layers className="w-5 h-5" />,
+          loadingText: 'Loading Life Time Data...',
+          text: 'Fetch Life Time Data'
         };
       default:
         return {
@@ -225,13 +221,96 @@ const ConfigurationPanel = React.memo(({
     }
   }, [viewMode]);
 
+  // Handle Start Date change for Daily view (auto-set end date to +6 days)
+  const handleDailyStartDateChange = useCallback((e) => {
+    const newStartDate = e.target.value;
+
+    // If cleared, just update start date
+    if (!newStartDate) {
+      setDailyDateRange(prev => ({ ...prev, startDate: newStartDate }));
+      return;
+    }
+
+    // Calculate end date (Start Date + 6 days for a 1-week range)
+    const start = new Date(newStartDate);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+
+    // Format to YYYY-MM-DD
+    const newEndDate = end.toISOString().split('T')[0];
+
+    setDailyDateRange({
+      startDate: newStartDate,
+      endDate: newEndDate
+    });
+  }, [setDailyDateRange]);
+
+  // Handle Start Date change for Monthly-Daily view (auto-set end date to +29 days)
+  const handleMonthlyDailyStartDateChange = useCallback((e) => {
+    const newStartDate = e.target.value;
+
+    // If cleared, just update start date
+    if (!newStartDate) {
+      setMonthlyDailyDateRange(prev => ({ ...prev, startDate: newStartDate }));
+      return;
+    }
+
+    // Calculate end date (Start Date + 29 days for a 30-day range)
+    const start = new Date(newStartDate);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 29);
+
+    // Format to YYYY-MM-DD
+    const newEndDate = end.toISOString().split('T')[0];
+
+    setMonthlyDailyDateRange({
+      startDate: newStartDate,
+      endDate: newEndDate
+    });
+  }, [setMonthlyDailyDateRange]);
+
+  // Handle Month Range changes with validation
+  const handleMonthChange = useCallback((type, field, value) => {
+    setMonthRange(prev => {
+      const newRange = { ...prev, [field]: value };
+
+      // If user changes End, automatically set Start to be 11 months prior to maintain 12-month window
+      if (type === 'end') {
+        const endYearNum = parseInt(newRange.endYear);
+        const endMonthNum = parseInt(newRange.endMonth);
+
+        let startMonthNum = endMonthNum - 11;
+        let startYearNum = endYearNum;
+
+        if (startMonthNum <= 0) {
+          startMonthNum += 12;
+          startYearNum -= 1;
+        }
+
+        newRange.startYear = startYearNum.toString();
+        newRange.startMonth = startMonthNum.toString().padStart(2, '0');
+      }
+
+      const startVal = parseInt(`${newRange.startYear}${newRange.startMonth}`);
+      const endVal = parseInt(`${newRange.endYear}${newRange.endMonth}`);
+
+      // If user changes Start manually, and it becomes later than End, move End to match Start
+      if (type === 'start' && startVal > endVal) {
+        newRange.endYear = newRange.startYear;
+        newRange.endMonth = newRange.startMonth;
+      }
+
+      return newRange;
+    });
+  }, [setMonthRange]);
+
   // Panel title
   const panelTitle = useMemo(() => {
     switch (viewMode) {
-      case 'minute': return 'Minute Data Config';
-      case 'daily': return 'Daily Data Config';
-      case 'monthly': return 'Monthly Data Config';
-      case 'yearly': return 'Yearly Data Config';
+      case 'minute': return 'Daily Data Config';
+      case 'daily': return 'Weekly Data Config';
+      case 'monthly': return 'Yearly Data Config';
+      case 'yearly': return 'Life Time Data Config';
       default: return 'Data Configuration';
     }
   }, [viewMode]);
@@ -248,27 +327,27 @@ const ConfigurationPanel = React.memo(({
           </h3>
         </div>
 
-        {/* Right: Status Button */}  
+        {/* Right: Status Button */}
         {/* Time Difference Display */}
-         {viewMode === 'minute' && (
-  <div className=''>
-    <button
-      type="button"
-      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${isExact3Hours
-        ? "border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
-        : "border-rose-500 bg-rose-50 text-rose-500 hover:bg-rose-200"
-        }`}
-    >
-      <Clock className="h-4 w-4" />
-      <span>{timeDifference.toFixed(2)}h</span>
-    </button>
-    {!isExact3Hours && (
-      <p className="text-xs text-rose-600 mt-1">
-        End time will be adjusted to exactly 3 hours from start time
-      </p>
-    )}
-  </div>
-)}
+        {viewMode === 'minute' && (
+          <div className=''>
+            <button
+              type="button"
+              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${isExact3Hours
+                ? "border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
+                : "border-rose-500 bg-rose-50 text-rose-500 hover:bg-rose-200"
+                }`}
+            >
+              <Clock className="h-4 w-4" />
+              <span>{timeDifference.toFixed(2)}h</span>
+            </button>
+            {!isExact3Hours && (
+              <p className="text-xs text-rose-600 mt-1">
+                End time will be adjusted to exactly 3 hours from start time
+              </p>
+            )}
+          </div>
+        )}
 
       </div>
 
@@ -361,7 +440,7 @@ const ConfigurationPanel = React.memo(({
               <input
                 type="date"
                 value={dailyDateRange.startDate || ''}
-                onChange={(e) => setDailyDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                onChange={handleDailyStartDateChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
               />
             </div>
@@ -378,6 +457,33 @@ const ConfigurationPanel = React.memo(({
             </div>
           </div>
         </div>
+      ) : viewMode === 'monthly_daily' ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={monthlyDailyDateRange.startDate || ''}
+                onChange={handleMonthlyDailyStartDateChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={monthlyDailyDateRange.endDate || ''}
+                onChange={(e) => setMonthlyDailyDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              />
+            </div>
+          </div>
+        </div>
       ) : viewMode === 'monthly' ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -387,7 +493,7 @@ const ConfigurationPanel = React.memo(({
               </label>
               <select
                 value={monthRange.startMonth || '01'}
-                onChange={(e) => setMonthRange(prev => ({ ...prev, startMonth: e.target.value }))}
+                onChange={(e) => handleMonthChange('start', 'startMonth', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
               >
                 {Array.from({ length: 12 }, (_, i) => (
@@ -403,7 +509,7 @@ const ConfigurationPanel = React.memo(({
               </label>
               <select
                 value={monthRange.startYear || new Date().getFullYear().toString()}
-                onChange={(e) => setMonthRange(prev => ({ ...prev, startYear: e.target.value }))}
+                onChange={(e) => handleMonthChange('start', 'startYear', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
               >
                 {Array.from({ length: 10 }, (_, i) => {
@@ -425,7 +531,7 @@ const ConfigurationPanel = React.memo(({
               </label>
               <select
                 value={monthRange.endMonth || '12'}
-                onChange={(e) => setMonthRange(prev => ({ ...prev, endMonth: e.target.value }))}
+                onChange={(e) => handleMonthChange('end', 'endMonth', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
               >
                 {Array.from({ length: 12 }, (_, i) => (
@@ -441,7 +547,7 @@ const ConfigurationPanel = React.memo(({
               </label>
               <select
                 value={monthRange.endYear || new Date().getFullYear().toString()}
-                onChange={(e) => setMonthRange(prev => ({ ...prev, endYear: e.target.value }))}
+                onChange={(e) => handleMonthChange('end', 'endYear', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
               >
                 {Array.from({ length: 10 }, (_, i) => {
