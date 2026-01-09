@@ -7,14 +7,14 @@ export default function BeneficiaryForm() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [activeTab, setActiveTab] = useState("form");
-  
+
   // History data state
   const [historyData, setHistoryData] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
   const [editFormData, setEditFormData] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
-  
+
   // Dropdown options state
   const [structureTypeOptions, setStructureTypeOptions] = useState([]);
   const [roofTypeOptions, setRoofTypeOptions] = useState([]);
@@ -55,7 +55,7 @@ export default function BeneficiaryForm() {
   // Fetch dropdown options
   const fetchDropdownOptions = async () => {
     try {
-      const sheetId = "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4";
+      const sheetId = "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc";
       const sheetName = "Drop-Down Value";
       const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
 
@@ -124,21 +124,21 @@ export default function BeneficiaryForm() {
   const fetchHistoryData = async () => {
     try {
       setIsLoadingHistory(true);
-      const scriptUrl = "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec";
-      
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec";
+
       const response = await fetch(`${scriptUrl}?sheet=FMS&action=fetch`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data && data.table && data.table.rows) {
         const processedData = data.table.rows.slice(6).map((row, index) => {
           const rowData = {};
           const values = row.c || [];
-          
+
           rowData.rowIndex = index + 7;
           rowData.timestamp = values[0]?.v || "";
           rowData.enquiryNumber = values[1]?.v || "";
@@ -160,10 +160,10 @@ export default function BeneficiaryForm() {
           rowData.needType = values[17]?.v || "";
           rowData.projectMode = values[18]?.v || "";
           rowData.vendorName = values[150]?.v || "";
-          
+
           return rowData;
         });
-        
+
         setHistoryData(processedData);
       }
     } catch (error) {
@@ -212,7 +212,7 @@ export default function BeneficiaryForm() {
   const saveEdit = async (rowIndex) => {
     try {
       setIsSubmitting(true);
-      
+
       const updatedRowData = new Array(150).fill("");
       updatedRowData[0] = "";
       updatedRowData[1] = editFormData.enquiryNumber || "";
@@ -242,7 +242,7 @@ export default function BeneficiaryForm() {
       formPayload.append("rowData", JSON.stringify(updatedRowData));
 
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+        "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
         {
           method: "POST",
           body: formPayload,
@@ -251,10 +251,10 @@ export default function BeneficiaryForm() {
       );
 
       alert("Record updated successfully!");
-      
-      setHistoryData(prevData => 
-        prevData.map(row => 
-          row.rowIndex === rowIndex 
+
+      setHistoryData(prevData =>
+        prevData.map(row =>
+          row.rowIndex === rowIndex
             ? { ...row, ...editFormData }
             : row
         )
@@ -274,7 +274,7 @@ export default function BeneficiaryForm() {
       setEditingRow(null);
       setEditFormData({});
       setShowEditModal(false);
-      
+
       setTimeout(() => {
         fetchHistoryData();
       }, 1000);
@@ -315,7 +315,7 @@ export default function BeneficiaryForm() {
           try {
             const base64Data = e.target.result;
             const fileName = `electricity_bill_${Date.now()}.${file.name.split('.').pop()}`;
-            
+
             const formPayload = new FormData();
             formPayload.append("action", "uploadFile");
             formPayload.append("base64Data", base64Data);
@@ -325,13 +325,13 @@ export default function BeneficiaryForm() {
 
             try {
               const response = await fetch(
-                "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+                "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
                 {
                   method: "POST",
                   body: formPayload,
                 }
               );
-              
+
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.fileUrl) {
@@ -342,18 +342,18 @@ export default function BeneficiaryForm() {
             } catch (fetchError) {
               console.log("Direct fetch failed, trying with no-cors...");
             }
-            
+
             await fetch(
-              "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+              "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
               {
                 method: "POST",
                 body: formPayload,
                 mode: "no-cors",
               }
             );
-            
+
             resolve(fileName);
-            
+
           } catch (error) {
             console.error("Error during upload process:", error);
             resolve(file.name);
@@ -414,7 +414,7 @@ export default function BeneficiaryForm() {
       formPayload.append("rowData", JSON.stringify(submissionData));
 
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+        "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
         {
           method: "POST",
           body: formPayload,
@@ -446,11 +446,11 @@ export default function BeneficiaryForm() {
       });
       setSelectedImage(null);
       setImagePreview(null);
-      
+
     } catch (error) {
       console.error("Submission error:", error);
       alert("Successfully submitted! (Data has been processed)");
-      
+
       setFormData({
         beneficiaryName: "",
         address: "",
@@ -481,27 +481,25 @@ export default function BeneficiaryForm() {
     <AdminLayout>
       <div className="max-w-full mx-auto mb-8">
         <div className="rounded-lg border border-purple-200 bg-white shadow-md overflow-hidden">
-          
+
           {/* Tab Navigation */}
           <div className="border-b border-purple-200">
             <div className="flex">
               <button
                 onClick={() => setActiveTab("form")}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${
-                  activeTab === "form"
-                    ? "border-purple-500 text-purple-600 bg-purple-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${activeTab === "form"
+                  ? "border-purple-500 text-purple-600 bg-purple-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
               >
                 Form
               </button>
               <button
                 onClick={() => setActiveTab("history")}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${
-                  activeTab === "history"
-                    ? "border-purple-500 text-purple-600 bg-purple-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${activeTab === "history"
+                  ? "border-purple-500 text-purple-600 bg-purple-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
               >
                 History
               </button>
@@ -516,14 +514,14 @@ export default function BeneficiaryForm() {
                   Beneficiary Information Form
                 </h2></center>
               </div>
-              
+
               <form onSubmit={handleSubmit} className="p-4 space-y-4">
                 {/* Basic Information */}
                 <div className="space-y-3">
                   <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
                     Basic Information
                   </h3>
-                  
+
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-1">
                       <label htmlFor="beneficiaryName" className="block text-xs font-medium text-purple-700">
@@ -604,7 +602,7 @@ export default function BeneficiaryForm() {
                   <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
                     Power & Load Information
                   </h3>
-                  
+
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-1">
                       <label htmlFor="presentLoad" className="block text-xs font-medium text-purple-700">
@@ -699,7 +697,7 @@ export default function BeneficiaryForm() {
                   <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
                     Electricity Bill
                   </h3>
-                  
+
                   <div className="space-y-1">
                     <label htmlFor="electricityBill" className="block text-xs font-medium text-purple-700">
                       Last 6 Months Average Bill
@@ -731,7 +729,7 @@ export default function BeneficiaryForm() {
                   <h3 className="text-md font-medium text-purple-700 border-b border-purple-100 pb-1">
                     System Configuration
                   </h3>
-                  
+
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-1">
                       <label htmlFor="structureType" className="block text-xs font-medium text-purple-700">
@@ -1016,7 +1014,7 @@ export default function BeneficiaryForm() {
                     <X className="h-5 w-5" />
                   </button>
                 </div>
-                
+
                 <div className="p-6">
                   <div className="space-y-6">
                     {/* Basic Information */}
@@ -1024,7 +1022,7 @@ export default function BeneficiaryForm() {
                       <h4 className="text-md font-medium text-purple-700 border-b border-purple-200 pb-1">
                         Basic Information
                       </h4>
-                      
+
                       <div className="grid gap-3 md:grid-cols-3">
                         <div className="space-y-1">
                           <label className="block text-xs font-medium text-purple-700">Beneficiary Name</label>
@@ -1087,7 +1085,7 @@ export default function BeneficiaryForm() {
                       <h4 className="text-md font-medium text-purple-700 border-b border-purple-200 pb-1">
                         Power & Load Information
                       </h4>
-                      
+
                       <div className="grid gap-3 md:grid-cols-3">
                         <div className="space-y-1">
                           <label className="block text-xs font-medium text-purple-700">Present Load</label>
@@ -1161,7 +1159,7 @@ export default function BeneficiaryForm() {
                       <h4 className="text-md font-medium text-purple-700 border-b border-purple-200 pb-1">
                         System Configuration
                       </h4>
-                      
+
                       <div className="grid gap-3 md:grid-cols-2">
                         <div className="space-y-1">
                           <label className="block text-xs font-medium text-purple-700">Structure Type</label>
@@ -1243,7 +1241,7 @@ export default function BeneficiaryForm() {
                             className="w-full rounded-md border border-purple-200 p-1.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                           />
                         </div>
-                        
+
                         {/* Vendor Name Field in Edit Modal */}
                         <div className="space-y-1">
                           <label className="block text-xs font-medium text-purple-700">Vendor Name</label>

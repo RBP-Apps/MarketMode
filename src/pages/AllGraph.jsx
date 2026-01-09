@@ -55,7 +55,7 @@ function AllGraph() {
         try {
             setLoading(true);
             setError(null);
-            const sheetId = "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4";
+            const sheetId = "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc";
             const sheetName = "Inverter_id";
             const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
 

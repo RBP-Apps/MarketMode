@@ -66,7 +66,7 @@ export default function FMSDashboard() {
     try {
       setFmsData((prev) => ({ ...prev, loading: true, error: null }));
       const response = await fetch(
-        `https://docs.google.com/spreadsheets/d/1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4/gviz/tq?tqx=out:json&sheet=FMS`
+        `https://docs.google.com/spreadsheets/d/1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc/gviz/tq?tqx=out:json&sheet=FMS`
       );
 
       if (!response.ok) {
@@ -190,8 +190,8 @@ export default function FMSDashboard() {
               isNotNull(caValue) && isNotNull(cbValue)
                 ? "Completed"
                 : isNotNull(caValue)
-                ? "Pending"
-                : "Not Started",
+                  ? "Pending"
+                  : "Not Started",
             ipStatus:
               isNotNull(bbValue) && isNotNull(bcValue)
                 ? "Assigned"
@@ -214,10 +214,10 @@ export default function FMSDashboard() {
             type === "Residential"
               ? "#8b5cf6"
               : type === "Society"
-              ? "#06b6d4"
-              : type === "Commercial"
-              ? "#f59e0b"
-              : "#ef4444",
+                ? "#06b6d4"
+                : type === "Commercial"
+                  ? "#f59e0b"
+                  : "#ef4444",
         }));
 
       setFmsData({
@@ -501,35 +501,32 @@ export default function FMSDashboard() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                        record.installationStatus === "Completed"
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${record.installationStatus === "Completed"
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                           : record.installationStatus === "Pending"
-                          ? "bg-amber-100 text-amber-800 border border-amber-200"
-                          : "bg-gray-100 text-gray-800 border border-gray-200"
-                      }`}
+                            ? "bg-amber-100 text-amber-800 border border-amber-200"
+                            : "bg-gray-100 text-gray-800 border border-gray-200"
+                        }`}
                     >
                       {record.installationStatus || "N/A"}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                        record.ipStatus === "Assigned"
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${record.ipStatus === "Assigned"
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                           : "bg-red-100 text-red-800 border border-red-200"
-                      }`}
+                        }`}
                     >
                       {record.ipStatus || "N/A"}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                        record.commissionStatus === "Completed"
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${record.commissionStatus === "Completed"
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                           : "bg-amber-100 text-amber-800 border border-amber-200"
-                      }`}
+                        }`}
                     >
                       {record.commissionStatus || "N/A"}
                     </span>
@@ -738,11 +735,10 @@ export default function FMSDashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-lg transition-all duration-200 font-medium ${
-                  activeTab === tab.id
+                className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-lg transition-all duration-200 font-medium ${activeTab === tab.id
                     ? "bg-white text-purple-700 shadow-md"
                     : "text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                }`}
+                  }`}
               >
                 <tab.icon className="w-4 h-4" />
                 <span>{tab.label}</span>
@@ -804,9 +800,9 @@ export default function FMSDashboard() {
                       <div className="text-2xl font-bold text-purple-800">
                         {fmsData.totalEnquiry > 0
                           ? (
-                              (fmsData.installation / fmsData.totalEnquiry) *
-                              100
-                            ).toFixed(1)
+                            (fmsData.installation / fmsData.totalEnquiry) *
+                            100
+                          ).toFixed(1)
                           : 0}
                         %
                       </div>
@@ -814,13 +810,12 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${
-                              fmsData.totalEnquiry > 0
+                            width: `${fmsData.totalEnquiry > 0
                                 ? (fmsData.installation /
-                                    fmsData.totalEnquiry) *
-                                  100
+                                  fmsData.totalEnquiry) *
+                                100
                                 : 0
-                            }%`,
+                              }%`,
                           }}
                         ></div>
                       </div>
@@ -833,9 +828,9 @@ export default function FMSDashboard() {
                       <div className="text-2xl font-bold text-blue-800">
                         {fmsData.totalEnquiry > 0
                           ? (
-                              (fmsData.ipAssignment / fmsData.totalEnquiry) *
-                              100
-                            ).toFixed(1)
+                            (fmsData.ipAssignment / fmsData.totalEnquiry) *
+                            100
+                          ).toFixed(1)
                           : 0}
                         %
                       </div>
@@ -843,13 +838,12 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${
-                              fmsData.totalEnquiry > 0
+                            width: `${fmsData.totalEnquiry > 0
                                 ? (fmsData.ipAssignment /
-                                    fmsData.totalEnquiry) *
-                                  100
+                                  fmsData.totalEnquiry) *
+                                100
                                 : 0
-                            }%`,
+                              }%`,
                           }}
                         ></div>
                       </div>
@@ -862,9 +856,9 @@ export default function FMSDashboard() {
                       <div className="text-2xl font-bold text-green-800">
                         {fmsData.totalEnquiry > 0
                           ? (
-                              (fmsData.commissions / fmsData.totalEnquiry) *
-                              100
-                            ).toFixed(1)
+                            (fmsData.commissions / fmsData.totalEnquiry) *
+                            100
+                          ).toFixed(1)
                           : 0}
                         %
                       </div>
@@ -872,12 +866,11 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${
-                              fmsData.totalEnquiry > 0
+                            width: `${fmsData.totalEnquiry > 0
                                 ? (fmsData.commissions / fmsData.totalEnquiry) *
-                                  100
+                                100
                                 : 0
-                            }%`,
+                              }%`,
                           }}
                         ></div>
                       </div>
