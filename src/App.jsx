@@ -25,6 +25,7 @@ import EnergyAnalysis from "./pages/EnergyAnalysis"
 import AnalysisGraphPage from "./pages/Analysisgraph"
 import { DeviceProvider } from "./pages/graph/DeviceContext"
 import AllGraph from "./pages/AllGraph"
+import WeeklyPerformanceReport from "./pages/graph/WeeklyPerformanceReport"
 
 import "./index.css"
 
@@ -262,6 +263,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <AllGraph />
+              </ProtectedRoute>
+            }
+          />
+
+           <Route
+            path="/dashboard/weekly-performance-report"
+            element={
+              <ProtectedRoute>
+                <WeeklyPerformanceReport />
               </ProtectedRoute>
             }
           />

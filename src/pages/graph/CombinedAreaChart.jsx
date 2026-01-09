@@ -33,6 +33,7 @@ import { useDeviceContext } from './DeviceContext';
 import AutoLogin from './AutoLogin';
 import ConfigurationPanel from './ConfigurationPanel';
 import ChartSettingsPanel from './ChartSettingsPanel';
+import WeeklyPerformanceReport from './WeeklyPerformanceReport';
 
 // Direct API environment variables
 const SOLAR_APPKEY = import.meta.env.VITE_SOLAR_APP_KEY;
@@ -45,6 +46,7 @@ const CombinedAreaChart = () => {
 
   // Add a state to track if beneficiary was just selected
   const [justSelectedBeneficiary, setJustSelectedBeneficiary] = useState(false);
+  const [inverterCapacity, setInverterCapacity] = useState(1);
 
   // Main state
   const [viewMode, setViewMode] = useState('minute');
@@ -204,8 +206,12 @@ const CombinedAreaChart = () => {
   }, []);
 
   // Handle beneficiary selection from AutoLogin
-  const handleBeneficiarySelect = useCallback(({ beneficiary, inverterId }) => {
-    console.log('Beneficiary selected:', beneficiary, 'Inverter ID:', inverterId);
+  const handleBeneficiarySelect = useCallback(({ beneficiary, inverterId, capacity }) => {
+    console.log('Beneficiary selected:', beneficiary, 'Inverter ID:', inverterId, 'Capacity:', capacity);
+
+    if (capacity) {
+      setInverterCapacity(parseFloat(capacity));
+    }
 
     // Set flag to indicate beneficiary was just selected
     setJustSelectedBeneficiary(true);
@@ -2263,9 +2269,21 @@ const CombinedAreaChart = () => {
                             'Life Time'
                   } Data
                   {['minute', 'daily', 'monthly_daily', 'monthly', 'yearly'].includes(viewMode) && stats && (
-                    <span className="ml-8 inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-blue-700 border border-blue-200 shadow-md ring-4 ring-blue-50 transition-all hover:shadow-lg">
-                      Total: {stats.sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}
-                    </span>
+                    <div className="flex items-center gap-4 ml-8">
+                      <span className="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-blue-700 border border-blue-200 shadow-md ring-4 ring-blue-50 transition-all hover:shadow-lg">
+                        Total: {stats.sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}
+                      </span>
+                      {viewMode === 'daily' && (
+                        <>
+                          <span className="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-emerald-700 border border-emerald-200 shadow-md ring-4 ring-emerald-50 transition-all hover:shadow-lg">
+                            Avg/Day: {(stats.sum / 7).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}
+                          </span>
+                          <span className="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-purple-700 border border-purple-200 shadow-md ring-4 ring-purple-50 transition-all hover:shadow-lg">
+                            Spec. Yield: {((stats.sum / 7) / inverterCapacity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}/kW
+                          </span>
+                        </>
+                      )}
+                    </div>
                   )}
                 </h3>
                 <p className="text-xs text-gray-500">
@@ -2540,6 +2558,7 @@ const CombinedAreaChart = () => {
                 setChartConfig={setChartConfig}
               />
 
+              <WeeklyPerformanceReport token={token} />
             </div>
           </div>
         </div>

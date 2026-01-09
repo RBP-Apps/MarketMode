@@ -127,6 +127,7 @@ const AutoLogin = ({ onTokenChange, onDeviceDataChange, onBeneficiarySelect }) =
 
         const beneficiary = String(rowValues[2] || '').trim();
         const inverterId = String(rowValues[1] || '').trim();
+        const capacity = String(rowValues[3] || '').trim();
 
         if (beneficiary && inverterId) {
           beneficiarySet.add(beneficiary);
@@ -134,9 +135,8 @@ const AutoLogin = ({ onTokenChange, onDeviceDataChange, onBeneficiarySelect }) =
             id: index,
             beneficiaryName: beneficiary,
             inverterId: inverterId,
-            timestamp: rowValues[0] || '',
-            energyDate: rowValues[3] || '',
-            production: rowValues[4] || ''
+            capacity: capacity,
+            serialNo: rowValues[0] || ''
           });
         }
       });
@@ -210,11 +210,18 @@ const AutoLogin = ({ onTokenChange, onDeviceDataChange, onBeneficiarySelect }) =
       }
     }
 
+    // Find capacity for the selected inverter
+    const selectedInverterItem = inverterData.find(
+      item => item.beneficiaryName === beneficiary && item.inverterId === selectedInverterId
+    );
+    const capacity = selectedInverterItem?.capacity ? parseFloat(selectedInverterItem.capacity) : 1;
+
     // Call the callback with selected beneficiary and inverter ID
     if (onBeneficiarySelect) {
       onBeneficiarySelect({
         beneficiary,
-        inverterId: selectedInverterId
+        inverterId: selectedInverterId,
+        capacity
       });
     }
 
@@ -527,38 +534,37 @@ const AutoLogin = ({ onTokenChange, onDeviceDataChange, onBeneficiarySelect }) =
       {/* Auto Login Toggle Section */}
       <div className="space-y-3">
 
-         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-      <button
-        onClick={() => {
-          if (!loading.login) {
-            setAutoLoginEnabled(!autoLoginEnabled)
-            if (!autoLoginEnabled) {
-              handleLogin()
-            }
-          }
-        }}
-        disabled={loading.login}
-        className={`w-full px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 text-sm ${
-          loading.login
-            ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-            : autoLoginEnabled
-              ? "bg-green-600 hover:bg-green-700 text-white"
-              : "bg-gray-600 hover:bg-gray-700 text-white"
-        }`}
-      >
-        {loading.login ? (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            <span>Logging in...</span>
-          </>
-        ) : (
-          <>
-            <RefreshCw className="w-4 h-4" />
-            <span>{autoLoginEnabled ? "Auto Login - Refresh Token" : "Enable Auto Login & Refresh"}</span>
-          </>
-        )}
-      </button>
-    </div>
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <button
+            onClick={() => {
+              if (!loading.login) {
+                setAutoLoginEnabled(!autoLoginEnabled)
+                if (!autoLoginEnabled) {
+                  handleLogin()
+                }
+              }
+            }}
+            disabled={loading.login}
+            className={`w-full px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 text-sm ${loading.login
+              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+              : autoLoginEnabled
+                ? "bg-green-600 hover:bg-green-700 text-white"
+                : "bg-gray-600 hover:bg-gray-700 text-white"
+              }`}
+          >
+            {loading.login ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Logging in...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                <span>{autoLoginEnabled ? "Auto Login - Refresh Token" : "Enable Auto Login & Refresh"}</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Beneficiary Search Section */}
@@ -629,10 +635,18 @@ const AutoLogin = ({ onTokenChange, onDeviceDataChange, onBeneficiarySelect }) =
                 onMouseLeave={handleDropdownMouseLeave}
               >
                 {filteredBeneficiaries.map((beneficiary, index) => {
-                  const inverterIds = inverterData
-                    .filter(item => item.beneficiaryName === beneficiary)
-                    .map(item => item.inverterId)
-                    .filter((id, idx, self) => self.indexOf(id) === idx);
+                  const beneficiaryItems = inverterData
+                    .filter(item => item.beneficiaryName === beneficiary);
+
+                  // Deduplicate by inverterId
+                  const uniqueItems = [];
+                  const seenIds = new Set();
+                  beneficiaryItems.forEach(item => {
+                    if (!seenIds.has(item.inverterId)) {
+                      seenIds.add(item.inverterId);
+                      uniqueItems.push(item);
+                    }
+                  });
 
                   return (
                     <button
@@ -643,9 +657,16 @@ const AutoLogin = ({ onTokenChange, onDeviceDataChange, onBeneficiarySelect }) =
                       onMouseDown={(e) => e.preventDefault()}
                     >
                       <div className="font-medium text-gray-800">{beneficiary}</div>
-                      {inverterIds.length > 0 && (
+                      {uniqueItems.length > 0 && (
                         <div className="text-xs text-gray-500 mt-1">
-                          {inverterIds.length === 1 ? 'Inverter ID:' : 'Inverter IDs:'} {inverterIds.join(', ')}
+                          {uniqueItems.length === 1 ? 'Inverter ID: ' : 'Inverter IDs: '}
+                          {uniqueItems.map((item, idx) => (
+                            <span key={idx}>
+                              {item.inverterId}
+                              {item.capacity ? ` (${item.capacity}kW)` : ''}
+                              {idx < uniqueItems.length - 1 ? ', ' : ''}
+                            </span>
+                          ))}
                         </div>
                       )}
                     </button>
@@ -766,7 +787,7 @@ const AutoLogin = ({ onTokenChange, onDeviceDataChange, onBeneficiarySelect }) =
         </div>
       )}
 
-    
+
     </div>
   );
 };
