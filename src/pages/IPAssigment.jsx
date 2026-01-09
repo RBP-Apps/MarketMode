@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, User } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, User, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1SFoN0eZ8TS6qEruTlGj-WELKkm8Gw2iU",
   // Sheet names
@@ -237,14 +237,14 @@ function IPAssignmentPage() {
   const handleIPClick = useCallback((record) => {
     setSelectedRecord(record)
     setIpForm({
-      ipName: "",
-      contactNumberOfIP: "",
-      gstNumber: "",
+      ipName: record.ipName || "",
+      contactNumberOfIP: record.ipContact || "",
+      gstNumber: record.gstNumber || "",
       gstCertificates: null,
       bankAccountDetails: null,
       aadharCard: null,
       panCard: null,
-      workOrderNumber: "",
+      workOrderNumber: record.workOrderNumber || "",
       workOrderCopy: null,
     })
     setShowIPModal(true)
@@ -305,32 +305,29 @@ function IPAssignmentPage() {
 
     setIsSubmitting(true)
     try {
-      // Upload images and get URLs
+      const isEdit = !isEmpty(selectedRecord.actual)
+      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+
+      // Upload images and get URLs (or keep existing)
       let gstCertificatesUrl = ""
+      if (ipForm.gstCertificates) gstCertificatesUrl = await uploadImageToDrive(ipForm.gstCertificates)
+      else if (isEdit && selectedRecord.gstCertificates) gstCertificatesUrl = selectedRecord.gstCertificates
+
       let bankAccountDetailsUrl = ""
+      if (ipForm.bankAccountDetails) bankAccountDetailsUrl = await uploadImageToDrive(ipForm.bankAccountDetails)
+      else if (isEdit && selectedRecord.bankAccountDetails) bankAccountDetailsUrl = selectedRecord.bankAccountDetails
+
       let aadharCardUrl = ""
+      if (ipForm.aadharCard) aadharCardUrl = await uploadImageToDrive(ipForm.aadharCard)
+      else if (isEdit && selectedRecord.aadharCard) aadharCardUrl = selectedRecord.aadharCard
+
       let panCardUrl = ""
+      if (ipForm.panCard) panCardUrl = await uploadImageToDrive(ipForm.panCard)
+      else if (isEdit && selectedRecord.panCard) panCardUrl = selectedRecord.panCard
+
       let workOrderCopyUrl = ""
-
-      if (ipForm.gstCertificates) {
-        gstCertificatesUrl = await uploadImageToDrive(ipForm.gstCertificates)
-      }
-
-      if (ipForm.bankAccountDetails) {
-        bankAccountDetailsUrl = await uploadImageToDrive(ipForm.bankAccountDetails)
-      }
-
-      if (ipForm.aadharCard) {
-        aadharCardUrl = await uploadImageToDrive(ipForm.aadharCard)
-      }
-
-      if (ipForm.panCard) {
-        panCardUrl = await uploadImageToDrive(ipForm.panCard)
-      }
-
-      if (ipForm.workOrderCopy) {
-        workOrderCopyUrl = await uploadImageToDrive(ipForm.workOrderCopy)
-      }
+      if (ipForm.workOrderCopy) workOrderCopyUrl = await uploadImageToDrive(ipForm.workOrderCopy)
+      else if (isEdit && selectedRecord.workOrderCopy) workOrderCopyUrl = selectedRecord.workOrderCopy
 
       // Prepare update data - we need to send the complete row data
       const updateData = {
@@ -392,7 +389,7 @@ function IPAssignmentPage() {
           "", // AZ - keep existing
           "", // BA - keep existing
           "", // BB - keep existing
-          formatTimestamp(), // BC - Actual timestamp (index 54)
+          actualDate, // BC - Actual timestamp (index 54)
           "", // BD - keep existing
           ipForm.ipName, // BE - IP Name (index 56)
           ipForm.contactNumberOfIP, // BF - Contact Number Of IP (index 57)
@@ -419,12 +416,10 @@ function IPAssignmentPage() {
       if (result.success) {
         setSuccessMessage(`IP Assignment completed successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowIPModal(false)
-        // Move record from pending to history immediately
-        setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-        // Add to history with updated data
+
         const updatedRecord = {
           ...selectedRecord,
-          actual: formatTimestamp(),
+          actual: actualDate,
           ipName: ipForm.ipName,
           ipContact: ipForm.contactNumberOfIP,
           gstNumber: ipForm.gstNumber,
@@ -435,7 +430,13 @@ function IPAssignmentPage() {
           workOrderNumber: ipForm.workOrderNumber,
           workOrderCopy: workOrderCopyUrl,
         }
-        setHistoryData((prev) => [updatedRecord, ...prev])
+
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
 
         // Clear success message after 3 seconds
         setTimeout(() => {
@@ -498,8 +499,8 @@ function IPAssignmentPage() {
           <button
             onClick={() => toggleSection("pending")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${!showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -510,8 +511,8 @@ function IPAssignmentPage() {
           <button
             onClick={() => toggleSection("history")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -536,7 +537,7 @@ function IPAssignmentPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -573,11 +574,9 @@ function IPAssignmentPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -678,6 +677,15 @@ function IPAssignmentPage() {
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
                           <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleIPClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
@@ -719,7 +727,7 @@ function IPAssignmentPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900 font-medium text-blue-600">
+                            <div className="text-xs font-medium text-blue-600">
                               {record.ipName || "—"}
                             </div>
                           </td>
@@ -822,7 +830,7 @@ function IPAssignmentPage() {
                         <td className="px-2 py-3 whitespace-nowrap">
                           <button
                             onClick={() => handleIPClick(record)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-linear-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                           >
                             <User className="h-3 w-3 mr-1" />
                             IP
@@ -1168,7 +1176,7 @@ function IPAssignmentPage() {
                   <button
                     onClick={handleIPSubmit}
                     disabled={isSubmitting || !ipForm.ipName || !ipForm.contactNumberOfIP}
-                    className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                    className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
                   >
                     {isSubmitting ? (
                       <>

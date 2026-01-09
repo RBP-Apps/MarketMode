@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Package } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Package, Wrench, Calendar } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
   // Sheet names
@@ -55,6 +55,12 @@ function ProjectCommissionPage() {
   const [selectedRows, setSelectedRows] = useState({})
   const [statusValues, setStatusValues] = useState({})
   const [dateValues, setDateValues] = useState({})
+  const [showCommissionModal, setShowCommissionModal] = useState(false)
+  const [selectedRecord, setSelectedRecord] = useState(null)
+  const [commissionForm, setCommissionForm] = useState({
+    projectCommission: "",
+    date: "",
+  })
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -77,6 +83,19 @@ function ProjectCommissionPage() {
     const month = (date.getMonth() + 1).toString().padStart(2, "0")
     const year = date.getFullYear()
     return `${day}/${month}/${year}`
+  }, [])
+
+  const formatDateForInput = useCallback((dateString) => {
+    if (!dateString) return ""
+    // Check if it's already in YYYY-MM-DD format
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString
+
+    // Handle DD/MM/YYYY format
+    const parts = dateString.split("/")
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`
+    }
+    return ""
   }, [])
 
   const isEmpty = useCallback((value) => {
@@ -327,6 +346,104 @@ function ProjectCommissionPage() {
     }))
   }, [])
 
+  const handleCommissionClick = useCallback(
+    (record) => {
+      setSelectedRecord(record)
+      setCommissionForm({
+        projectCommission: record.projectCommission || "",
+        date: formatDateForInput(record.date || ""),
+      })
+      setShowCommissionModal(true)
+    },
+    [formatDateForInput],
+  )
+
+  const handleCommissionSubmit = async () => {
+    if (!commissionForm.projectCommission || !commissionForm.date) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const isEdit = !isEmpty(selectedRecord.actualDate)
+      const actualDate = isEdit ? selectedRecord.actualDate : formatTimestamp()
+
+      // Calculate row index (ensure it exists)
+      const rowIndex = selectedRecord._rowIndex
+
+      // Create array with 121 empty strings to ensure we have enough columns (up to DQ/120)
+      // We need to be careful not to overwrite other columns if using the "update" action with a specific rowData.
+      // However, the current "update" implementation usually replaces the whole row or specific columns if the script supports it.
+      // Based on previous patterns, we send a sparse array or full array.
+      // Let's use the same pattern as `handleSubmit` but adapted for single record edit.
+
+      const rowData = Array(121).fill("")
+
+      // Update relevant columns
+      // DL (115) - Date (Reading source)
+      rowData[115] = formatDateOnly(commissionForm.date)
+
+      // DP (119) - Project Commission Status
+      rowData[119] = commissionForm.projectCommission
+
+      // DQ (120) - Date (Write source in pending)
+      rowData[120] = formatDateOnly(commissionForm.date)
+
+      // DN (117) - Actual Date
+      rowData[117] = actualDate
+
+      // Prepare update data
+      const updateData = {
+        action: "update",
+        sheetName: CONFIG.SOURCE_SHEET_NAME,
+        rowIndex: rowIndex,
+        rowData: JSON.stringify(rowData),
+      }
+
+      const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(updateData).toString(),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setSuccessMessage(`Project commission updated successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
+        setShowCommissionModal(false)
+
+        const updatedRecord = {
+          ...selectedRecord,
+          projectCommission: commissionForm.projectCommission,
+          date: formatDateOnly(commissionForm.date),
+          actualDate: actualDate,
+        }
+
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          // Should not happen for this specific modal use case (History Edit), but good to have
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
+
+        setTimeout(() => {
+          setSuccessMessage("")
+        }, 3000)
+      } else {
+        throw new Error(result.error || "Failed to update project commission")
+      }
+    } catch (error) {
+      console.error("Error updating project commission:", error)
+      alert("Failed to update project commission: " + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handleSubmit = async () => {
     const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
 
@@ -541,7 +658,7 @@ function ProjectCommissionPage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
               >
                 {isSubmitting ? (
                   <>
@@ -561,7 +678,7 @@ function ProjectCommissionPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -598,11 +715,11 @@ function ProjectCommissionPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     {!showHistory && (
                       <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
@@ -659,6 +776,15 @@ function ProjectCommissionPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleCommissionClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -865,6 +991,82 @@ function ProjectCommissionPage() {
           )}
         </div>
       </div>
+      {/* Commission Modal */}
+      {showCommissionModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
+              &#8203;
+            </span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <Package className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                      Edit Project Commission
+                    </h3>
+                    <div className="mt-4 space-y-4">
+                      {/* Status Dropdown */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Project Commission Status</label>
+                        <select
+                          value={commissionForm.projectCommission}
+                          onChange={(e) => setCommissionForm({ ...commissionForm, projectCommission: e.target.value })}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        >
+                          <option value="">Select Status</option>
+                          {dropdownOptions.map((option, index) => (
+                            <option key={index} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Date Input */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Commission Date</label>
+                        <div className="mt-1 relative rounded-md shadow-sm">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Calendar className="h-5 w-5 text-gray-400" />
+                          </div>
+                          <input
+                            type="date"
+                            value={commissionForm.date}
+                            onChange={(e) => setCommissionForm({ ...commissionForm, date: e.target.value })}
+                            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handleCommissionSubmit}
+                  disabled={isSubmitting}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCommissionModal(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   )
 }

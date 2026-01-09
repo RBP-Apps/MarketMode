@@ -25,7 +25,7 @@ ChartJS.register(
 // Configuration
 const CONFIG = {
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   ENERGY_ANALYSIS_SHEET_NAME: "Energy analysis",
 };
 

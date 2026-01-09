@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, DollarSign, Package } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, DollarSign, Package, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1O67xaSjucSi761g-WRA0D7i0ck344FtT",
   // Sheet names
@@ -228,11 +228,11 @@ function OrderReceivePage() {
   const handleOrderClick = useCallback((record) => {
     setSelectedRecord(record)
     setOrderForm({
-      module: "",
-      inverter: "",
-      bos: "",
-      acdb: "",
-      dcdb: "",
+      module: record.module || "",
+      inverter: record.inverter || "",
+      bos: record.bos || "",
+      acdb: record.acdb || "",
+      dcdb: record.dcdb || "",
       orderCopy: null,
     })
     setShowOrderModal(true)
@@ -296,26 +296,15 @@ function OrderReceivePage() {
 
     setIsSubmitting(true)
     try {
+      const isEdit = !isEmpty(selectedRecord.actualDate)
+      const actualDate = isEdit ? selectedRecord.actualDate : formatTimestamp()
+
       // Upload order copy image and get URL
       let orderCopyUrl = ""
       if (orderForm.orderCopy) {
         orderCopyUrl = await uploadImageToDrive(orderForm.orderCopy)
-      }
-
-      // Prepare update data - we need to find the row by Enquiry Number and update specific columns
-      const updateData = {
-        action: "updateByEnquiry",
-        sheetName: CONFIG.SOURCE_SHEET_NAME,
-        enquiryNumber: selectedRecord.enquiryNumber,
-        updates: {
-          AT: formatTimestamp(), // Column AT - Actual date
-          AV: orderForm.module, // Column AV - Module
-          AW: orderForm.inverter, // Column AW - Inverter
-          AX: orderForm.bos, // Column AX - BOS
-          AY: orderForm.acdb, // Column AY - ACDB
-          AZ: orderForm.dcdb, // Column AZ - DCDB
-          BA: orderCopyUrl, // Column BA - Order Copy
-        },
+      } else if (isEdit && selectedRecord.orderCopy) {
+        orderCopyUrl = selectedRecord.orderCopy
       }
 
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
@@ -373,7 +362,7 @@ function OrderReceivePage() {
             "", // AQ - keep existing
             "", // AR - keep existing
             "", // AS - keep existing
-            formatTimestamp(), // AT - Actual timestamp
+            actualDate, // AT - Actual timestamp
             "", // AU - keep existing
             orderForm.module, // AV - Module
             orderForm.inverter, // AW - Inverter
@@ -390,13 +379,10 @@ function OrderReceivePage() {
         setSuccessMessage(`Order processed successfully for Enquiry Number: ${selectedRecord.enquiryNumber}`)
         setShowOrderModal(false)
 
-        // Move record from pending to history immediately (no page refresh)
-        setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-
         // Add to history with updated data
         const updatedRecord = {
           ...selectedRecord,
-          actualDate: formatTimestamp(),
+          actualDate: actualDate,
           module: orderForm.module,
           inverter: orderForm.inverter,
           bos: orderForm.bos,
@@ -405,7 +391,12 @@ function OrderReceivePage() {
           orderCopy: orderCopyUrl,
         }
 
-        setHistoryData((prev) => [updatedRecord, ...prev])
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
 
         // Clear success message after 3 seconds
         setTimeout(() => {
@@ -465,8 +456,8 @@ function OrderReceivePage() {
           <button
             onClick={() => toggleSection("pending")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${!showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -477,8 +468,8 @@ function OrderReceivePage() {
           <button
             onClick={() => toggleSection("history")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -503,7 +494,7 @@ function OrderReceivePage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -540,11 +531,9 @@ function OrderReceivePage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -613,6 +602,15 @@ function OrderReceivePage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleOrderClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -723,7 +721,7 @@ function OrderReceivePage() {
                         <td className="px-2 py-3 whitespace-nowrap">
                           <button
                             onClick={() => handleOrderClick(record)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-linear-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                           >
                             <Package className="h-3 w-3 mr-1" />
                             Order
@@ -943,7 +941,7 @@ function OrderReceivePage() {
                   <button
                     onClick={handleOrderSubmit}
                     disabled={isSubmitting || !orderForm.module || !orderForm.inverter}
-                    className="px-3 py-1 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                    className="px-3 py-1 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                   >
                     {isSubmitting ? "Submitting..." : "Submit"}
                   </button>

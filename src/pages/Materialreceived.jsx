@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Package } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Package, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1A1-QDgKUGl8Chy5wPFXdFxM7-_OKYmg1",
   // Sheet configuration
@@ -76,11 +76,29 @@ function MaterialReceivedSitePage() {
 
   const formatDateForDisplay = useCallback((dateString) => {
     if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
     const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString // Return original if invalid date
+
     const day = date.getDate().toString().padStart(2, "0")
     const month = (date.getMonth() + 1).toString().padStart(2, "0")
     const year = date.getFullYear()
     return `${day}/${month}/${year}`
+  }, [])
+
+  const formatDateForInput = useCallback((dateString) => {
+    if (!dateString) return ""
+    // Check if it's already in YYYY-MM-DD format
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString
+
+    // Handle DD/MM/YYYY format
+    const parts = dateString.split("/")
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`
+    }
+    return ""
   }, [])
 
   const isEmpty = useCallback((value) => {
@@ -240,10 +258,10 @@ function MaterialReceivedSitePage() {
     setSelectedRecord(record)
     setReceiptForm({
       copyOfReceipt: null,
-      dateOfReceipt: "",
+      dateOfReceipt: formatDateForInput(record.dateOfReceipt || ""),
     })
     setShowReceiptModal(true)
-  }, [])
+  }, [formatDateForInput])
 
   const handleFileUpload = useCallback((field, file) => {
     setReceiptForm((prev) => ({ ...prev, [field]: file }))
@@ -296,17 +314,22 @@ function MaterialReceivedSitePage() {
   )
 
   const handleReceiptSubmit = async () => {
-    if (!receiptForm.copyOfReceipt || !receiptForm.dateOfReceipt) {
+    if ((!receiptForm.copyOfReceipt && !selectedRecord.copyOfReceipt) || !receiptForm.dateOfReceipt) {
       alert("Please fill in all required fields (Copy of Receipt and Date of Receipt)")
       return
     }
 
     setIsSubmitting(true)
     try {
+      const isEdit = !isEmpty(selectedRecord.actual)
+      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+
       // Upload image and get URL
       let copyOfReceiptUrl = ""
       if (receiptForm.copyOfReceipt) {
         copyOfReceiptUrl = await uploadImageToDrive(receiptForm.copyOfReceipt)
+      } else if (isEdit && selectedRecord.copyOfReceipt) {
+        copyOfReceiptUrl = selectedRecord.copyOfReceipt
       }
 
       // Format date for storage
@@ -392,7 +415,7 @@ function MaterialReceivedSitePage() {
           "", // BT - keep existing
           "", // BU - keep existing
           "", // BV - keep existing
-          formatTimestamp(), // BW - Actual timestamp (index 74)
+          actualDate, // BW - Actual timestamp (index 74)
           "", // BX - keep existing
           copyOfReceiptUrl, // BY - Copy of Receipt (index 76)
           formattedDate, // BZ - Date of Receipt (index 77)
@@ -413,17 +436,20 @@ function MaterialReceivedSitePage() {
         setSuccessMessage(`Material receipt recorded successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowReceiptModal(false)
 
-        // Move record from pending to history immediately
-        setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-
         // Add to history with updated data
         const updatedRecord = {
           ...selectedRecord,
-          actual: formatTimestamp(),
+          actual: actualDate,
           copyOfReceipt: copyOfReceiptUrl,
           dateOfReceipt: formattedDate,
         }
-        setHistoryData((prev) => [updatedRecord, ...prev])
+
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
 
         // Clear success message after 3 seconds
         setTimeout(() => {
@@ -517,7 +543,7 @@ function MaterialReceivedSitePage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -554,11 +580,9 @@ function MaterialReceivedSitePage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -636,6 +660,15 @@ function MaterialReceivedSitePage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleAtSiteClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -805,7 +838,7 @@ function MaterialReceivedSitePage() {
                         <td className="px-2 py-3 whitespace-nowrap">
                           <button
                             onClick={() => handleAtSiteClick(record)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-linear-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                           >
                             <Package className="h-3 w-3 mr-1" />
                             At Site
@@ -1130,7 +1163,7 @@ function MaterialReceivedSitePage() {
                   <button
                     onClick={handleReceiptSubmit}
                     disabled={isSubmitting || !receiptForm.copyOfReceipt || !receiptForm.dateOfReceipt}
-                    className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                    className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
                   >
                     {isSubmitting ? (
                       <>

@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, FileText } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, FileText, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Sheet ID
   DRIVE_FOLDER_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
   // Sheet names
@@ -51,6 +51,11 @@ function SubsidyTokenPage() {
   const [username, setUsername] = useState("")
   const [selectedRows, setSelectedRows] = useState({})
   const [statusValues, setStatusValues] = useState({})
+  const [showTokenModal, setShowTokenModal] = useState(false)
+  const [selectedRecord, setSelectedRecord] = useState(null)
+  const [tokenForm, setTokenForm] = useState({
+    subsidyToken: "",
+  })
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -292,6 +297,82 @@ function SubsidyTokenPage() {
     }))
   }, [])
 
+  const handleTokenClick = useCallback((record) => {
+    setSelectedRecord(record)
+    setTokenForm({
+      subsidyToken: record.subsidyToken || "",
+    })
+    setShowTokenModal(true)
+  }, [])
+
+  const handleTokenSubmit = async () => {
+    if (!tokenForm.subsidyToken) {
+      alert("Please select a status")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const isEdit = !isEmpty(selectedRecord.actual)
+      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+
+      const rowIndex = selectedRecord._rowIndex
+      const rowData = Array(150).fill("")
+
+      // DU (124) - Status (Subsidy Token)
+      rowData[124] = tokenForm.subsidyToken
+
+      // DS (122) - Actual timestamp
+      rowData[122] = actualDate
+
+      const updateData = {
+        action: "update",
+        sheetName: CONFIG.SOURCE_SHEET_NAME,
+        rowIndex: rowIndex,
+        rowData: JSON.stringify(rowData),
+      }
+
+      const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(updateData).toString(),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setSuccessMessage(`Subsidy token updated successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
+        setShowTokenModal(false)
+
+        const updatedRecord = {
+          ...selectedRecord,
+          subsidyToken: tokenForm.subsidyToken,
+          actual: actualDate,
+        }
+
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
+
+        setTimeout(() => {
+          setSuccessMessage("")
+        }, 3000)
+      } else {
+        throw new Error(result.error || "Failed to update subsidy token")
+      }
+    } catch (error) {
+      console.error("Error updating subsidy token:", error)
+      alert("Failed to update subsidy token: " + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handleSubmit = async () => {
     const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
     if (selectedRecordIds.length === 0) {
@@ -482,7 +563,7 @@ function SubsidyTokenPage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
               >
                 {isSubmitting ? (
                   <>
@@ -502,7 +583,7 @@ function SubsidyTokenPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -539,15 +620,13 @@ function SubsidyTokenPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     {!showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                      </>
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
                     )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
@@ -600,6 +679,15 @@ function SubsidyTokenPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleTokenClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -940,6 +1028,66 @@ function SubsidyTokenPage() {
           )}
         </div>
       </div>
+      {/* Token Modal */}
+      {showTokenModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
+              &#8203;
+            </span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <FileText className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                      Edit Subsidy Token
+                    </h3>
+                    <div className="mt-4">
+                      {/* Status Dropdown */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Subsidy Token Status</label>
+                        <select
+                          value={tokenForm.subsidyToken}
+                          onChange={(e) => setTokenForm({ ...tokenForm, subsidyToken: e.target.value })}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        >
+                          <option value="">Select Status</option>
+                          {dropdownOptions.map((option, index) => (
+                            <option key={index} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handleTokenSubmit}
+                  disabled={isSubmitting}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTokenModal(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   )
 }

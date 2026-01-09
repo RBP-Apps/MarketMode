@@ -5,7 +5,7 @@ import AdminLayout from "../components/layout/AdminLayout"
 
 const CONFIG = {
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   DRIVE_FOLDER_ID: "1SUhoI00UZ8jkao8tXVCPAbyBZLoYp5ko",
   SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
   SOURCE_SHEET_NAME: "FMS",
@@ -87,11 +87,29 @@ function InstallationPage() {
 
   const formatDate = useCallback((dateString) => {
     if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
     const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
     const day = date.getDate().toString().padStart(2, "0")
     const month = (date.getMonth() + 1).toString().padStart(2, "0")
     const year = date.getFullYear()
     return `${day}/${month}/${year}`
+  }, [])
+
+  const formatDateForInput = useCallback((dateString) => {
+    if (!dateString) return ""
+    // Check if it's already in YYYY-MM-DD format
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString
+
+    // Handle DD/MM/YYYY format
+    const parts = dateString.split("/")
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`
+    }
+    return ""
   }, [])
 
   const isEmpty = useCallback((value) => {
@@ -317,11 +335,11 @@ function InstallationPage() {
       moduleCapacity: record.moduleCapacity || "",
       moduleType: record.moduleType || "",
       structureMake: record.structureMake || "",
-      dateOfInstallation: "",
-      routing: "",
-      earthing: "",
-      baseFoundation: "",
-      wiring: "",
+      dateOfInstallation: formatDateForInput(record.dateOfInstallation || ""),
+      routing: record.routing || "",
+      earthing: record.earthing || "",
+      baseFoundation: record.baseFoundation || "",
+      wiring: record.wiring || "",
       foundationPhoto: null,
       afterInstallationPhoto: null,
       photoWithCustomer: null,
@@ -329,7 +347,7 @@ function InstallationPage() {
       investorId: record.investorId || "",
     })
     setShowInstallModal(true)
-  }, [])
+  }, [formatDateForInput])
 
   const handleFileUpload = useCallback((field, file) => {
     setInstallForm((prev) => ({ ...prev, [field]: file }))
@@ -386,23 +404,24 @@ function InstallationPage() {
 
     setIsSubmitting(true)
     try {
-      let foundationPhotoUrl = ""
-      let afterInstallationPhotoUrl = ""
-      let photoWithCustomerUrl = ""
-      let completeInstallationPhotoUrl = ""
+      const isEdit = !isEmpty(selectedRecord.actual)
+      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
 
-      if (installForm.foundationPhoto) {
-        foundationPhotoUrl = await uploadImageToDrive(installForm.foundationPhoto)
-      }
-      if (installForm.afterInstallationPhoto) {
-        afterInstallationPhotoUrl = await uploadImageToDrive(installForm.afterInstallationPhoto)
-      }
-      if (installForm.photoWithCustomer) {
-        photoWithCustomerUrl = await uploadImageToDrive(installForm.photoWithCustomer)
-      }
-      if (installForm.completeInstallationPhoto) {
-        completeInstallationPhotoUrl = await uploadImageToDrive(installForm.completeInstallationPhoto)
-      }
+      let foundationPhotoUrl = ""
+      if (installForm.foundationPhoto) foundationPhotoUrl = await uploadImageToDrive(installForm.foundationPhoto)
+      else if (isEdit && selectedRecord.foundationPhoto) foundationPhotoUrl = selectedRecord.foundationPhoto
+
+      let afterInstallationPhotoUrl = ""
+      if (installForm.afterInstallationPhoto) afterInstallationPhotoUrl = await uploadImageToDrive(installForm.afterInstallationPhoto)
+      else if (isEdit && selectedRecord.afterInstallationPhoto) afterInstallationPhotoUrl = selectedRecord.afterInstallationPhoto
+
+      let photoWithCustomerUrl = ""
+      if (installForm.photoWithCustomer) photoWithCustomerUrl = await uploadImageToDrive(installForm.photoWithCustomer)
+      else if (isEdit && selectedRecord.photoWithCustomer) photoWithCustomerUrl = selectedRecord.photoWithCustomer
+
+      let completeInstallationPhotoUrl = ""
+      if (installForm.completeInstallationPhoto) completeInstallationPhotoUrl = await uploadImageToDrive(installForm.completeInstallationPhoto)
+      else if (isEdit && selectedRecord.completeInstallationPhoto) completeInstallationPhotoUrl = selectedRecord.completeInstallationPhoto
 
       const updateData = {
         action: "update",
@@ -410,7 +429,7 @@ function InstallationPage() {
         rowIndex: selectedRecord._rowIndex,
         rowData: JSON.stringify([
           ...Array(79).fill(""),
-          formatTimestamp(), // CB - index 79
+          actualDate, // CB - index 79
           "", // CC - index 80
           formatDate(installForm.dateOfInstallation), // CD - 81
           installForm.routing, // CE - 82
@@ -451,11 +470,10 @@ function InstallationPage() {
       if (result.success) {
         setSuccessMessage(`Installation completed successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowInstallModal(false)
-        setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
 
         const updatedRecord = {
           ...selectedRecord,
-          actual: formatTimestamp(),
+          actual: actualDate,
           dateOfInstallation: formatDate(installForm.dateOfInstallation),
           routing: installForm.routing,
           earthing: installForm.earthing,
@@ -473,7 +491,13 @@ function InstallationPage() {
           structureMake: installForm.structureMake,
           investorId: installForm.investorId,
         }
-        setHistoryData((prev) => [updatedRecord, ...prev])
+
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
 
         setTimeout(() => {
           setSuccessMessage("")
@@ -617,11 +641,9 @@ function InstallationPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -751,6 +773,15 @@ function InstallationPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleInstallClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>

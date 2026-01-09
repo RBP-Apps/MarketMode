@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Receipt, Calendar } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Receipt, Calendar, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Updated Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1A1-QDgKUGl8Chy5wPFXdFxM7-_OKYmg1",
   // Updated Sheet ID
@@ -88,13 +88,17 @@ function BillingsPage() {
     return `${day}/${month}/${year}`
   }, [])
 
-  const formatDateForSheet = useCallback((dateString) => {
+  const formatDateForInput = useCallback((dateString) => {
     if (!dateString) return ""
-    const date = new Date(dateString)
-    const day = date.getDate().toString().padStart(2, "0")
-    const month = (date.getMonth() + 1).toString().padStart(2, "0")
-    const year = date.getFullYear()
-    return `${day}/${month}/${year}`
+    // Check if it's already in YYYY-MM-DD format
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString
+
+    // Handle DD/MM/YYYY format
+    const parts = dateString.split("/")
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`
+    }
+    return ""
   }, [])
 
   const isEmpty = useCallback((value) => {
@@ -257,15 +261,15 @@ function BillingsPage() {
   const handleBillingClick = useCallback((record) => {
     setSelectedRecord(record)
     setBillingForm({
-      consumerBillNumber: "",
+      consumerBillNumber: record.consumerBillNumber || "",
       consumerBillCopy: null,
-      vendorBillNumber: "",
+      vendorBillNumber: record.vendorBillNumber || "",
       vendorCopy: null,
-      invoiceDate: "",
-      ipDate: "",
+      invoiceDate: formatDateForInput(record.invoiceDate || ""),
+      ipDate: formatDateForInput(record.ipDate || ""),
     })
     setShowBillingModal(true)
-  }, [])
+  }, [formatDateForInput])
 
   const handleFileUpload = useCallback((field, file) => {
     setBillingForm((prev) => ({ ...prev, [field]: file }))
@@ -322,16 +326,23 @@ function BillingsPage() {
 
     setIsSubmitting(true)
     try {
+      const isEdit = !isEmpty(selectedRecord.actual)
+      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+
       // Upload images and get URLs
       let consumerBillCopyUrl = ""
       let vendorCopyUrl = ""
 
       if (billingForm.consumerBillCopy) {
         consumerBillCopyUrl = await uploadImageToDrive(billingForm.consumerBillCopy)
+      } else if (isEdit && selectedRecord.consumerBillCopy) {
+        consumerBillCopyUrl = selectedRecord.consumerBillCopy
       }
 
       if (billingForm.vendorCopy) {
         vendorCopyUrl = await uploadImageToDrive(billingForm.vendorCopy)
+      } else if (isEdit && selectedRecord.vendorCopy) {
+        vendorCopyUrl = selectedRecord.vendorCopy
       }
 
       // Prepare update data with corrected column positions including new date fields
@@ -341,7 +352,7 @@ function BillingsPage() {
         rowIndex: selectedRecord._rowIndex,
         rowData: JSON.stringify([
           ...Array(91).fill(""), // Fill columns A to CN (index 90) with empty strings to keep existing data
-          formatTimestamp(), // CN - Actual timestamp (index 91)
+          actualDate, // CN - Actual timestamp (index 91)
           "", // CO - keep existing (index 92)
           billingForm.consumerBillNumber, // CP - Consumer Bill Number (index 93)
           consumerBillCopyUrl, // CQ - Consumer Bill Copy (index 94)
@@ -367,13 +378,10 @@ function BillingsPage() {
         setSuccessMessage(`Billing completed successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowBillingModal(false)
 
-        // Move record from pending to history immediately
-        setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-
         // Add to history with updated data
         const updatedRecord = {
           ...selectedRecord,
-          actual: formatTimestamp(),
+          actual: actualDate,
           consumerBillNumber: billingForm.consumerBillNumber,
           consumerBillCopy: consumerBillCopyUrl,
           vendorBillNumber: billingForm.vendorBillNumber,
@@ -381,7 +389,13 @@ function BillingsPage() {
           invoiceDate: formatDateForSheet(billingForm.invoiceDate),
           ipDate: formatDateForSheet(billingForm.ipDate),
         }
-        setHistoryData((prev) => [updatedRecord, ...prev])
+
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
 
         // Clear success message after 3 seconds
         setTimeout(() => {
@@ -516,11 +530,9 @@ function BillingsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -604,6 +616,15 @@ function BillingsPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleBillingClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -721,7 +742,7 @@ function BillingsPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900 font-medium text-green-600">
+                            <div className="text-xs font-medium text-green-600">
                               {record.consumerBillNumber || "—"}
                             </div>
                           </td>
@@ -741,7 +762,7 @@ function BillingsPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900 font-medium text-green-600">
+                            <div className="text-xs font-medium text-green-600">
                               {record.vendorBillNumber || "—"}
                             </div>
                           </td>
@@ -761,13 +782,13 @@ function BillingsPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900 font-medium text-blue-600 flex items-center">
+                            <div className="text-xs font-medium text-blue-600 flex items-center">
                               <Calendar className="h-3 w-3 mr-1" />
                               {record.invoiceDate ? formatDate(record.invoiceDate) : "—"}
                             </div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900 font-medium text-purple-600 flex items-center">
+                            <div className="text-xs font-medium text-purple-600 flex items-center">
                               <Calendar className="h-3 w-3 mr-1" />
                               {record.ipDate ? formatDate(record.ipDate) : "—"}
                             </div>
@@ -787,7 +808,7 @@ function BillingsPage() {
                         <td className="px-2 py-3 whitespace-nowrap">
                           <button
                             onClick={() => handleBillingClick(record)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-linear-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                           >
                             <Receipt className="h-3 w-3 mr-1" />
                             Billing
@@ -1090,7 +1111,7 @@ function BillingsPage() {
                   <button
                     onClick={handleBillingSubmit}
                     disabled={isSubmitting || !billingForm.consumerBillNumber || !billingForm.vendorBillNumber || !billingForm.invoiceDate || !billingForm.ipDate}
-                    className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                    className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
                   >
                     {isSubmitting ? (
                       <>

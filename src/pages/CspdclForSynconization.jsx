@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, FileText } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, FileText, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Sheet ID
   SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
   // Updated Google Drive folder ID for file uploads
@@ -250,15 +250,15 @@ function CSPDCLDocPage() {
     setDocForm({
       powerPurchaseAgreement: null,
       vendorConsumerAgreement: null,
-      quotationCopy: false,
-      applicationCopy: false,
-      physibilityReport: false,
-      tokenForSubsidy: false,
-      panCard: false,
-      aadharCard: false,
-      cancellationCheque: false,
-      electricityBill: false,
-      witnessIdProof: false,
+      quotationCopy: record.quotationCopy === "OK",
+      applicationCopy: record.applicationCopy === "OK",
+      physibilityReport: record.physibilityReport === "OK",
+      tokenForSubsidy: record.tokenForSubsidy === "OK",
+      panCard: record.panCard === "OK",
+      aadharCard: record.aadharCard === "OK",
+      cancellationCheque: record.cancellationCheque === "OK",
+      electricityBill: record.electricityBill === "OK",
+      witnessIdProof: record.witnessIdProof === "OK",
     })
     setShowDocModal(true)
   }, [])
@@ -311,23 +311,30 @@ function CSPDCLDocPage() {
   )
 
   const handleDocSubmit = async () => {
-    if (!docForm.powerPurchaseAgreement || !docForm.vendorConsumerAgreement) {
+    if ((!docForm.powerPurchaseAgreement && !selectedRecord.powerPurchaseAgreement) || (!docForm.vendorConsumerAgreement && !selectedRecord.vendorConsumerAgreement)) {
       alert("Please upload required images (Power Purchase Agreement and Vendor Consumer Agreement)")
       return
     }
 
     setIsSubmitting(true)
     try {
+      const isEdit = !isEmpty(selectedRecord.actual)
+      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+
       // Upload images and get URLs
       let powerPurchaseAgreementUrl = ""
       let vendorConsumerAgreementUrl = ""
 
       if (docForm.powerPurchaseAgreement) {
         powerPurchaseAgreementUrl = await uploadImageToDrive(docForm.powerPurchaseAgreement)
+      } else if (isEdit && selectedRecord.powerPurchaseAgreement) {
+        powerPurchaseAgreementUrl = selectedRecord.powerPurchaseAgreement
       }
 
       if (docForm.vendorConsumerAgreement) {
         vendorConsumerAgreementUrl = await uploadImageToDrive(docForm.vendorConsumerAgreement)
+      } else if (isEdit && selectedRecord.vendorConsumerAgreement) {
+        vendorConsumerAgreementUrl = selectedRecord.vendorConsumerAgreement
       }
 
       // Create a full row array with existing data plus new document data
@@ -353,7 +360,7 @@ function CSPDCLDocPage() {
       rowData[97] = selectedRecord.actual || rowData[97] // CT - Keep existing value
 
       // Add new document submission data with FIXED column mapping
-      rowData[98] = formatTimestamp() // CU - Actual timestamp
+      rowData[98] = actualDate // CU - Actual timestamp
       rowData[100] = powerPurchaseAgreementUrl // CW - Power Purchase Agreement
       rowData[101] = vendorConsumerAgreementUrl // CX - Vendor Consumer Agreement
       rowData[102] = docForm.quotationCopy ? "OK" : "" // CY - Quotation Copy (store 'OK' or blank)
@@ -386,13 +393,10 @@ function CSPDCLDocPage() {
         )
         setShowDocModal(false)
 
-        // Move record from pending to history immediately
-        setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-
         // Add to history with updated data
         const updatedRecord = {
           ...selectedRecord,
-          actual: formatTimestamp(),
+          actual: actualDate,
           powerPurchaseAgreement: powerPurchaseAgreementUrl,
           vendorConsumerAgreement: vendorConsumerAgreementUrl,
           quotationCopy: docForm.quotationCopy ? "OK" : "",
@@ -406,7 +410,12 @@ function CSPDCLDocPage() {
           witnessIdProof: docForm.witnessIdProof ? "OK" : "",
         }
 
-        setHistoryData((prev) => [updatedRecord, ...prev])
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
 
         // Clear success message after 3 seconds
         setTimeout(() => {
@@ -546,11 +555,9 @@ function CSPDCLDocPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>

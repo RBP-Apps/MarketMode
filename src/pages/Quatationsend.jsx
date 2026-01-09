@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Send } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Send, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for quotation uploads
   DRIVE_FOLDER_ID: "1QNU59s_1KFG1C9Xq7ufmn6G9dLO8COYk",
   // Sheet names
@@ -286,8 +286,8 @@ function FMSDataPage() {
   const handleQuotationClick = useCallback((record) => {
     setSelectedRecord(record)
     setQuotationForm({
-      quotationNumber: "",
-      valueOfQuotation: "",
+      quotationNumber: record.col34 || "",
+      valueOfQuotation: record.col35 || "",
       quotationCopy: null,
     })
     setShowQuotationModal(true)
@@ -352,7 +352,9 @@ function FMSDataPage() {
     setIsSubmitting(true)
     try {
       // Upload quotation copy and get URL
-      let quotationCopyUrl = ""
+      // Default to existing URL if no new file is selected
+      let quotationCopyUrl = selectedRecord.col36 || ""
+
       if (quotationForm.quotationCopy) {
         quotationCopyUrl = await uploadImageToDrive(quotationForm.quotationCopy)
       }
@@ -416,10 +418,8 @@ function FMSDataPage() {
         setSuccessMessage(`Quotation submitted successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowQuotationModal(false)
 
-        // Move record from pending to history immediately (no page refresh)
-        setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+        const isEdit = !isEmpty(selectedRecord.col32) // Check if it was already in history (has AG timestamp)
 
-        // Add to history with updated data
         const updatedRecord = {
           ...selectedRecord,
           col32: formatTimestamp(), // AG - Actual timestamp
@@ -428,7 +428,14 @@ function FMSDataPage() {
           col36: quotationCopyUrl, // AK - Quotation Copy
         }
 
-        setHistoryData((prev) => [updatedRecord, ...prev])
+        if (isEdit) {
+          // Update in history
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+        } else {
+          // Move from pending to history
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
 
         // Clear success message after 3 seconds
         setTimeout(() => {
@@ -485,8 +492,8 @@ function FMSDataPage() {
           <button
             onClick={() => toggleSection("pending")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${!showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -497,8 +504,8 @@ function FMSDataPage() {
           <button
             onClick={() => toggleSection("history")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -560,11 +567,9 @@ function FMSDataPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -645,6 +650,15 @@ function FMSDataPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleQuotationClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.col1 || "—"}</div>
                           </td>
@@ -911,7 +925,6 @@ function FMSDataPage() {
                     />
                   </div>
 
-                  {/* Quotation Copy */}
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Quotation Copy</label>
                     <input
@@ -920,9 +933,16 @@ function FMSDataPage() {
                       onChange={(e) => handleFileUpload("quotationCopy", e.target.files[0])}
                       className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {quotationForm.quotationCopy && (
+                    {quotationForm.quotationCopy ? (
                       <p className="text-xs text-green-600 mt-1">✓ {quotationForm.quotationCopy.name}</p>
-                    )}
+                    ) : selectedRecord.col36 ? (
+                      <div className="flex items-center mt-1">
+                        <span className="text-xs text-gray-500 mr-2">Current file:</span>
+                        <a href={selectedRecord.col36} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs flex items-center">
+                          <Eye className="h-3 w-3 mr-1" /> View
+                        </a>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 

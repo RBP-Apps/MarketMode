@@ -124,7 +124,7 @@ export default function BeneficiaryForm() {
   const fetchHistoryData = async () => {
     try {
       setIsLoadingHistory(true);
-      const scriptUrl = "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec";
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec";
 
       const response = await fetch(`${scriptUrl}?sheet=FMS&action=fetch`);
 
@@ -242,7 +242,7 @@ export default function BeneficiaryForm() {
       formPayload.append("rowData", JSON.stringify(updatedRowData));
 
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+        "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
         {
           method: "POST",
           body: formPayload,
@@ -325,7 +325,7 @@ export default function BeneficiaryForm() {
 
             try {
               const response = await fetch(
-                "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+                "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
                 {
                   method: "POST",
                   body: formPayload,
@@ -344,7 +344,7 @@ export default function BeneficiaryForm() {
             }
 
             await fetch(
-              "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+              "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
               {
                 method: "POST",
                 body: formPayload,
@@ -414,7 +414,7 @@ export default function BeneficiaryForm() {
       formPayload.append("rowData", JSON.stringify(submissionData));
 
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+        "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
         {
           method: "POST",
           body: formPayload,

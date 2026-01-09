@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, FileText, MapPin, Users, Phone, Eye, DollarSign } from "lucide-react"
+import { CheckCircle2, X, Search, History, FileText, MapPin, Users, Phone, Eye, DollarSign, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1KjZwLhFFEGvrUPtnbPV-S_QFJfSPjPDR",
   // Sheet names
@@ -76,7 +76,15 @@ function FollowUpPage() {
 
   const formatDateForInput = useCallback((dateString) => {
     if (!dateString) return ""
+    // Handle DD/MM/YYYY format
+    if (dateString.includes("/")) {
+      const [day, month, year] = dateString.split("/")
+      return `${year}-${month}-${day}`
+    }
+    // Handle standard date string
     const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ""
+
     const day = date.getDate().toString().padStart(2, "0")
     const month = (date.getMonth() + 1).toString().padStart(2, "0")
     const year = date.getFullYear()
@@ -286,13 +294,13 @@ function FollowUpPage() {
   const handleFollowUpClick = useCallback((record) => {
     setSelectedRecord(record)
     setFollowUpForm({
-      whatDidCustomerSay: "",
-      stage: "",
-      nextDateOfCall: "",
-      valueOfOrder: "",
+      whatDidCustomerSay: record.whatDidCustomerSay || "",
+      stage: record.stage || "",
+      nextDateOfCall: formatDateForInput(record.nextDateOfCall || ""),
+      valueOfOrder: record.valueOfOrder || "",
     })
     setShowFollowUpModal(true)
-  }, [])
+  }, [formatDateForInput])
 
   const handleInputChange = useCallback((field, value) => {
     setFollowUpForm((prev) => ({ ...prev, [field]: value }))
@@ -306,9 +314,13 @@ function FollowUpPage() {
 
     setIsSubmitting(true)
     try {
+      const isEdit = !isEmpty(selectedRecord.actual)
       // Determine if we should store the actual date (when stage is "Order Received")
       const shouldStoreActualDate = followUpForm.stage === "Order Received"
-      const actualDate = shouldStoreActualDate ? formatTimestamp() : ""
+
+      // If editing, preserve the original actual date unless specifically changing status logic requires update (usually keep original)
+      // If new (pending -> history), use current timestamp if Order Received
+      const actualDate = isEdit ? selectedRecord.actual : (shouldStoreActualDate ? formatTimestamp() : "")
 
       // Create a row data array with empty strings for columns we don't want to update
       // We need to create an array that matches the sheet structure
@@ -316,7 +328,7 @@ function FollowUpPage() {
 
       // Only set the specific columns we want to update, leave others empty
       // The Google Apps Script will only update non-empty values
-      rowData[38] = actualDate // AM - Actual date (only if Order Received)
+      rowData[38] = actualDate // AM - Actual date (only if Order Received or Edit)
       rowData[40] = followUpForm.whatDidCustomerSay // AO - What Did The Customer Say
       rowData[41] = followUpForm.stage // AP - Stage
       // Only store next date if not "Order Received"
@@ -353,12 +365,17 @@ function FollowUpPage() {
           valueOfOrder: followUpForm.valueOfOrder,
         }
 
-        // If Order Received, move to history, otherwise keep in pending with updated data
-        if (shouldStoreActualDate) {
-          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-          setHistoryData((prev) => [updatedRecord, ...prev])
+        if (isEdit) {
+          // Update in history
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
         } else {
-          setPendingData((prev) => prev.map((record) => (record._id === selectedRecord._id ? updatedRecord : record)))
+          // New submission from pending
+          if (shouldStoreActualDate) {
+            setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+            setHistoryData((prev) => [updatedRecord, ...prev])
+          } else {
+            setPendingData((prev) => prev.map((record) => (record._id === selectedRecord._id ? updatedRecord : record)))
+          }
         }
 
         // Clear success message after 3 seconds
@@ -417,8 +434,8 @@ function FollowUpPage() {
           <button
             onClick={() => toggleSection("pending")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${!showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -429,8 +446,8 @@ function FollowUpPage() {
           <button
             onClick={() => toggleSection("history")}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${showHistory
-                ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-blue-500 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
           >
             <div className="flex items-center">
@@ -492,11 +509,9 @@ function FollowUpPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -556,6 +571,15 @@ function FollowUpPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleFollowUpClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>

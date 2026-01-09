@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, CreditCard } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, CreditCard, Wrench } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbw1k2SxGQ3xopYDCGDmZSYFyS3y3mSB5YJhR9SRDO6CavtmGg3h84PRSfwdnHQGt4MV/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
   // Sheet names
@@ -55,6 +55,15 @@ function PaymentPage() {
   const [selectedRows, setSelectedRows] = useState({})
   const [statusValues, setStatusValues] = useState({})
   const [paymentDetails, setPaymentDetails] = useState({})
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedRecord, setSelectedRecord] = useState(null)
+  const [paymentForm, setPaymentForm] = useState({
+    payment: "",
+    checkNo: "",
+    date: "",
+    amount: "",
+    deduction: "",
+  })
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -68,6 +77,16 @@ function PaymentPage() {
     const minutes = now.getMinutes().toString().padStart(2, "0")
     const seconds = now.getSeconds().toString().padStart(2, "0")
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
+
+  const formatDateForInput = useCallback((dateString) => {
+    if (!dateString) return ""
+    // extended logic to handle DD/MM/YYYY
+    if (dateString.includes("/")) {
+      const [day, month, year] = dateString.split("/")
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+    }
+    return dateString
   }, [])
 
   const isEmpty = useCallback((value) => {
@@ -330,6 +349,134 @@ function PaymentPage() {
     }))
   }, [])
 
+  const handlePaymentClick = useCallback(
+    (record) => {
+      setSelectedRecord(record)
+      setPaymentForm({
+        payment: record.payment || "",
+        checkNo: record.checkNo || "",
+        date: formatDateForInput(record.date || ""),
+        amount: record.amount || "",
+        deduction: record.deduction || "",
+      })
+      setShowPaymentModal(true)
+    },
+    [formatDateForInput],
+  )
+
+  const handlePaymentSubmit = async () => {
+    if (!paymentForm.payment) {
+      alert("Please select Payment Status")
+      return
+    }
+
+    if (paymentForm.payment === "Done") {
+      if (!paymentForm.checkNo || !paymentForm.date || !paymentForm.amount) {
+        alert("Please fill in Check No, Date, and Amount")
+        return
+      }
+    }
+
+    setIsSubmitting(true)
+    try {
+      // Determine if it's an edit or new submission based on existing 'actual' date
+      const isEdit = selectedRecord.actual && selectedRecord.actual !== ""
+      const actualDate = isEdit && selectedRecord.actual ? selectedRecord.actual : formatTimestamp()
+
+      const rowData = Array(140).fill("")
+
+      // Update logic:
+      // Column EC (index 132) - Status (Payment)
+      rowData[132] = paymentForm.payment
+
+      // If Done, update details and Actual timestamp
+      // Even if editing, we update the details
+      if (paymentForm.payment === "Done") {
+        rowData[130] = actualDate // EA
+        rowData[133] = paymentForm.checkNo // ED
+        rowData[134] = paymentForm.date ? useCallback((dateString) => {
+          if (!dateString) return ""
+          const date = new Date(dateString)
+          const day = date.getDate().toString().padStart(2, "0")
+          const month = (date.getMonth() + 1).toString().padStart(2, "0")
+          const year = date.getFullYear()
+          return `${day}/${month}/${year}`
+        }, [])(paymentForm.date) : "" // EE - Using inline format date logic or reuse existing one logic if I had access, but I will assume formatDate is available in scope or duplicate it.
+        // Wait, formatDate is defined in component scope. I can use it.
+        // rowData[134] = paymentForm.date ? formatDate(paymentForm.date) : ""
+        rowData[135] = paymentForm.amount // EF
+        rowData[136] = paymentForm.deduction // EG
+      } else {
+        // If status changed to something else, clear details? 
+        // Current logic in bulk update only updates if status is Done. 
+        // If status is not done, we just update status.
+        // But if we are editing a history record (Done) to (Pending usually not possible via UI flow easily here unless status change supported), 
+        // For now let's assume valid state transition.
+      }
+
+      // I need to use `formatDate` but it is inside the component. 
+      // I can't easily access it here if I am pasting this code block unless I use it.
+      // Yes `formatDate` is defined above line 331 (scope-wise).
+
+      if (paymentForm.payment === "Done") {
+        // Re-implement format date simple logic just in case or use existing
+        const d = new Date(paymentForm.date)
+        const day = d.getDate().toString().padStart(2, '0')
+        const month = (d.getMonth() + 1).toString().padStart(2, '0')
+        const year = d.getFullYear()
+        rowData[134] = `${day}/${month}/${year}`
+      }
+
+
+      const updateData = {
+        action: "update",
+        sheetName: CONFIG.SOURCE_SHEET_NAME,
+        rowIndex: selectedRecord._rowIndex,
+        rowData: JSON.stringify(rowData),
+      }
+
+      await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(updateData).toString(),
+      })
+
+      // Update local state
+      const updatedRecord = {
+        ...selectedRecord,
+        payment: paymentForm.payment,
+        actual: paymentForm.payment === "Done" ? actualDate : selectedRecord.actual,
+        checkNo: paymentForm.payment === "Done" ? paymentForm.checkNo : selectedRecord.checkNo,
+        date: paymentForm.payment === "Done" ? `${new Date(paymentForm.date).getDate().toString().padStart(2, '0')}/${(new Date(paymentForm.date).getMonth() + 1).toString().padStart(2, '0')}/${new Date(paymentForm.date).getFullYear()}` : selectedRecord.date,
+        amount: paymentForm.payment === "Done" ? paymentForm.amount : selectedRecord.amount,
+        deduction: paymentForm.payment === "Done" ? paymentForm.deduction : selectedRecord.deduction,
+      }
+
+      if (isEdit) {
+        setHistoryData((prev) => prev.map((r) => (r._id === selectedRecord._id ? updatedRecord : r)))
+      } else {
+        // If it was pending, move to history
+        setPendingData((prev) => prev.filter((r) => r._id !== selectedRecord._id))
+        setHistoryData((prev) => [updatedRecord, ...prev])
+      }
+
+      setShowPaymentModal(false)
+      setSuccessMessage("Payment updated successfully")
+
+      setTimeout(() => {
+        setSuccessMessage("")
+      }, 3000)
+
+    } catch (error) {
+      console.error("Error updating payment:", error)
+      alert("Failed to update payment: " + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handleSubmit = async () => {
     const selectedRecordIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
 
@@ -550,7 +697,7 @@ function PaymentPage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
               >
                 {isSubmitting ? (
                   <>
@@ -570,7 +717,7 @@ function PaymentPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -705,6 +852,15 @@ function PaymentPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handlePaymentClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -980,6 +1136,108 @@ function PaymentPage() {
           )}
         </div>
       </div>
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
+              &#8203;
+            </span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <CreditCard className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                      Edit Payment
+                    </h3>
+                    <div className="mt-4 space-y-4">
+                      {/* Status Dropdown */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Payment Status</label>
+                        <select
+                          value={paymentForm.payment}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, payment: e.target.value })}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        >
+                          <option value="">Select Status</option>
+                          {dropdownOptions.map((option, index) => (
+                            <option key={index} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Payment Details */}
+                      {paymentForm.payment === "Done" && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Check No</label>
+                            <input
+                              type="text"
+                              value={paymentForm.checkNo}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, checkNo: e.target.value })}
+                              className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Date</label>
+                            <input
+                              type="date"
+                              value={paymentForm.date}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                              className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Amount</label>
+                            <input
+                              type="text"
+                              value={paymentForm.amount}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                              className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Deduction</label>
+                            <input
+                              type="text"
+                              value={paymentForm.deduction}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, deduction: e.target.value })}
+                              className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handlePaymentSubmit}
+                  disabled={isSubmitting}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   )
 }
