@@ -33,7 +33,6 @@ import { useDeviceContext } from './DeviceContext';
 import AutoLogin from './AutoLogin';
 import ConfigurationPanel from './ConfigurationPanel';
 import ChartSettingsPanel from './ChartSettingsPanel';
-import WeeklyPerformanceReport from './WeeklyPerformanceReport';
 
 // Direct API environment variables
 const SOLAR_APPKEY = import.meta.env.VITE_SOLAR_APP_KEY;
@@ -2557,8 +2556,6 @@ const CombinedAreaChart = () => {
                 chartConfig={chartConfig}
                 setChartConfig={setChartConfig}
               />
-
-              <WeeklyPerformanceReport token={token} />
             </div>
           </div>
         </div>

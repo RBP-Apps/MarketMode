@@ -27,7 +27,8 @@ import {
   RotateCcw,
   DollarSign,
   CreditCard,
-  ChartColumn
+  ChartColumn,
+  BarChart3
 } from 'lucide-react'
 
 export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
@@ -223,6 +224,13 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       label: "All Graph",
       icon: ChartColumn,
       active: location.pathname === "/dashboard/all-graph",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/weekly-performance-report",
+      label: "Weekly Report",
+      icon: BarChart3,
+      active: location.pathname === "/dashboard/weekly-performance-report",
       showFor: ["admin", "user"]
     }
   ]

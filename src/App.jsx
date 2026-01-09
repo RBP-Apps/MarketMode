@@ -267,7 +267,7 @@ function App() {
             }
           />
 
-           <Route
+          <Route
             path="/dashboard/weekly-performance-report"
             element={
               <ProtectedRoute>
