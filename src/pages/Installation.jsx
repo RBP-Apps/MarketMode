@@ -1141,7 +1141,12 @@ function InstallationPage() {
                       <input
                         type="text"
                         value={installForm.inverterCapacity}
-                        onChange={(e) => handleInputChange("inverterCapacity", e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (/^\d*\.?\d*$/.test(value)) {
+                            handleInputChange("inverterCapacity", value);
+                          }
+                        }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         placeholder="-- Enter Inverter Capacity --"
                       />

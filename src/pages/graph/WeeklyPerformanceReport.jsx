@@ -520,8 +520,6 @@ const WeeklyPerformanceReport = () => {
       'Beneficiary Name',
       'Capacity (kW)',
       `Total Energy (${dateRange.startDate} to ${dateRange.endDate}) (kWh)`,
-      'Avg Daily Energy (kWh)',
-      'Specific Yield (kWh/kW)',
       'Days in Range'
     ];
 
@@ -533,8 +531,6 @@ const WeeklyPerformanceReport = () => {
         `"${item.beneficiaryName}"`,
         item.capacity,
         item.totalKwh,
-        item.avgDailyKwh,
-        item.specYield,
         item.daysInRange || calculateDaysInRange()
       ].join(','))
     ].join('\n');
@@ -633,13 +629,6 @@ const WeeklyPerformanceReport = () => {
                             <p className="text-sm text-gray-600">Inverter: {data.inverterId}</p>
                             <p className="text-sm text-gray-600">Capacity: {data.capacity} kW</p>
                             <div className="mt-2 pt-2 border-t border-gray-100">
-                              <p className="text-sm">
-                                <span className="font-medium">Specific Yield: </span>
-                                <span className={`font-bold ${data.specYield >= 4 ? 'text-green-600' : data.specYield >= 3 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                  {data.specYield} kWh/kW
-                                </span>
-                              </p>
-                              <p className="text-sm">Avg Daily: {data.avgDaily.toFixed(2)} kWh</p>
                               <p className="text-sm">Total: {data.total.toFixed(2)} kWh</p>
                             </div>
                           </div>
@@ -806,31 +795,7 @@ const WeeklyPerformanceReport = () => {
                     </p>
                   </div>
 
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500">Avg Daily</p>
-                        <p className="text-2xl font-bold text-green-600">{summaryStats.avgDailyKwh} kWh</p>
-                      </div>
-                      <Sun className="w-8 h-8 text-green-100 bg-green-600 p-2 rounded-lg" />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">
-                      Per inverter average
-                    </p>
-                  </div>
 
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500">Avg Spec. Yield</p>
-                        <p className="text-2xl font-bold text-purple-600">{summaryStats.avgSpecYield} kWh/kW</p>
-                      </div>
-                      <Target className="w-8 h-8 text-purple-100 bg-purple-600 p-2 rounded-lg" />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {summaryStats.avgSpecYield >= 4 ? 'Excellent' : summaryStats.avgSpecYield >= 3 ? 'Good' : 'Needs Improvement'}
-                    </p>
-                  </div>
 
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <div className="flex items-center justify-between">
@@ -1102,30 +1067,6 @@ const WeeklyPerformanceReport = () => {
                               )}
                             </div>
                           </th>
-                          <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                            onClick={() => handleSort('avgDailyKwh')}
-                          >
-                            <div className="flex items-center gap-1">
-                              Avg/Day (kWh)
-                              {sortBy === 'avgDailyKwh' && (
-                                sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                            onClick={() => handleSort('specYield')}
-                          >
-                            <div className="flex items-center gap-1">
-                              Spec. Yield (kWh/kW)
-                              {sortBy === 'specYield' && (
-                                sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
-                          </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                           </th>
@@ -1154,25 +1095,7 @@ const WeeklyPerformanceReport = () => {
                               <div className="text-sm font-semibold text-gray-900">{item.totalKwh.toFixed(2)}</div>
                               <div className="text-xs text-gray-500">{item.daysInRange || calculateDaysInRange()} days</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="text-sm font-semibold text-green-600">{item.avgDailyKwh.toFixed(2)}</div>
-                                {index === 0 && summaryStats?.bestPerformer?.inverterId === item.inverterId && (
-                                  <ArrowUpRight className="w-4 h-4 text-green-500 ml-1" />
-                                )}
-                                {index === filteredData.length - 1 && summaryStats?.worstPerformer?.inverterId === item.inverterId && (
-                                  <ArrowDownRight className="w-4 h-4 text-red-500 ml-1" />
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className={`text-sm font-bold ${item.specYield >= 4 ? 'text-green-600' : item.specYield >= 3 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                {item.specYield.toFixed(3)}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {item.specYield >= 4 ? 'Excellent' : item.specYield >= 3 ? 'Good' : 'Needs Improvement'}
-                              </div>
-                            </td>
+
                             <td className="px-6 py-4 whitespace-nowrap">
                               {item.error ? (
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -1237,6 +1160,7 @@ const WeeklyPerformanceReport = () => {
                 </div>
               )}
 
+              {/* Loading Indicator */}
               {/* Loading Indicator */}
               {(loading.data || loading.allData) && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

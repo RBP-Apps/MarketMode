@@ -2259,32 +2259,24 @@ const CombinedAreaChart = () => {
                 style={{ backgroundColor: paramConfig.color }}
               />
               <div>
-                <h3 className="font-semibold text-gray-900 text-sm">
-                  {paramConfig.label} {
-                    viewMode === 'minute' ? 'Daily' :
-                      viewMode === 'daily' ? 'Weekly' :
-                        viewMode === 'monthly_daily' ? 'Monthly' :
-                          viewMode === 'monthly' ? 'Yearly' :
-                            'Life Time'
-                  } Data
+                <div className="flex items-center gap-4">
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {paramConfig.label} {
+                      viewMode === 'minute' ? 'Daily' :
+                        viewMode === 'daily' ? 'Weekly' :
+                          viewMode === 'monthly_daily' ? 'Monthly' :
+                            viewMode === 'monthly' ? 'Yearly' :
+                              'Life Time'
+                    } Data
+                  </h3>
                   {['minute', 'daily', 'monthly_daily', 'monthly', 'yearly'].includes(viewMode) && stats && (
-                    <div className="flex items-center gap-4 ml-8">
+                    <div className="flex items-center">
                       <span className="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-blue-700 border border-blue-200 shadow-md ring-4 ring-blue-50 transition-all hover:shadow-lg">
                         Total: {stats.sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}
                       </span>
-                      {viewMode === 'daily' && (
-                        <>
-                          <span className="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-emerald-700 border border-emerald-200 shadow-md ring-4 ring-emerald-50 transition-all hover:shadow-lg">
-                            Avg/Day: {(stats.sum / 7).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}
-                          </span>
-                          <span className="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-white text-purple-700 border border-purple-200 shadow-md ring-4 ring-purple-50 transition-all hover:shadow-lg">
-                            Spec. Yield: {((stats.sum / 7) / inverterCapacity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stats.unit}/kW
-                          </span>
-                        </>
-                      )}
                     </div>
                   )}
-                </h3>
+                </div>
                 <p className="text-xs text-gray-500">
                   {viewMode === 'minute'
                     ? `${dateTime.startDate} ${dateTime.startTime} - ${dateTime.endDate} ${dateTime.endTime}`
