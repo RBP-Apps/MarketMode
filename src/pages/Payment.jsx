@@ -113,6 +113,28 @@ function PaymentPage() {
     }
   }, [])
 
+  // Format date to DD/MM/YYYY only (no time)
+  const formatDate = useCallback((dateString) => {
+    if (!dateString) return "—"
+
+    // If already in DD/MM/YYYY format, return as-is
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+      return dateString
+    }
+
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime()) || date.getFullYear() === 1970) return "—"
+
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      return `${day}/${month}/${year}`
+    } catch (e) {
+      return dateString
+    }
+  }, [])
+
   useEffect(() => {
     const role = sessionStorage.getItem("role")
     const user = sessionStorage.getItem("username")
@@ -997,7 +1019,7 @@ function PaymentPage() {
                             <div className="text-xs text-gray-900">{record.witnessIdProof || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.inspection || "—"}</div>
+                            <div className="text-xs text-gray-900">{formatDate(record.inspection)}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
@@ -1158,7 +1180,7 @@ function PaymentPage() {
                             <div className="text-xs text-gray-900">{record.witnessIdProof || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.inspection || "—"}</div>
+                            <div className="text-xs text-gray-900">{formatDate(record.inspection)}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
