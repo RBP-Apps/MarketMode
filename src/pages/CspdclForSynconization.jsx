@@ -10,7 +10,7 @@ const CONFIG = {
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Sheet ID
-  SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1FOIqdjF8-B4A7FCEt9EWl7qKeN3qybj7",
   // Sheet names
@@ -84,6 +84,20 @@ function CSPDCLDocPage() {
 
     // Return formatted datetime string exactly as "DD/MM/YYYY hh:mm:ss"
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
+
+  const formatDate = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
   }, [])
 
   const isEmpty = useCallback((value) => {
@@ -176,11 +190,11 @@ function CSPDCLDocPage() {
           address: rowValues[3] || "", // D
           contactNumber: rowValues[6] || "", // G
           surveyorName: rowValues[29] || "", // AD
-          dispatchMaterial: rowValues[69] || "", // BQ (column BQ is index 69, not 68)
+          dispatchMaterial: formatDate(rowValues[69] || ""), // BQ (column BQ is index 69, not 68)
           informToCustomer: rowValues[72] || "", // BU
           copyOfReceipt: rowValues[76] || "", // BY
-          dateOfReceipt: rowValues[77] || "", // BZ
-          dateOfInstallation: rowValues[81] || "", // CD
+          dateOfReceipt: formatDate(rowValues[77] || ""), // BZ
+          dateOfInstallation: formatDate(rowValues[81] || ""), // CD
           completeInstallationPhoto: rowValues[89] || "", // CL
           consumerBillNumber: rowValues[93] || "", // CP
           vendorBillNumber: rowValues[95] || "", // CR
@@ -218,7 +232,7 @@ function CSPDCLDocPage() {
       setError("Failed to load CSPDCL Doc data: " + error.message)
       setLoading(false)
     }
-  }, [isEmpty])
+  }, [isEmpty, formatDate])
 
   useEffect(() => {
     fetchSheetData()
@@ -518,7 +532,7 @@ function CSPDCLDocPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -646,6 +660,15 @@ function CSPDCLDocPage() {
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
                           <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleDocClick(record)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                              <Wrench className="h-3 w-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
@@ -732,7 +755,7 @@ function CSPDCLDocPage() {
                         <td className="px-2 py-3 whitespace-nowrap">
                           <button
                             onClick={() => handleDocClick(record)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-linear-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                           >
                             <FileText className="h-3 w-3 mr-1" />
                             Doc
@@ -763,7 +786,7 @@ function CSPDCLDocPage() {
                           <div className="text-xs text-gray-900">{record.surveyorName || "—"}</div>
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{record.dispatchMaterial || "—"}</div>
+                          <div className="text-xs text-gray-900">{formatDate(record.dispatchMaterial) || "—"}</div>
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs text-gray-900">{record.informToCustomer || "—"}</div>

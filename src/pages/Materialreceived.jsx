@@ -12,7 +12,7 @@ const CONFIG = {
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1A1-QDgKUGl8Chy5wPFXdFxM7-_OKYmg1",
   // Sheet configuration
-  SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   SOURCE_SHEET_NAME: "FMS",
   // Updated page configuration
   PAGE_CONFIG: {
@@ -72,6 +72,20 @@ function MaterialReceivedSitePage() {
     const minutes = now.getMinutes().toString().padStart(2, "0")
     const seconds = now.getSeconds().toString().padStart(2, "0")
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
+
+  const formatDate = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
   }, [])
 
   const formatDateForDisplay = useCallback((dateString) => {
@@ -206,7 +220,7 @@ function MaterialReceivedSitePage() {
           // Material Receipt specific columns
           actual: rowValues[74] || "", // BW - Fixed index
           copyOfReceipt: rowValues[76] || "", // BY - Fixed index
-          dateOfReceipt: rowValues[77] || "", // BZ - Fixed index
+          dateOfReceipt: formatDate(rowValues[77] || ""), // BZ - Fixed index
         }
 
         // Check if Column BW is null for pending, not null for history
@@ -227,7 +241,7 @@ function MaterialReceivedSitePage() {
       setError("Failed to load Material Receipt data: " + error.message)
       setLoading(false)
     }
-  }, [isEmpty])
+  }, [isEmpty, formatDate])
 
   useEffect(() => {
     fetchSheetData()

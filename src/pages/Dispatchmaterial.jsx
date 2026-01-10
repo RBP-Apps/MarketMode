@@ -10,7 +10,7 @@ const CONFIG = {
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
-  DRIVE_FOLDER_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -265,13 +265,14 @@ function DispatchMaterialsPage() {
   // Initialize status values with existing dispatch material values
   useEffect(() => {
     const initialStatusValues = {}
-    pendingData.forEach((record) => {
+    const allRecords = [...pendingData, ...historyData]
+    allRecords.forEach((record) => {
       if (record.dispatchMaterial && record.dispatchMaterial !== "") {
         initialStatusValues[record._id] = record.dispatchMaterial
       }
     })
     setStatusValues(initialStatusValues)
-  }, [pendingData])
+  }, [pendingData, historyData])
 
   // Optimized filtered data with debounced search
   const filteredPendingData = useMemo(() => {
@@ -326,7 +327,7 @@ function DispatchMaterialsPage() {
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
 
         if (!record) return
@@ -373,40 +374,27 @@ function DispatchMaterialsPage() {
 
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         return {
           ...record,
           dispatchMaterial: status,
-          actual: status === "Done" ? formatTimestamp() : record.actual, // Keep existing actual date if not "Done"
+          actual: status === "Done" ? formatTimestamp() : record.actual, // Clear actual date if not Done
         }
       })
 
-      // Only move records to history if status is "Done", keep all others in pending
-      const doneRecords = updatedRecords.filter((record) => record.dispatchMaterial === "Done")
+      const movedToHistory = updatedRecords.filter((r) => r.dispatchMaterial === "Done")
+      const movedToPending = updatedRecords.filter((r) => r.dispatchMaterial !== "Done")
 
-      // Update pending data: remove only "Done" records, keep and update all others
       setPendingData((prev) => {
-        return prev
-          .map((record) => {
-            const updatedRecord = updatedRecords.find((updated) => updated._id === record._id)
-            if (updatedRecord) {
-              // If this record was updated and is NOT "Done", return the updated version
-              if (updatedRecord.dispatchMaterial !== "Done") {
-                return updatedRecord
-              }
-              // If this record was updated and IS "Done", it will be filtered out below
-              return null
-            }
-            // If this record was not updated, keep it as is
-            return record
-          })
-          .filter((record) => record !== null) // Remove null entries (the "Done" records)
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...remaining, ...movedToPending]
       })
 
-      if (doneRecords.length > 0) {
-        setHistoryData((prev) => [...doneRecords, ...prev])
-      }
+      setHistoryData((prev) => {
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...movedToHistory, ...remaining]
+      })
 
       // Clear selections and status values
       setSelectedRows({})
@@ -493,7 +481,7 @@ function DispatchMaterialsPage() {
         )}
 
         {/* Submit Button for Pending Section */}
-        {!showHistory && Object.values(selectedRows).some(Boolean) && (
+        {Object.values(selectedRows).some(Boolean) && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
             <div className="flex items-center justify-between">
               <span className="text-blue-700 text-sm">
@@ -502,7 +490,7 @@ function DispatchMaterialsPage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
               >
                 {isSubmitting ? (
                   <>
@@ -522,7 +510,7 @@ function DispatchMaterialsPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -559,16 +547,12 @@ function DispatchMaterialsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                      </>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -623,11 +607,7 @@ function DispatchMaterialsPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Work Order Copy
                     </th>
-                    {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Dispatch Material
-                      </th>
-                    )}
+
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -635,6 +615,29 @@ function DispatchMaterialsPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedRows[record._id] || false}
+                              onChange={(e) => handleRowSelection(record._id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <select
+                              value={statusValues[record._id] || record.dispatchMaterial || "Select"}
+                              onChange={(e) => handleStatusChange(record._id, e.target.value)}
+                              disabled={!selectedRows[record._id]}
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                              <option value="Select">Select</option>
+                              {dropdownOptions.map((option, index) => (
+                                <option key={index} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -765,11 +768,7 @@ function DispatchMaterialsPage() {
                               <span className="text-gray-400 text-xs">—</span>
                             )}
                           </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {record.dispatchMaterial || "—"}
-                            </span>
-                          </td>
+
                         </tr>
                       ))
                     ) : (

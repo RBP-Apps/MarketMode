@@ -10,7 +10,7 @@ const CONFIG = {
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Sheet ID
-  SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -252,13 +252,14 @@ function InformToCustomerPage() {
   // Initialize status values with existing inform to customer values
   useEffect(() => {
     const initialStatusValues = {}
-    pendingData.forEach((record) => {
+    const allRecords = [...pendingData, ...historyData]
+    allRecords.forEach((record) => {
       if (record.informToCustomer && record.informToCustomer !== "") {
         initialStatusValues[record._id] = record.informToCustomer
       }
     })
     setStatusValues(initialStatusValues)
-  }, [pendingData])
+  }, [pendingData, historyData])
 
   // Optimized filtered data with debounced search
   const filteredPendingData = useMemo(() => {
@@ -313,7 +314,7 @@ function InformToCustomerPage() {
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
 
         if (!record) return
@@ -360,7 +361,7 @@ function InformToCustomerPage() {
 
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         return {
           ...record,
@@ -369,28 +370,18 @@ function InformToCustomerPage() {
         }
       })
 
-      // Only move records to history if status is "Done"
-      const doneRecords = updatedRecords.filter((record) => record.informToCustomer === "Done")
+      const movedToHistory = updatedRecords.filter((r) => r.informToCustomer === "Done")
+      const movedToPending = updatedRecords.filter((r) => r.informToCustomer !== "Done")
 
-      // Update pending data: remove only "Done" records, keep and update all others
       setPendingData((prev) => {
-        return prev
-          .map((record) => {
-            const updatedRecord = updatedRecords.find((updated) => updated._id === record._id)
-            if (updatedRecord) {
-              if (updatedRecord.informToCustomer !== "Done") {
-                return updatedRecord
-              }
-              return null
-            }
-            return record
-          })
-          .filter((record) => record !== null)
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...remaining, ...movedToPending]
       })
 
-      if (doneRecords.length > 0) {
-        setHistoryData((prev) => [...doneRecords, ...prev])
-      }
+      setHistoryData((prev) => {
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...movedToHistory, ...remaining]
+      })
 
       // Clear selections and status values
       setSelectedRows({})
@@ -477,7 +468,7 @@ function InformToCustomerPage() {
         )}
 
         {/* Submit Button for Pending Section */}
-        {!showHistory && Object.values(selectedRows).some(Boolean) && (
+        {Object.values(selectedRows).some(Boolean) && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
             <div className="flex items-center justify-between">
               <span className="text-blue-700 text-sm">
@@ -543,16 +534,12 @@ function InformToCustomerPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                      </>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -608,14 +595,9 @@ function InformToCustomerPage() {
                       Work Order Copy
                     </th>
                     {showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Dispatch Material
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Inform To Customer
-                        </th>
-                      </>
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Dispatch Material
+                      </th>
                     )}
                   </tr>
                 </thead>
@@ -624,6 +606,29 @@ function InformToCustomerPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedRows[record._id] || false}
+                              onChange={(e) => handleRowSelection(record._id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <select
+                              value={statusValues[record._id] || record.informToCustomer || "Select"}
+                              onChange={(e) => handleStatusChange(record._id, e.target.value)}
+                              disabled={!selectedRows[record._id]}
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                              <option value="Select">Select</option>
+                              {dropdownOptions.map((option, index) => (
+                                <option key={index} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
                           </td>
@@ -759,11 +764,7 @@ function InformToCustomerPage() {
                               {record.dispatchMaterial || "—"}
                             </span>
                           </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {record.informToCustomer || "—"}
-                            </span>
-                          </td>
+
                         </tr>
                       ))
                     ) : (

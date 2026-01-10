@@ -55,29 +55,70 @@ function AllGraph() {
         try {
             setLoading(true);
             setError(null);
-            const sheetId = "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc";
             const sheetName = "Inverter_id";
-            const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+            const url = `https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec?sheet=${encodeURIComponent(sheetName)}&action=fetch`;
 
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Failed to fetch sheet: ${response.status}`);
 
             const text = await response.text();
-            const jsonStart = text.indexOf("{");
-            const jsonEnd = text.lastIndexOf("}");
-            const jsonString = text.substring(jsonStart, jsonEnd + 1);
-            const data = JSON.parse(jsonString);
+            let data;
 
-            if (data.table && data.table.rows) {
-                const processedData = data.table.rows.slice(0).map((row) => ({
-                    serialNo: row.c[0] ? row.c[0].v : "",
-                    inverterId: row.c[1] ? row.c[1].v : "",
-                    beneficiaryName: row.c[2] ? row.c[2].v : "",
-                })).filter(item => item.inverterId);
-
-                setInverterData(processedData);
-                console.log(`Loaded ${processedData.length} inverters from Google Sheet`);
+            try {
+                // Try direct JSON parse first
+                data = JSON.parse(text);
+            } catch {
+                // Fallback: extract JSON from response
+                const jsonStart = text.indexOf("{");
+                const jsonEnd = text.lastIndexOf("}");
+                if (jsonStart !== -1 && jsonEnd !== -1) {
+                    const jsonString = text.substring(jsonStart, jsonEnd + 1);
+                    data = JSON.parse(jsonString);
+                } else {
+                    throw new Error("Invalid JSON response from server");
+                }
             }
+
+            let rows = [];
+
+            // Handle different response formats
+            if (data.table && data.table.rows) {
+                // Google Visualization API format
+                rows = data.table.rows;
+            } else if (Array.isArray(data)) {
+                // Direct array format
+                rows = data;
+            } else if (data.values) {
+                // Google Sheets API format
+                rows = data.values.map(row => ({ c: row.map(val => ({ v: val })) }));
+            }
+
+            const processedData = [];
+            rows.forEach((row, index) => {
+                if (index === 0) return; // Skip header row
+
+                let rowValues = [];
+                if (row.c) {
+                    rowValues = row.c.map(cell => cell?.v || "");
+                } else if (Array.isArray(row)) {
+                    rowValues = row;
+                }
+
+                const serialNo = String(rowValues[0] || "").trim();
+                const inverterId = String(rowValues[1] || "").trim();
+                const beneficiaryName = String(rowValues[2] || "").trim();
+
+                if (inverterId) {
+                    processedData.push({
+                        serialNo: serialNo || (index).toString(),
+                        inverterId,
+                        beneficiaryName,
+                    });
+                }
+            });
+
+            setInverterData(processedData);
+            console.log(`Loaded ${processedData.length} inverters from Google Sheet`);
         } catch (err) {
             console.error("Sheet Fetch Error:", err);
             setError(err.message);

@@ -12,7 +12,7 @@ const CONFIG = {
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1A1-QDgKUGl8Chy5wPFXdFxM7-_OKYmg1",
   // Updated Sheet ID
-  SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   // Updated page configuration
@@ -81,7 +81,12 @@ function BillingsPage() {
 
   const formatDate = useCallback((dateString) => {
     if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
     const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
     const day = date.getDate().toString().padStart(2, "0")
     const month = (date.getMonth() + 1).toString().padStart(2, "0")
     const year = date.getFullYear()
@@ -100,6 +105,10 @@ function BillingsPage() {
     }
     return ""
   }, [])
+
+  const formatDateForSheet = useCallback((dateString) => {
+    return formatDate(dateString)
+  }, [formatDate])
 
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
@@ -192,8 +201,8 @@ function BillingsPage() {
           dispatchMaterial: rowValues[68] || "", // BQ (corrected from 67 to 68)
           informToCustomer: rowValues[72] || "", // BU (corrected from 71 to 72)
           copyOfReceipt: rowValues[76] || "", // BY (corrected from 75 to 76)
-          dateOfReceipt: rowValues[77] || "", // BZ (corrected from 76 to 77)
-          dateOfInstallation: rowValues[81] || "", // CD (corrected from 80 to 81)
+          dateOfReceipt: formatDate(rowValues[77] || ""), // BZ (corrected from 76 to 77)
+          dateOfInstallation: formatDate(rowValues[81] || ""), // CD (corrected from 80 to 81)
           routing: rowValues[82] || "", // CE (corrected from 81 to 82)
           earthing: rowValues[83] || "", // CF (corrected from 82 to 83)
           baseFoundation: rowValues[84] || "", // CG (corrected from 83 to 84)
@@ -203,14 +212,14 @@ function BillingsPage() {
           photoWithCustomer: rowValues[88] || "", // CK (corrected from 87 to 88)
           completeInstallationPhoto: rowValues[89] || "", // CL (corrected from 88 to 89)
           // Billing data with corrected mappings
-          actual: rowValues[91] || "", // CN (corrected from 90 to 91)
+          actual: formatDate(rowValues[91] || ""), // CN (corrected from 90 to 91)
           consumerBillNumber: rowValues[93] || "", // CP (corrected from 92 to 93)
           consumerBillCopy: rowValues[94] || "", // CQ (corrected from 93 to 94)
           vendorBillNumber: rowValues[95] || "", // CR (corrected from 94 to 95)
           vendorCopy: rowValues[96] || "", // CS (corrected from 95 to 96)
           // New date fields
-          invoiceDate: rowValues[143] || "", // EN (column 144, index 143)
-          ipDate: rowValues[144] || "", // EO (column 145, index 144)
+          invoiceDate: formatDate(rowValues[143] || ""), // EN (column 144, index 143)
+          ipDate: formatDate(rowValues[144] || ""), // EO (column 145, index 144)
         }
 
         // Check if Column CN is null for pending, not null for history
@@ -231,7 +240,7 @@ function BillingsPage() {
       setError("Failed to load Billing data: " + error.message)
       setLoading(false)
     }
-  }, [isEmpty])
+  }, [isEmpty, formatDate])
 
   useEffect(() => {
     fetchSheetData()
@@ -493,7 +502,7 @@ function BillingsPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>

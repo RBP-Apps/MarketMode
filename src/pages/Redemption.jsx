@@ -10,7 +10,7 @@ const CONFIG = {
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Sheet ID
-  DRIVE_FOLDER_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -254,13 +254,14 @@ function SubsidyTokenPage() {
   // Initialize status values with existing subsidy token values
   useEffect(() => {
     const initialStatusValues = {}
-    pendingData.forEach((record) => {
+    const allRecords = [...pendingData, ...historyData]
+    allRecords.forEach((record) => {
       if (record.subsidyToken && record.subsidyToken !== "") {
         initialStatusValues[record._id] = record.subsidyToken
       }
     })
     setStatusValues(initialStatusValues)
-  }, [pendingData])
+  }, [pendingData, historyData])
 
   // Optimized filtered data with debounced search
   const filteredPendingData = useMemo(() => {
@@ -390,7 +391,7 @@ function SubsidyTokenPage() {
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         if (!record) return
 
@@ -401,8 +402,12 @@ function SubsidyTokenPage() {
         // Column DU (index 124) - Status (Subsidy Token)
         rowData[124] = status
 
-        // Column DS (index 122) - Actual timestamp (only if status is "Done")
-        if (status === "Done") {
+        // Column DS (index 122) - Actual timestamp
+        // Logic: if Done and NO existing actual date, write new timestamp.
+        // User request: "do not clear or update timestamp for sheet it has not to be updated it will same as it working perfectelly"
+        if (record.actual) {
+          rowData[122] = record.actual
+        } else if (status === "Done") {
           rowData[122] = formatTimestamp()
         }
 
@@ -439,35 +444,22 @@ function SubsidyTokenPage() {
         return {
           ...record,
           subsidyToken: status,
-          actual: status === "Done" ? formatTimestamp() : record.actual,
+          actual: record.actual ? record.actual : (status === "Done" ? formatTimestamp() : ""),
         }
       })
 
-      // Only move records to history if status is "Done", keep all others in pending
-      const doneRecords = updatedRecords.filter((record) => record.subsidyToken === "Done")
+      const movedToHistory = updatedRecords.filter((r) => r.subsidyToken === "Done")
+      const movedToPending = updatedRecords.filter((r) => r.subsidyToken !== "Done")
 
-      // Update pending data: remove only "Done" records, keep and update all others
       setPendingData((prev) => {
-        return prev
-          .map((record) => {
-            const updatedRecord = updatedRecords.find((updated) => updated._id === record._id)
-            if (updatedRecord) {
-              // If this record was updated and is NOT "Done", return the updated version
-              if (updatedRecord.subsidyToken !== "Done") {
-                return updatedRecord
-              }
-              // If this record was updated and IS "Done", it will be filtered out below
-              return null
-            }
-            // If this record was not updated, keep it as is
-            return record
-          })
-          .filter((record) => record !== null) // Remove null entries (the "Done" records)
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...remaining, ...movedToPending]
       })
 
-      if (doneRecords.length > 0) {
-        setHistoryData((prev) => [...doneRecords, ...prev])
-      }
+      setHistoryData((prev) => {
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...remaining, ...movedToHistory]
+      })
 
       // Clear selections and status values
       setSelectedRows({})
@@ -554,7 +546,7 @@ function SubsidyTokenPage() {
         )}
 
         {/* Submit Button for Pending Section */}
-        {!showHistory && Object.values(selectedRows).some(Boolean) && (
+        {Object.values(selectedRows).some(Boolean) && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
             <div className="flex items-center justify-between">
               <span className="text-blue-700 text-sm">
@@ -623,11 +615,9 @@ function SubsidyTokenPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Action
                     </th>
-                    {!showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -667,11 +657,7 @@ function SubsidyTokenPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Project Commission
                     </th>
-                    {showHistory && (
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Subsidy Token
-                      </th>
-                    )}
+
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -680,13 +666,27 @@ function SubsidyTokenPage() {
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <button
-                              onClick={() => handleTokenClick(record)}
-                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            <input
+                              type="checkbox"
+                              checked={selectedRows[record._id] || false}
+                              onChange={(e) => handleRowSelection(record._id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <select
+                              value={statusValues[record._id] || record.subsidyToken || "Select"}
+                              onChange={(e) => handleStatusChange(record._id, e.target.value)}
+                              disabled={!selectedRows[record._id]}
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                             >
-                              <Wrench className="h-3 w-3 mr-1" />
-                              Edit
-                            </button>
+                              <option value="Select">Select</option>
+                              {dropdownOptions.map((option, index) => (
+                                <option key={index} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
@@ -825,11 +825,7 @@ function SubsidyTokenPage() {
                               <span className="text-gray-400 text-xs">—</span>
                             )}
                           </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {record.subsidyToken || "—"}
-                            </span>
-                          </td>
+
                         </tr>
                       ))
                     ) : (

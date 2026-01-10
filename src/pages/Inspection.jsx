@@ -10,7 +10,7 @@ const CONFIG = {
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Sheets ID
-  SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -78,7 +78,12 @@ function InspectionPage() {
 
   const formatDate = useCallback((dateString) => {
     if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
     const date = new Date(dateString)
+    if (isNaN(date.getTime()) || date.getFullYear() === 1970) return ""
+
     const day = date.getDate().toString().padStart(2, "0")
     const month = (date.getMonth() + 1).toString().padStart(2, "0")
     const year = date.getFullYear()
@@ -87,12 +92,13 @@ function InspectionPage() {
 
   const formatDateForInput = useCallback((dateString) => {
     if (!dateString) return ""
+    const str = String(dateString)
     // extended logic to handle DD/MM/YYYY
-    if (dateString.includes("/")) {
-      const [day, month, year] = dateString.split("/")
+    if (str.includes("/")) {
+      const [day, month, year] = str.split("/")
       return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
     }
-    return dateString
+    return str
   }, [])
 
   const isEmpty = useCallback((value) => {
@@ -258,7 +264,7 @@ function InspectionPage() {
           witnessIdProof: rowValues[110] || "", // Column DG (index 110)
           // Status columns
           inspection: rowValues[114] || "", // Column DK (index 114)
-          date: rowValues[115] || "", // Column DL (index 115)
+          date: formatDate(rowValues[115] || ""), // Column DL (index 115)
           actual: rowValues[112] || "", // Column DI (index 112)
         }
 
@@ -281,7 +287,7 @@ function InspectionPage() {
       setError("Failed to load Inspection data: " + error.message)
       setLoading(false)
     }
-  }, [isEmpty, fetchDropdownOptions])
+  }, [isEmpty, fetchDropdownOptions, formatDate])
 
   useEffect(() => {
     fetchSheetData()
@@ -291,19 +297,20 @@ function InspectionPage() {
   useEffect(() => {
     const initialStatusValues = {}
     const initialDateValues = {}
+    const allRecords = [...pendingData, ...historyData]
 
-    pendingData.forEach((record) => {
+    allRecords.forEach((record) => {
       if (record.inspection && record.inspection !== "") {
         initialStatusValues[record._id] = record.inspection
       }
       if (record.date && record.date !== "") {
-        initialDateValues[record._id] = record.date
+        initialDateValues[record._id] = formatDateForInput(record.date)
       }
     })
 
     setStatusValues(initialStatusValues)
     setDateValues(initialDateValues)
-  }, [pendingData])
+  }, [pendingData, historyData, formatDateForInput])
 
   // Optimized filtered data with debounced search
   const filteredPendingData = useMemo(() => {
@@ -471,7 +478,7 @@ function InspectionPage() {
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         const selectedDate = dateValues[recordId]
 
@@ -491,8 +498,12 @@ function InspectionPage() {
 
         // Actual date store in Column DI (index 112) - format DD/MM/YYYY hh:mm:ss
         // Condition: when user select Status = "Done"
+        // Actual date store in Column DI (index 112) - format DD/MM/YYYY hh:mm:ss
+        // Condition: when user select Status = "Done"
         if (status === "Done") {
           rowData[112] = formatTimestamp()
+        } else {
+          rowData[112] = "" // Clear actual date if not Done
         }
 
         // Prepare update data for this specific record
@@ -525,7 +536,7 @@ function InspectionPage() {
 
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         const selectedDate = dateValues[recordId]
 
@@ -537,31 +548,18 @@ function InspectionPage() {
         }
       })
 
-      // Only move records to history if status is "Done" (when Column DI gets populated)
-      const doneRecords = updatedRecords.filter((record) => record.inspection === "Done")
+      const movedToHistory = updatedRecords.filter((r) => r.inspection === "Done")
+      const movedToPending = updatedRecords.filter((r) => r.inspection !== "Done")
 
-      // Update pending data: remove only "Done" records, keep and update all others
       setPendingData((prev) => {
-        return prev
-          .map((record) => {
-            const updatedRecord = updatedRecords.find((updated) => updated._id === record._id)
-            if (updatedRecord) {
-              // If this record was updated and is NOT "Done", return the updated version
-              if (updatedRecord.inspection !== "Done") {
-                return updatedRecord
-              }
-              // If this record was updated and IS "Done", it will be filtered out below
-              return null
-            }
-            // If this record was not updated, keep it as is
-            return record
-          })
-          .filter((record) => record !== null) // Remove null entries (the "Done" records)
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...remaining, ...movedToPending]
       })
 
-      if (doneRecords.length > 0) {
-        setHistoryData((prev) => [...doneRecords, ...prev])
-      }
+      setHistoryData((prev) => {
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...movedToHistory, ...remaining]
+      })
 
       // Clear selections and values
       setSelectedRows({})
@@ -650,7 +648,7 @@ function InspectionPage() {
         )}
 
         {/* Submit Button for Pending Section */}
-        {!showHistory && Object.values(selectedRows).some(Boolean) && (
+        {Object.values(selectedRows).some(Boolean) && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
             <div className="flex items-center justify-between">
               <span className="text-blue-700 text-sm">
@@ -719,16 +717,12 @@ function InspectionPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Action
                     </th>
-                    {!showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
-                        </th>
-                      </>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -762,16 +756,7 @@ function InspectionPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Witness Id Proof
                     </th>
-                    {showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Inspection
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
-                        </th>
-                      </>
-                    )}
+
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -780,13 +765,39 @@ function InspectionPage() {
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <button
-                              onClick={() => handleInspectionClick(record)}
-                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            <input
+                              type="checkbox"
+                              checked={selectedRows[record._id] || false}
+                              onChange={(e) => handleRowSelection(record._id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <select
+                              value={statusValues[record._id] || record.inspection || "Select"}
+                              onChange={(e) => handleStatusChange(record._id, e.target.value)}
+                              disabled={!selectedRows[record._id]}
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                             >
-                              <Wrench className="h-3 w-3 mr-1" />
-                              Edit
-                            </button>
+                              <option value="Select">Select</option>
+                              {dropdownOptions.map((option, index) => (
+                                <option key={index} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="relative">
+                              <input
+                                type="date"
+                                value={dateValues[record._id] || formatDateForInput(record.date) || ""}
+                                onChange={(e) => handleDateChange(record._id, e.target.value)}
+                                disabled={!selectedRows[record._id] || statusValues[record._id] !== "Done"}
+                                className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed pl-8 w-32"
+                              />
+                              <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            </div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
@@ -854,17 +865,7 @@ function InspectionPage() {
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.witnessIdProof || "—"}</div>
                           </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {record.inspection || "—"}
-                            </span>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900 flex items-center">
-                              <Calendar className="h-3 w-3 mr-1 text-gray-400" />
-                              {record.date || "—"}
-                            </div>
-                          </td>
+
                         </tr>
                       ))
                     ) : (

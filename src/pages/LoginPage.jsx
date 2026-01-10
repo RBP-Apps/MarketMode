@@ -42,7 +42,7 @@ const LoginPage = () => {
         setIsDataLoading(true)
 
         // Get the spreadsheet ID from your Apps Script
-        const SPREADSHEET_ID = "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc"
+        const SPREADSHEET_ID = "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4"
 
         // Construct the URL to read the sheet data directly
         const sheetUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=master`

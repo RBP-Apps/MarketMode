@@ -55,7 +55,7 @@ export default function BeneficiaryForm() {
   // Fetch dropdown options
   const fetchDropdownOptions = async () => {
     try {
-      const sheetId = "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc";
+      const sheetId = "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4";
       const sheetName = "Drop-Down Value";
       const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
 
@@ -406,6 +406,7 @@ export default function BeneficiaryForm() {
       submissionData[16] = formData.systemType || "";
       submissionData[17] = formData.needType || "";
       submissionData[18] = formData.projectMode || "";
+      submissionData[19] = submissionData[1] || "";
       submissionData[150] = formData.vendorName || "";
 
       const formPayload = new FormData();
@@ -509,7 +510,7 @@ export default function BeneficiaryForm() {
           {/* Form Tab Content */}
           {activeTab === "form" && (
             <div>
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
+              <div className="bg-linear-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
                 <center><h2 className="text-lg font-semibold text-purple-700">
                   Beneficiary Information Form
                 </h2></center>
@@ -852,7 +853,7 @@ export default function BeneficiaryForm() {
                   </div>
                 </div>
 
-                <div className="flex justify-between bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-t border-purple-100 mt-6">
+                <div className="flex justify-between bg-linear-to-r from-purple-50 to-pink-50 p-4 border-t border-purple-100 mt-6">
                   <button
                     type="button"
                     onClick={() => {
@@ -897,7 +898,7 @@ export default function BeneficiaryForm() {
           {/* History Tab Content with Vendor Name Column */}
           {activeTab === "history" && (
             <div>
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
+              <div className="bg-linear-to-r from-purple-50 to-pink-50 p-4 border-b border-purple-100">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-semibold text-purple-700">
                     Survey History

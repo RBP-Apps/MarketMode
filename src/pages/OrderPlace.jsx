@@ -75,6 +75,20 @@ function OrderReceivePage() {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
   }, [])
 
+  const formatDate = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
+  }, [])
+
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
   }, [])
@@ -171,7 +185,7 @@ function OrderReceivePage() {
           quotationValue: rowValues[35] || "", // AJ - Value Of Quotation
           quotationCopy: rowValues[36] || "", // AK - Quotation Copy
           // Order specific fields
-          actualDate: rowValues[45] || "", // AT - Actual
+          actualDate: formatDate(rowValues[45] || ""), // AT - Actual
           module: rowValues[47] || "", // AV - Module
           inverter: rowValues[48] || "", // AW - Inverter
           bos: rowValues[49] || "", // AX - BOS
@@ -198,7 +212,7 @@ function OrderReceivePage() {
       setError("Failed to load order data: " + error.message)
       setLoading(false)
     }
-  }, [isEmpty])
+  }, [isEmpty, formatDate])
 
   useEffect(() => {
     fetchSheetData()

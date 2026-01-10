@@ -10,7 +10,7 @@ const CONFIG = {
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
-  DRIVE_FOLDER_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
+  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -91,6 +91,26 @@ function PaymentPage() {
 
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
+  }, [])
+
+  const formatDisplayDate = useCallback((dateString) => {
+    if (!dateString) return "—"
+    try {
+      const date = new Date(dateString)
+      // Check if valid date
+      if (isNaN(date.getTime())) return dateString
+
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      const hours = date.getHours().toString().padStart(2, "0")
+      const minutes = date.getMinutes().toString().padStart(2, "0")
+      const seconds = date.getSeconds().toString().padStart(2, "0")
+
+      return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+    } catch (e) {
+      return dateString
+    }
   }, [])
 
   useEffect(() => {
@@ -289,20 +309,21 @@ function PaymentPage() {
   useEffect(() => {
     const initialStatusValues = {}
     const initialPaymentDetails = {}
-    pendingData.forEach((record) => {
+    const allRecords = [...pendingData, ...historyData]
+    allRecords.forEach((record) => {
       if (record.payment && record.payment !== "") {
         initialStatusValues[record._id] = record.payment
       }
       initialPaymentDetails[record._id] = {
         checkNo: record.checkNo || "",
-        date: record.date || "",
+        date: record.date ? formatDateForInput(record.date) : "",
         amount: record.amount || "",
         deduction: record.deduction || "",
       }
     })
     setStatusValues(initialStatusValues)
     setPaymentDetails(initialPaymentDetails)
-  }, [pendingData])
+  }, [pendingData, historyData, formatDateForInput])
 
   // Optimized filtered data with debounced search
   const filteredPendingData = useMemo(() => {
@@ -520,12 +541,30 @@ function PaymentPage() {
         // Column EC (index 132) - Status (Payment)
         rowData[132] = status
 
-        // Column EA (index 130) - Actual timestamp (only if status is "Done")
-        if (status === "Done") {
+        // Column EA (index 130) - Actual timestamp
+        // Logic: if Done and NO existing actual date, write new timestamp.
+        // User request: "do not change the time logic it must as to be same"
+        if (record.actual) {
+          rowData[130] = record.actual
+        } else if (status === "Done") {
           rowData[130] = formatTimestamp()
+        }
+
+        if (status === "Done") {
           // Store payment details
           rowData[133] = details.checkNo || "" // ED - Check No
-          rowData[134] = details.date || "" // EE - Date
+
+          // Format date for sheet (DD/MM/YYYY)
+          let formattedDate = ""
+          if (details.date) {
+            const dateObj = new Date(details.date)
+            const day = dateObj.getDate().toString().padStart(2, "0")
+            const month = (dateObj.getMonth() + 1).toString().padStart(2, "0")
+            const year = dateObj.getFullYear()
+            formattedDate = `${day}/${month}/${year}`
+          }
+          rowData[134] = formattedDate // EE - Date
+
           rowData[135] = details.amount || "" // EF - Amount
           rowData[136] = details.deduction || "" // EG - Deduction
         }
@@ -564,42 +603,38 @@ function PaymentPage() {
         const status = statusValues[recordId]
         const details = paymentDetails[recordId] || {}
 
+        let formattedDate = record.date
+        if (status === "Done" && details.date) {
+          const dateObj = new Date(details.date)
+          const day = dateObj.getDate().toString().padStart(2, "0")
+          const month = (dateObj.getMonth() + 1).toString().padStart(2, "0")
+          const year = dateObj.getFullYear()
+          formattedDate = `${day}/${month}/${year}`
+        }
+
         return {
           ...record,
           payment: status,
-          actual: status === "Done" ? formatTimestamp() : record.actual,
+          actual: record.actual ? record.actual : (status === "Done" ? formatTimestamp() : ""),
           checkNo: status === "Done" ? details.checkNo : record.checkNo,
-          date: status === "Done" ? details.date : record.date,
+          date: formattedDate,
           amount: status === "Done" ? details.amount : record.amount,
           deduction: status === "Done" ? details.deduction : record.deduction,
         }
       })
 
-      // Only move records to history if status is "Done", keep all others in pending
-      const doneRecords = updatedRecords.filter((record) => record.payment === "Done")
+      const movedToHistory = updatedRecords.filter((r) => r.payment === "Done")
+      const movedToPending = updatedRecords.filter((r) => r.payment !== "Done")
 
-      // Update pending data: remove only "Done" records, keep and update all others
       setPendingData((prev) => {
-        return prev
-          .map((record) => {
-            const updatedRecord = updatedRecords.find((updated) => updated._id === record._id)
-            if (updatedRecord) {
-              // If this record was updated and is NOT "Done", return the updated version
-              if (updatedRecord.payment !== "Done") {
-                return updatedRecord
-              }
-              // If this record was updated and IS "Done", it will be filtered out below
-              return null
-            }
-            // If this record was not updated, keep it as is
-            return record
-          })
-          .filter((record) => record !== null) // Remove null entries (the "Done" records)
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...remaining, ...movedToPending]
       })
 
-      if (doneRecords.length > 0) {
-        setHistoryData((prev) => [...doneRecords, ...prev])
-      }
+      setHistoryData((prev) => {
+        const remaining = prev.filter((r) => !selectedRecordIds.includes(r._id))
+        return [...remaining, ...movedToHistory]
+      })
 
       // Clear selections and status values
       setSelectedRows({})
@@ -688,7 +723,7 @@ function PaymentPage() {
         )}
 
         {/* Submit Button for Pending Section */}
-        {!showHistory && Object.values(selectedRows).some(Boolean) && (
+        {Object.values(selectedRows).some(Boolean) && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
             <div className="flex items-center justify-between">
               <span className="text-blue-700 text-sm">
@@ -754,28 +789,24 @@ function PaymentPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    {!showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Check No
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Deduction
-                        </th>
-                      </>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Check No
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Deduction
+                    </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
@@ -826,25 +857,7 @@ function PaymentPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Subsidy Disbursal
                     </th>
-                    {showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Payment
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Check No
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Deduction
-                        </th>
-                      </>
-                    )}
+
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -853,13 +866,66 @@ function PaymentPage() {
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <button
-                              onClick={() => handlePaymentClick(record)}
-                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            <input
+                              type="checkbox"
+                              checked={selectedRows[record._id] || false}
+                              onChange={(e) => handleRowSelection(record._id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <select
+                              value={statusValues[record._id] || record.payment || "Select"}
+                              onChange={(e) => handleStatusChange(record._id, e.target.value)}
+                              disabled={!selectedRows[record._id]}
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                             >
-                              <Wrench className="h-3 w-3 mr-1" />
-                              Edit
-                            </button>
+                              <option value="Select">Select</option>
+                              {dropdownOptions.map((option, index) => (
+                                <option key={index} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="text"
+                              value={paymentDetails[record._id]?.checkNo || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "checkNo", e.target.value)}
+                              disabled={!selectedRows[record._id] || statusValues[record._id] !== "Done"}
+                              placeholder="Check No"
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-20"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="date"
+                              value={paymentDetails[record._id]?.date || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "date", e.target.value)}
+                              disabled={!selectedRows[record._id] || statusValues[record._id] !== "Done"}
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-28"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={paymentDetails[record._id]?.amount || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "amount", e.target.value)}
+                              disabled={!selectedRows[record._id] || statusValues[record._id] !== "Done"}
+                              placeholder="Amount"
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-20"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={paymentDetails[record._id]?.deduction || ""}
+                              onChange={(e) => handlePaymentDetailChange(record._id, "deduction", e.target.value)}
+                              disabled={!selectedRows[record._id] || statusValues[record._id] !== "Done"}
+                              placeholder="Deduction"
+                              className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-20"
+                            />
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
@@ -937,29 +1003,12 @@ function PaymentPage() {
                             <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.subsidyToken || "—"}</div>
+                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyToken)}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.subsidyDisbursal || "—"}</div>
+                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyDisbursal)}</div>
                           </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              <CreditCard className="h-3 w-3 mr-1" />
-                              {record.payment || "—"}
-                            </span>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.checkNo || "—"}</div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.date || "—"}</div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.amount || "—"}</div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.deduction || "—"}</div>
-                          </td>
+
                         </tr>
                       ))
                     ) : (
@@ -1115,10 +1164,10 @@ function PaymentPage() {
                             <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.subsidyToken || "—"}</div>
+                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyToken)}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{record.subsidyDisbursal || "—"}</div>
+                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyDisbursal)}</div>
                           </td>
                         </tr>
                       )
