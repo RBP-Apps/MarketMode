@@ -152,15 +152,14 @@ function OrderReceivePage() {
           return
         }
 
-        // Check conditions: Column AS (index 44) not null and Column AT (index 45)
-        const columnAS = rowValues[44] // Column AS
+        // Check conditions: Enquiry Number (index 1) not null and Column AT (index 45)
+        const enquiryNumber = rowValues[1] || ""
         const columnAT = rowValues[45] // Column AT
 
-        const hasColumnAS = !isEmpty(columnAS)
-        if (!hasColumnAS) return // Skip if column AS is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -321,6 +320,16 @@ function OrderReceivePage() {
         orderCopyUrl = selectedRecord.orderCopy
       }
 
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(53).fill(null) // Array up to column BA (index 52)
+      rowData[45] = actualDate // AT - Actual timestamp
+      rowData[47] = orderForm.module // AV - Module
+      rowData[48] = orderForm.inverter // AW - Inverter
+      rowData[49] = orderForm.bos // AX - BOS
+      rowData[50] = orderForm.acdb // AY - ACDB
+      rowData[51] = orderForm.dcdb // AZ - DCDB
+      rowData[52] = orderCopyUrl // BA - Order Copy
+
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
         method: "POST",
         headers: {
@@ -330,61 +339,7 @@ function OrderReceivePage() {
           action: "update",
           sheetName: CONFIG.SOURCE_SHEET_NAME,
           rowIndex: selectedRecord._rowIndex,
-          rowData: JSON.stringify([
-            "", // A - keep existing
-            "", // B - keep existing (Enquiry Number)
-            "", // C - keep existing
-            "", // D - keep existing
-            "", // E - keep existing
-            "", // F - keep existing
-            "", // G - keep existing
-            "", // H - keep existing
-            "", // I - keep existing
-            "", // J - keep existing
-            "", // K - keep existing
-            "", // L - keep existing
-            "", // M - keep existing
-            "", // N - keep existing
-            "", // O - keep existing
-            "", // P - keep existing
-            "", // Q - keep existing
-            "", // R - keep existing
-            "", // S - keep existing
-            "", // T - keep existing
-            "", // U - keep existing
-            "", // V - keep existing
-            "", // W - keep existing
-            "", // X - keep existing
-            "", // Y - keep existing
-            "", // Z - keep existing
-            "", // AA - keep existing
-            "", // AB - keep existing
-            "", // AC - keep existing
-            "", // AD - keep existing
-            "", // AE - keep existing
-            "", // AF - keep existing
-            "", // AG - keep existing
-            "", // AH - keep existing
-            "", // AI - keep existing
-            "", // AJ - keep existing
-            "", // AK - keep existing
-            "", // AL - keep existing
-            "", // AM - keep existing
-            "", // AN - keep existing
-            "", // AO - keep existing
-            "", // AP - keep existing
-            "", // AQ - keep existing
-            "", // AR - keep existing
-            "", // AS - keep existing
-            actualDate, // AT - Actual timestamp
-            "", // AU - keep existing
-            orderForm.module, // AV - Module
-            orderForm.inverter, // AW - Inverter
-            orderForm.bos, // AX - BOS
-            orderForm.acdb, // AY - ACDB
-            orderForm.dcdb, // AZ - DCDB
-            orderCopyUrl, // BA - Order Copy
-          ]),
+          rowData: JSON.stringify(rowData)
         }).toString(),
       })
 

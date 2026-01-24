@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, Upload, X, Search, History, ArrowLeft, FileText, MapPin, Users, Phone, Zap, Building, Eye, DollarSign, Clock, Home, Wrench } from "lucide-react"
+import { CheckCircle2, Upload, X, Search, History, ArrowLeft, FileText, MapPin, Users, Phone, Zap, Building, Eye, DollarSign, Clock, Home, Wrench, Trash2 } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
@@ -55,6 +55,9 @@ function FMSDataPage() {
   const [successMessage, setSuccessMessage] = useState("")
   const [userRole, setUserRole] = useState("")
   const [username, setUsername] = useState("")
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [recordToDelete, setRecordToDelete] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Survey form state
   const [surveyForm, setSurveyForm] = useState({
@@ -71,6 +74,23 @@ function FMSDataPage() {
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
+
+  const formatDateTime = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY HH:mm:ss format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    const hours = date.getHours().toString().padStart(2, "0")
+    const minutes = date.getMinutes().toString().padStart(2, "0")
+    const seconds = date.getSeconds().toString().padStart(2, "0")
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
 
   const formatTimestamp = useCallback(() => {
     const now = new Date()
@@ -178,6 +198,8 @@ function FMSDataPage() {
             rows = data.values.map((row) => ({ c: row.map((val) => ({ v: val })) }))
           }
 
+          console.log('🔍 Total rows received:', rows.length)
+
           rows.forEach((row, rowIndex) => {
             // Skip header rows and only process from row 7 onwards (rowIndex 6 in 0-based indexing)
             if (rowIndex < 6) return
@@ -191,16 +213,40 @@ function FMSDataPage() {
               return
             }
 
-            // Check conditions: Column T (index 19) not null and Column U (index 20)
-            const columnT = rowValues[19] // Column T
+            const enquiryNumber = rowValues[1] || ""
+
+            console.log(`\n📋 Processing Row ${rowIndex + 1} (Sheet Row ${rowIndex + 1}):`, {
+              enquiryNumber,
+              beneficiaryName: rowValues[2],
+              totalColumns: rowValues.length,
+              columnT_index19: rowValues[19],
+              columnU_index20: rowValues[20],
+              columnW_index22_Status: rowValues[22],
+            })
+
+            // Check both Column T (index 19) and Column U (index 20)
+            const columnT = rowValues[19] // Column T  
             const columnU = rowValues[20] // Column U
 
             const hasColumnT = !isEmpty(columnT)
+            const hasColumnU = !isEmpty(columnU)
 
-            if (!hasColumnT) return // Skip if column T is empty
+            console.log(`   ➡️ Column checks:`, {
+              columnT: columnT,
+              columnU: columnU,
+              hasColumnT: hasColumnT,
+              hasColumnU: hasColumnU,
+              decision: !hasColumnT ? 'SKIP' : (!hasColumnU ? 'PENDING' : 'HISTORY')
+            })
+
+            // Skip if Column T is empty
+            if (!hasColumnT) {
+              console.log(`   ❌ SKIPPED: Column T is empty`)
+              return
+            }
+
 
             const googleSheetsRowIndex = rowIndex + 1
-            const enquiryNumber = rowValues[1] || ""
             const stableId = enquiryNumber
               ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
               : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -230,7 +276,7 @@ function FMSDataPage() {
               col17: rowValues[17] || "", // R - Need Type
               col18: rowValues[18] || "", // S - Project Mode
               col19: rowValues[19] || "", // T
-              col20: rowValues[20] || "", // U - Actual
+              col20: formatDateTime(rowValues[20] || ""), // U - Actual
               col21: rowValues[21] || "", // V
               col22: rowValues[22] || "", // W - Status
               col23: rowValues[23] || "", // X - Copy Survey Report
@@ -246,11 +292,21 @@ function FMSDataPage() {
             // Check if Column U is null for pending, not null for history
             const isColumnUEmpty = isEmpty(columnU)
 
+
             if (isColumnUEmpty) {
+              console.log(`   ✅ Added to PENDING`)
               pending.push(rowData)
             } else {
+              console.log(`   ✅ Added to HISTORY`)
               history.push(rowData)
             }
+          })
+
+          console.log('\n📊 FINAL SUMMARY:', {
+            totalPending: pending.length,
+            totalHistory: history.length,
+            pendingEnquiries: pending.map(p => p.col1),
+            historyEnquiries: history.map(h => h.col1),
           })
 
           setPendingData(pending)
@@ -381,43 +437,31 @@ function FMSDataPage() {
       }
 
       // Prepare update data
+      const isEdit = !isEmpty(selectedRecord.col20)
+      const rowData = Array(31).fill(null)
+
+      // Use the exact timestamp format from TaskAssign page
+      const now = new Date();
+      const currentTimestamp = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+      // Update Column U (Actual timestamp) only on new completions, skip on edits
+      rowData[20] = isEdit ? null : currentTimestamp;
+
+      rowData[22] = surveyForm.status // W - Status
+      rowData[23] = copySurveyReportUrl // X
+      rowData[24] = geotagPhotoUrl // Y
+      rowData[25] = electricityBillUrl // Z
+      rowData[26] = surveyForm.aadharNumber // AA
+      rowData[27] = surveyForm.panNumber // AB
+      rowData[28] = addressProofUrl // AC
+      rowData[29] = surveyForm.surveyorName // AD
+      rowData[30] = surveyForm.contactNumber // AE
+
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
-        rowData: JSON.stringify([
-          "", // A - keep existing
-          "", // B - keep existing (Enquiry Number)
-          "", // C - keep existing
-          "", // D - keep existing
-          "", // E - keep existing
-          "", // F - keep existing
-          "", // G - keep existing
-          "", // H - keep existing
-          "", // I - keep existing
-          "", // J - keep existing
-          "", // K - keep existing
-          "", // L - keep existing
-          "", // M - keep existing
-          "", // N - keep existing
-          "", // O - keep existing
-          "", // P - keep existing
-          "", // Q - keep existing
-          "", // R - keep existing
-          "", // S - keep existing
-          "", // T - keep existing
-          formatTimestamp(), // U - Actual timestamp
-          "", // V - keep existing
-          surveyForm.status, // W - Status
-          copySurveyReportUrl, // X - Copy Survey Report
-          geotagPhotoUrl, // Y - Geotag Photo Site
-          electricityBillUrl, // Z - Three Months Electricity Bill Copy
-          surveyForm.aadharNumber, // AA - Aadhar Card
-          surveyForm.panNumber, // AB - Pan Card
-          addressProofUrl, // AC - Address Proof
-          surveyForm.surveyorName, // AD - Surveyor Name
-          surveyForm.contactNumber, // AE - Contact Number
-        ])
+        rowData: JSON.stringify(rowData)
       }
 
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
@@ -433,11 +477,9 @@ function FMSDataPage() {
         setSuccessMessage(`Survey completed successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowSurveyModal(false)
 
-        const isEdit = !isEmpty(selectedRecord.col20) // Check if it was already in history (has U timestamp)
-
         const updatedRecord = {
           ...selectedRecord,
-          col20: formatTimestamp(), // U - Actual timestamp
+          col20: isEdit ? selectedRecord.col20 : `${new Date().getDate().toString().padStart(2, '0')}/${(new Date().getMonth() + 1).toString().padStart(2, '0')}/${new Date().getFullYear()} ${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}:${new Date().getSeconds().toString().padStart(2, '0')}`,
           col22: surveyForm.status, // W - Status
           col23: copySurveyReportUrl, // X - Copy Survey Report
           col24: geotagPhotoUrl, // Y - Geotag Photo Site
@@ -477,6 +519,62 @@ function FMSDataPage() {
     setShowHistory(section === 'history')
     setSearchTerm("")
   }, [])
+
+  // Delete functionality
+  const handleDeleteClick = useCallback((record) => {
+    setRecordToDelete(record)
+    setShowDeleteModal(true)
+  }, [])
+
+  const closeDeleteModal = useCallback(() => {
+    setShowDeleteModal(false)
+    setRecordToDelete(null)
+  }, [])
+
+  const handleDeleteConfirm = async () => {
+    if (!recordToDelete) return
+
+    setIsDeleting(true)
+
+    try {
+      // Prepare delete data - clear the row
+      const deleteData = {
+        action: "deleteRow",
+        sheetName: CONFIG.SOURCE_SHEET_NAME,
+        rowIndex: recordToDelete._rowIndex,
+      }
+
+      const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(deleteData).toString(),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        setSuccessMessage(`Record deleted successfully for Enquiry Number: ${recordToDelete._enquiryNumber}`)
+        setShowDeleteModal(false)
+        setRecordToDelete(null)
+
+        // Remove from history data
+        setHistoryData(prev => prev.filter(record => record._id !== recordToDelete._id))
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage("")
+        }, 3000)
+      } else {
+        throw new Error(result.error || "Failed to delete record")
+      }
+    } catch (error) {
+      console.error("Error deleting record:", error)
+      alert("Failed to delete record: " + error.message)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const closeSurveyModal = useCallback(() => {
     setShowSurveyModal(false)
@@ -599,6 +697,11 @@ function FMSDataPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
+                    {showHistory && (
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+
+                      </th>
+                    )}
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Action
                     </th>
@@ -697,6 +800,15 @@ function FMSDataPage() {
                     filteredHistoryData.length > 0 ? (
                       filteredHistoryData.map((record) => (
                         <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => handleDeleteClick(record)}
+                              className="inline-flex items-center justify-center p-1.5 border border-transparent rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <button
                               onClick={() => handleSurveyClick(record)}
@@ -807,7 +919,7 @@ function FMSDataPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={16} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={17} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm
                             ? "No history records matching your search"
                             : "No completed surveys found"}
@@ -1130,150 +1242,6 @@ function FMSDataPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Status <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={surveyForm.status}
-                      onChange={(e) => handleInputChange("status", e.target.value)}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                    >
-                      <option value="">Select Status</option>
-                      {statusOptions.map((status, index) => (
-                        <option key={index} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Copy Survey Report</label>
-                    <input
-                      type="file"
-                      onChange={(e) => handleFileUpload("copySurveyReport", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.copySurveyReport ? (
-                      <p className="text-xs text-green-600 mt-1">✓ {surveyForm.copySurveyReport.name}</p>
-                    ) : selectedRecord.col23 ? (
-                      <div className="flex items-center mt-1">
-                        <span className="text-xs text-gray-500 mr-2">Current file:</span>
-                        <a href={selectedRecord.col23} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs flex items-center">
-                          <Eye className="h-3 w-3 mr-1" /> View
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Geotag Photo Site</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("geotagPhoto", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.geotagPhoto ? (
-                      <p className="text-xs text-green-600 mt-1">✓ {surveyForm.geotagPhoto.name}</p>
-                    ) : selectedRecord.col24 ? (
-                      <div className="flex items-center mt-1">
-                        <span className="text-xs text-gray-500 mr-2">Current file:</span>
-                        <a href={selectedRecord.col24} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs flex items-center">
-                          <Eye className="h-3 w-3 mr-1" /> View
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Electricity Bill Copy</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("electricityBill", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.electricityBill ? (
-                      <p className="text-xs text-green-600 mt-1">✓ {surveyForm.electricityBill.name}</p>
-                    ) : selectedRecord.col25 ? (
-                      <div className="flex items-center mt-1">
-                        <span className="text-xs text-gray-500 mr-2">Current file:</span>
-                        <a href={selectedRecord.col25} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs flex items-center">
-                          <Eye className="h-3 w-3 mr-1" /> View
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Aadhar Card</label>
-                    <input
-                      type="text"
-                      value={surveyForm.aadharNumber}
-                      onChange={(e) => handleInputChange("aadharNumber", e.target.value)}
-                      placeholder="Enter Aadhar Number"
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">PAN Card</label>
-                    <input
-                      type="text"
-                      value={surveyForm.panNumber}
-                      onChange={(e) => handleInputChange("panNumber", e.target.value)}
-                      placeholder="Enter PAN Number"
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Address Proof</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("addressProof", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.addressProof ? (
-                      <p className="text-xs text-green-600 mt-1">✓ {surveyForm.addressProof.name}</p>
-                    ) : selectedRecord.col28 ? (
-                      <div className="flex items-center mt-1">
-                        <span className="text-xs text-gray-500 mr-2">Current file:</span>
-                        <a href={selectedRecord.col28} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs flex items-center">
-                          <Eye className="h-3 w-3 mr-1" /> View
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Surveyor Name</label>
-                    <input
-                      type="text"
-                      value={surveyForm.surveyorName}
-                      onChange={(e) => handleInputChange("surveyorName", e.target.value)}
-                      placeholder="Enter Surveyor Name"
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Contact Number</label>
-                    <input
-                      type="text"
-                      value={surveyForm.contactNumber}
-                      onChange={(e) => handleInputChange("contactNumber", e.target.value)}
-                      placeholder="Enter Contact Number"
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
                 <div className="flex justify-end space-x-3 mt-6 pt-3 border-t">
                   <button
                     onClick={closeSurveyModal}
@@ -1288,6 +1256,49 @@ function FMSDataPage() {
                     className="px-3 py-1 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                   >
                     {isSubmitting ? "Submitting..." : "Submit Survey"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && recordToDelete && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+            <div className="relative bg-white border max-w-md w-full shadow-2xl rounded-lg">
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-red-100">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
+                  Delete Record
+                </h3>
+                <p className="text-sm text-gray-500 text-center mb-4">
+                  Are you sure you want to delete this record? This action cannot be undone.
+                </p>
+                <div className="bg-gray-50 rounded-md p-3 mb-4">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Enquiry Number:</span> {recordToDelete._enquiryNumber || recordToDelete.col1}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Beneficiary:</span> {recordToDelete.col2 || "—"}
+                  </p>
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={closeDeleteModal}
+                    disabled={isDeleting}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    {isDeleting ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </div>

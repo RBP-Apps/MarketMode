@@ -230,14 +230,13 @@ function InstallationPage() {
           return
         }
 
-        const columnCA = rowValues[78] // Column CA
+        const enquiryNumber = rowValues[1] || ""
         const columnCB = rowValues[79] // Column CB
-        const hasColumnCA = !isEmpty(columnCA)
+        const hasEnquiry = !isEmpty(enquiryNumber)
 
-        if (!hasColumnCA) return
+        if (!hasEnquiry) return
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -423,39 +422,33 @@ function InstallationPage() {
       if (installForm.completeInstallationPhoto) completeInstallationPhotoUrl = await uploadImageToDrive(installForm.completeInstallationPhoto)
       else if (isEdit && selectedRecord.completeInstallationPhoto) completeInstallationPhotoUrl = selectedRecord.completeInstallationPhoto
 
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(152).fill(null)
+
+      rowData[79] = actualDate // CB
+      rowData[81] = formatDate(installForm.dateOfInstallation) // CD
+      rowData[82] = installForm.routing // CE
+      rowData[83] = installForm.earthing // CF
+      rowData[84] = installForm.baseFoundation // CG
+      rowData[85] = installForm.wiring // CH
+      rowData[86] = foundationPhotoUrl // CI
+      rowData[87] = afterInstallationPhotoUrl // CJ
+      rowData[88] = photoWithCustomerUrl // CK
+      rowData[89] = completeInstallationPhotoUrl // CL
+
+      rowData[137] = installForm.inverterMake // EH
+      rowData[138] = installForm.inverterCapacity // EI
+      rowData[139] = installForm.moduleMake // EJ
+      rowData[140] = installForm.moduleCapacity // EK
+      rowData[141] = installForm.moduleType // EL
+      rowData[142] = installForm.structureMake // EM
+      rowData[151] = installForm.investorId // EV
+
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
-        rowData: JSON.stringify([
-          ...Array(79).fill(""),
-          actualDate, // CB - index 79
-          "", // CC - index 80
-          formatDate(installForm.dateOfInstallation), // CD - 81
-          installForm.routing, // CE - 82
-          installForm.earthing, // CF - 83
-          installForm.baseFoundation, // CG - 84
-          installForm.wiring, // CH - 85
-          foundationPhotoUrl, // CI - 86
-          afterInstallationPhotoUrl, // CJ - 87
-          photoWithCustomerUrl, // CK - 88
-          completeInstallationPhotoUrl, // CL - 89
-          "",
-          "",
-          "",
-          "",
-          "",
-          "", // 90–95: CM–CR left empty intentionally
-          ...Array(137 - 96).fill(""), // Fill till index 136
-          installForm.inverterMake, // EH - 137
-          installForm.inverterCapacity, // EI - 138
-          installForm.moduleMake, // EJ - 139
-          installForm.moduleCapacity, // EK - 140
-          installForm.moduleType, // EL - 141
-          installForm.structureMake, // EM - 142
-          ...Array(151 - 143).fill(""),
-          installForm.investorId, // EV - 151
-        ]),
+        rowData: JSON.stringify(rowData),
       }
 
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {

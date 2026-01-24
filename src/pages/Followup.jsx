@@ -206,15 +206,14 @@ function FollowUpPage() {
               return
             }
 
-            // Check conditions: Column AL (index 37) not null and Column AM (index 38)
-            const columnAL = rowValues[37] // Column AL
+            // Check conditions: Enquiry Number (index 1) not null and Column AM (index 38)
+            const enquiryNumber = rowValues[1] || ""
             const columnAM = rowValues[38] // Column AM
 
-            const hasColumnAL = !isEmpty(columnAL)
-            if (!hasColumnAL) return // Skip if column AL is empty
+            const hasEnquiry = !isEmpty(enquiryNumber)
+            if (!hasEnquiry) return // Skip if enquiry number is empty
 
             const googleSheetsRowIndex = rowIndex + 1
-            const enquiryNumber = rowValues[1] || ""
             const stableId = enquiryNumber
               ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
               : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -318,17 +317,23 @@ function FollowUpPage() {
       // Determine if we should store the actual date (when stage is "Order Received")
       const shouldStoreActualDate = followUpForm.stage === "Order Received"
 
-      // If editing, preserve the original actual date unless specifically changing status logic requires update (usually keep original)
+      // Determine if we should clear the actual date (when stage is "Negotiation")
+      // Adding both common spelling and user's specific requested spelling
+      const isNegotiation = followUpForm.stage === "Negotiation" || followUpForm.stage === "Negotian"
+
+      // If editing, preserve the original actual date unless stage is changed to Negotiation
       // If new (pending -> history), use current timestamp if Order Received
-      const actualDate = isEdit ? selectedRecord.actual : (shouldStoreActualDate ? formatTimestamp() : "")
+      let actualDate = isEdit ? selectedRecord.actual : (shouldStoreActualDate ? formatTimestamp() : "")
 
-      // Create a row data array with empty strings for columns we don't want to update
-      // We need to create an array that matches the sheet structure
-      const rowData = new Array(44).fill("") // Create array for columns A to AR (44 columns)
+      if (isNegotiation) {
+        actualDate = "" // Clear the actual date for negotiation
+      }
 
-      // Only set the specific columns we want to update, leave others empty
-      // The Google Apps Script will only update non-empty values
-      rowData[38] = actualDate // AM - Actual date (only if Order Received or Edit)
+      // FIXED: Use null for columns we don't want to update
+      const rowData = new Array(44).fill(null)
+
+      // Only set the specific columns we want to update
+      rowData[38] = actualDate // AM - Actual date
       rowData[40] = followUpForm.whatDidCustomerSay // AO - What Did The Customer Say
       rowData[41] = followUpForm.stage // AP - Stage
       // Only store next date if not "Order Received"
@@ -366,8 +371,14 @@ function FollowUpPage() {
         }
 
         if (isEdit) {
-          // Update in history
-          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+          if (isNegotiation) {
+            // Move from history back to pending
+            setHistoryData((prev) => prev.filter((rec) => rec._id !== selectedRecord._id))
+            setPendingData((prev) => [updatedRecord, ...prev])
+          } else {
+            // Update in history
+            setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
+          }
         } else {
           // New submission from pending
           if (shouldStoreActualDate) {

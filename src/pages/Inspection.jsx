@@ -231,15 +231,14 @@ function InspectionPage() {
         // Column mappings:
         // DH = index 111 (column 112 in 1-based)
         // DI = index 112 (column 113 in 1-based)
-        const columnDH = rowValues[111] // Column DH
+        const enquiryNumber = rowValues[1] || "" // Column B
         const columnDI = rowValues[112] // Column DI
 
-        // Condition: Column DH = 'Not Null'
-        const hasColumnDH = !isEmpty(columnDH)
-        if (!hasColumnDH) return // Skip if column DH is empty
+        // Condition: Enquiry Number = 'Not Null'
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || "" // Column B
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -386,24 +385,14 @@ function InspectionPage() {
 
     setIsSubmitting(true)
     try {
-      // Determine if it's an edit or new submission based on existing 'actual' date
-      // If editing history, use existing 'actual', else formatTimestamp()
-      const isEdit = selectedRecord.actual && selectedRecord.actual !== ""
-      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+      const status = inspectionForm.inspection
+      const actualDate = status === "Done" ? (selectedRecord.actual || formatTimestamp()) : ""
 
-      const rowData = Array(120).fill("")
-      // Column mappings:
-      // Status: DK (index 113)
-      // Date: DL (index 114)
-      // Actual: DI (index 112)
-
-      // Update logic:
-      // We need to preserve other columns if possible, but here we are sending specific columns.
-      // Ideally we should send what changed.
-
-      rowData[114] = inspectionForm.inspection
-      rowData[115] = inspectionForm.date ? formatDate(inspectionForm.date) : ""
-      rowData[112] = actualDate
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(120).fill(null)
+      rowData[114] = status // DK - Inspection status
+      rowData[115] = (status === "Done" && inspectionForm.date) ? formatDate(inspectionForm.date) : "" // DL - Date
+      rowData[112] = actualDate // DI - Actual timestamp
 
       const updateData = {
         action: "update",
@@ -420,20 +409,29 @@ function InspectionPage() {
         body: new URLSearchParams(updateData).toString(),
       })
 
-      // Update local state
       const updatedRecord = {
         ...selectedRecord,
-        inspection: inspectionForm.inspection,
-        date: inspectionForm.date ? formatDate(inspectionForm.date) : "",
+        inspection: status,
+        date: (status === "Done" && inspectionForm.date) ? formatDate(inspectionForm.date) : "",
         actual: actualDate,
       }
 
-      if (isEdit) {
-        setHistoryData((prev) => prev.map((r) => (r._id === selectedRecord._id ? updatedRecord : r)))
+      if (status === "Done") {
+        if (isEdit) {
+          setHistoryData((prev) => prev.map((r) => (r._id === selectedRecord._id ? updatedRecord : r)))
+        } else {
+          // If it was pending, move to history
+          setPendingData((prev) => prev.filter((r) => r._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
+        }
       } else {
-        // If it was pending, move to history
-        setPendingData((prev) => prev.filter((r) => r._id !== selectedRecord._id))
-        setHistoryData((prev) => [updatedRecord, ...prev])
+        // Move from history back to pending or update in pending
+        setHistoryData((prev) => prev.filter((r) => r._id !== selectedRecord._id))
+        setPendingData((prev) => {
+          const exists = prev.some(r => r._id === selectedRecord._id)
+          if (exists) return prev.map(r => r._id === selectedRecord._id ? updatedRecord : r)
+          return [updatedRecord, ...prev]
+        })
       }
 
       setShowInspectionModal(false)
@@ -484,26 +482,18 @@ function InspectionPage() {
 
         if (!record) return
 
-        // Create array with enough columns to cover all needed indices
-        const rowData = Array(120).fill("")
+        // FIXED: Use null for columns we don't want to update
+        const rowData = Array(120).fill(null)
 
-        // Update columns as per specifications:
-        // Status store in Column DK (index 114)
-        rowData[114] = status
+        // Update only inspection-specific columns:
+        rowData[114] = status // DK - Inspection status
+        rowData[115] = selectedDate ? formatDate(selectedDate) : "" // DL - Date
 
-        // Date store in Column DL (index 115) - format DD/MM/YYYY
-        if (selectedDate) {
-          rowData[115] = formatDate(selectedDate)
-        }
-
-        // Actual date store in Column DI (index 112) - format DD/MM/YYYY hh:mm:ss
-        // Condition: when user select Status = "Done"
-        // Actual date store in Column DI (index 112) - format DD/MM/YYYY hh:mm:ss
-        // Condition: when user select Status = "Done"
+        // Clear or set actual date based on status
         if (status === "Done") {
-          rowData[112] = formatTimestamp()
+          rowData[112] = formatTimestamp() // DI - Actual timestamp
         } else {
-          rowData[112] = "" // Clear actual date if not Done
+          rowData[112] = "" // Clear when not Done
         }
 
         // Prepare update data for this specific record

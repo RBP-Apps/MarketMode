@@ -97,6 +97,23 @@ function SubsidyDisbursalPage() {
     }
   }, [])
 
+  const formatDateTime = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY HH:mm:ss format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    const hours = date.getHours().toString().padStart(2, "0")
+    const minutes = date.getMinutes().toString().padStart(2, "0")
+    const seconds = date.getSeconds().toString().padStart(2, "0")
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
+
   useEffect(() => {
     const role = sessionStorage.getItem("role")
     const user = sessionStorage.getItem("username")
@@ -214,14 +231,13 @@ function SubsidyDisbursalPage() {
         }
 
         // Check conditions: Column DV (index 125) not null and Column DW (index 126)
-        const columnDV = rowValues[125] // Column DV (DV7:DV)
+        const enquiryNumber = rowValues[1] || ""
         const columnDW = rowValues[126] // Column DW (DW7:DW)
 
-        const hasColumnDV = !isEmpty(columnDV)
-        if (!hasColumnDV) return // Skip if column DV is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -247,7 +263,7 @@ function SubsidyDisbursalPage() {
           projectCommission: rowValues[119] || "", // DP
           // Status columns
           subsidyDisbursal: rowValues[128] || "", // DY
-          actual: rowValues[126] || "", // DW
+          actual: formatDateTime(rowValues[126] || ""), // DW
         }
 
         // Check if Column DW is null for pending, not null for history
@@ -343,13 +359,17 @@ function SubsidyDisbursalPage() {
       // Calculate row index (ensure it exists)
       const rowIndex = selectedRecord._rowIndex
 
-      const rowData = Array(130).fill("")
-
-      // DY (128) - Status (Subsidy Disbursal)
-      rowData[128] = subsidyForm.subsidyDisbursal
-
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(130).fill(null)
+      rowData[128] = subsidyForm.subsidyDisbursal // DY - Status
       // DW (126) - Actual timestamp
-      rowData[126] = actualDate
+      // If status is "Done", keep existing timestamp or set new one if empty
+      // If status is NOT "Done", clear the timestamp to move it back to pending
+      if (subsidyForm.subsidyDisbursal === "Done") {
+        rowData[126] = selectedRecord.actual ? formatDateTime(selectedRecord.actual) : formatTimestamp()
+      } else {
+        rowData[126] = ""
+      }
 
       const updateData = {
         action: "update",
@@ -420,20 +440,19 @@ function SubsidyDisbursalPage() {
         const status = statusValues[recordId]
         if (!record) return
 
-        // Create array with 130 empty strings to ensure we have enough columns
-        const rowData = Array(130).fill("")
+        // FIXED: Use null for columns we don't want to update
+        const rowData = Array(130).fill(null)
 
         // Set specific columns:
-        // Column DY (index 128) - Status (Subsidy Disbursal)
-        rowData[128] = status
+        rowData[128] = status // DY - Status
 
         // Column DW (index 126) - Actual timestamp
-        // Logic: if Done and NO existing actual date, write new timestamp.
-        // User request: "do not clear or update timestamp for sheet it has not to be updated it will same as it working perfectelly"
-        if (record.actual) {
-          rowData[126] = record.actual
-        } else if (status === "Done") {
-          rowData[126] = formatTimestamp()
+        // Logic: if Done, keep existing timestamp or set new one if empty.
+        // If status is NOT "Done", clear the timestamp to move it back to pending.
+        if (status === "Done") {
+          rowData[126] = record.actual ? formatDateTime(record.actual) : formatTimestamp()
+        } else {
+          rowData[126] = ""
         }
 
         // Prepare update data for this specific record
@@ -466,14 +485,17 @@ function SubsidyDisbursalPage() {
 
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+
+        if (!record) return null
+
         return {
           ...record,
           subsidyDisbursal: status,
-          actual: record.actual ? record.actual : (status === "Done" ? formatTimestamp() : ""),
+          actual: status === "Done" ? (record.actual ? formatDateTime(record.actual) : formatTimestamp()) : "",
         }
-      })
+      }).filter(Boolean)
 
       const movedToHistory = updatedRecords.filter((r) => r.subsidyDisbursal === "Done")
       const movedToPending = updatedRecords.filter((r) => r.subsidyDisbursal !== "Done")

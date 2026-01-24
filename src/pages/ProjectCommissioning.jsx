@@ -90,6 +90,23 @@ function ProjectCommissionPage() {
     return `${day}/${month}/${year}`
   }, [])
 
+  const formatDateTime = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY HH:mm:ss format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    const hours = date.getHours().toString().padStart(2, "0")
+    const minutes = date.getMinutes().toString().padStart(2, "0")
+    const seconds = date.getSeconds().toString().padStart(2, "0")
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
+
   const formatDateForInput = useCallback((dateString) => {
     if (!dateString) return ""
     const str = String(dateString)
@@ -245,15 +262,14 @@ function ProjectCommissionPage() {
           return
         }
 
-        // Updated conditions: Column DM (index 116) not null and Column DN (index 117)
-        const columnDM = rowValues[116] // Column DM (index 116)
+        // Updated conditions: Column DM (index 116) not null and Column DS (index 122)
+        const enquiryNumber = rowValues[1] || ""
         const columnDN = rowValues[117] // Column DN (index 117)
 
-        const hasColumnDM = !isEmpty(columnDM)
-        if (!hasColumnDM) return // Skip if column DM is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -279,7 +295,7 @@ function ProjectCommissionPage() {
           inspection: formatDate(rowValues[114] || ""), // DK (was DJ)
           date: formatDate(rowValues[115] || ""), // DL
           projectCommission: rowValues[119] || "", // DP
-          actualDate: formatDate(rowValues[117] || ""), // DN
+          actualDate: formatDateTime(rowValues[117] || ""), // DN (index 117)
         }
 
         // Check if Column DN is null for pending, not null for history
@@ -399,20 +415,14 @@ function ProjectCommissionPage() {
       // Based on previous patterns, we send a sparse array or full array.
       // Let's use the same pattern as `handleSubmit` but adapted for single record edit.
 
-      const rowData = Array(121).fill("")
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(123).fill(null)
 
-      // Update relevant columns
-      // DL (115) - Date (Reading source)
-      rowData[115] = formatDate(commissionForm.date)
-
-      // DP (119) - Project Commission Status
-      rowData[119] = commissionForm.projectCommission
-
-      // DQ (120) - Date (Write source in pending)
-      rowData[120] = formatDate(commissionForm.date)
-
-      // DN (117) - Actual Date
-      rowData[117] = actualDate
+      // Update only commission-specific columns:
+      rowData[115] = formatDate(commissionForm.date) // DL - Date
+      rowData[119] = commissionForm.projectCommission // DP - Project Commission Status
+      rowData[120] = formatDate(commissionForm.date) // DQ - Date
+      rowData[117] = formatDateTime(actualDate) // DN - Actual Date
 
       // Prepare update data
       const updateData = {
@@ -498,62 +508,23 @@ function ProjectCommissionPage() {
 
         if (!record) return
 
-        // Create array with 121 empty strings to ensure we have enough columns
-        const rowData = Array(121).fill("")
+        // FIXED: Use null for columns we don't want to update
+        const rowData = Array(123).fill(null)
 
-        // Set specific columns based on updated mappings:
-        // Column DP (index 119) - Status (Project Commission)
-        rowData[119] = status
+        // Set specific columns:
+        rowData[119] = status // DP - Status
 
-        // Column DQ (index 120) - Date (only if provided)
+        // Date columns (if provided)
         if (selectedDate) {
-          rowData[115] = formatDate(selectedDate)
-          rowData[120] = formatDate(selectedDate)
+          rowData[115] = formatDate(selectedDate) // DL
+          rowData[120] = formatDate(selectedDate) // DQ
         }
 
-        // Column DN (index 117) - Actual timestamp (only if status is "Done")
-        // Logic: if Done, update timestamp. If not Done, keep existing (or clear if we wanted to enforce that, but user asked to keep logic)
-        // User said: actual: status === "Done" ? formatTimestamp() : record.actual
-        // In this file it is actualDate.
+        // Actual timestamp based on status
         if (status === "Done") {
-          rowData[117] = formatTimestamp()
+          rowData[117] = formatTimestamp() // DN - Set timestamp as requested
         } else {
-          // If moving back from history (not Done), we might want to clear it or keep it.
-          // The user's snippet : record.actual implies keeping it.
-          // Currently the file logic for Pending only writes if Done.
-          // If we look at existing `handleSubmit` it didn't write to 117 if not Done.
-          // But to move FROM history TO pending, we usually need to clear the "Actual" timestamp (DN/117)
-          // because `fetchSheetData` splits based on DN (isColumnDNEmpty).
-          // user's snippet: actual: status === "Done" ? formatTimestamp() : record.actual.
-          // If record.actual is present (history item), and status is NOT done,
-          // then actual remains present -> stays in History?
-          // NO, user wants functionality "user can edit. update & submit ... move to pending/history".
-          // In `Inspection.jsx` and others, clearing actual moves it to Pending.
-          // If I keep `record.actual`, it stays in History.
-          // However, user said: "donot change the logic ... actual: status === 'Done' ? formatTimestamp() : record.actual"
-          // If I strictly follow this, checking "Done" vs "Not Done" won't move items back to pending if they are already in history.
-          // BUT, I'll trust the user's snippet for the STATE update.
-          // For the SHEET update:
-          // In `fetchSheetData`: `hasColumnDM` (DM/116) && `isColumnDNEmpty` (DN/117).
-          // If DN is present, it is History.
-          // If I want to move to Pending, I MUST clear DN (117) in the sheet.
-          // If the user's "logic" provided is for the `updatedRecord` object in React state, that's fine.
-          // But for the sheet to reflect "Pending", column 117 must be empty.
-          // If I don't clear 117, it stays in History.
-          // Validating user intent: "implement 'action' ... in history ... same functionality"
-          // This implies moving back to pending if status is changed from Done to something else.
-          // In Dispatch/Inform, I cleared it. Here user specifically pasted a snippet.
-          // I will follow the snippet for the STATE, but for the Sheet, I might need to respect how `fetchSheetData` works.
-          // Actually, if I update the sheet with `rowData[117] = ""` it clears it.
-          // If I don't include index 117 in `rowData` (leave as ""), it effectively clears it because `rowData` is sparse?
-          // No, `rowData` is `Array(120).fill("")`.
-          // If I send "", it overwrites with empty string -> Clears it -> Moves to Pending.
-          // So `rowData[117] = status === "Done" ? formatTimestamp() : ""` is what moves it.
-          // The USER's snippet logic `record.actual` refers to the LOCALLY returned object state.
-          // `actual: status === "Done" ? formatTimestamp() : record.actual`
-          // If I use this for the LOCAL state, the record keeps its timestamp in the UI.
-          // If I use this for the SHEET, it keeps the timestamp in the Sheet -> Stays in History.
-          // Getting stuck on "donot change the logic".
+          rowData[117] = "" // Clear DN to move to pending
         }
 
         // Prepare update data for this specific record

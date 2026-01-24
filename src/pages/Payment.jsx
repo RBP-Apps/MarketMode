@@ -93,24 +93,21 @@ function PaymentPage() {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
   }, [])
 
-  const formatDisplayDate = useCallback((dateString) => {
-    if (!dateString) return "—"
-    try {
-      const date = new Date(dateString)
-      // Check if valid date
-      if (isNaN(date.getTime())) return dateString
+  const formatDateTime = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY HH:mm:ss format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/)) return dateString
 
-      const day = date.getDate().toString().padStart(2, "0")
-      const month = (date.getMonth() + 1).toString().padStart(2, "0")
-      const year = date.getFullYear()
-      const hours = date.getHours().toString().padStart(2, "0")
-      const minutes = date.getMinutes().toString().padStart(2, "0")
-      const seconds = date.getSeconds().toString().padStart(2, "0")
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
 
-      return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
-    } catch (e) {
-      return dateString
-    }
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    const hours = date.getHours().toString().padStart(2, "0")
+    const minutes = date.getMinutes().toString().padStart(2, "0")
+    const seconds = date.getSeconds().toString().padStart(2, "0")
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
   }, [])
 
   // Format date to DD/MM/YYYY only (no time)
@@ -259,14 +256,13 @@ function PaymentPage() {
         }
 
         // Check conditions: Column DZ (index 129) not null and Column EA (index 130)
-        const columnDZ = rowValues[129] // Column DZ
+        const enquiryNumber = rowValues[1] || ""
         const columnEA = rowValues[130] // Column EA
 
-        const hasColumnDZ = !isEmpty(columnDZ)
-        if (!hasColumnDZ) return // Skip if column DZ is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -300,7 +296,7 @@ function PaymentPage() {
           date: rowValues[134] || "", // EE
           amount: rowValues[135] || "", // EF
           deduction: rowValues[136] || "", // EG
-          actual: rowValues[130] || "", // EA
+          actual: formatDateTime(rowValues[130] || ""), // EA
         }
 
         // Check if Column EA is null for pending, not null for history
@@ -426,48 +422,33 @@ function PaymentPage() {
       const isEdit = selectedRecord.actual && selectedRecord.actual !== ""
       const actualDate = isEdit && selectedRecord.actual ? selectedRecord.actual : formatTimestamp()
 
-      const rowData = Array(140).fill("")
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(140).fill(null)
 
-      // Update logic:
-      // Column EC (index 132) - Status (Payment)
-      rowData[132] = paymentForm.payment
+      // Update payment-specific columns:
+      rowData[132] = paymentForm.payment // EC - Status
 
-      // If Done, update details and Actual timestamp
-      // Even if editing, we update the details
+      // If Done, update details and timestamp
+      // EA (130) - Actual timestamp
       if (paymentForm.payment === "Done") {
-        rowData[130] = actualDate // EA
-        rowData[133] = paymentForm.checkNo // ED
-        rowData[134] = paymentForm.date ? useCallback((dateString) => {
-          if (!dateString) return ""
-          const date = new Date(dateString)
-          const day = date.getDate().toString().padStart(2, "0")
-          const month = (date.getMonth() + 1).toString().padStart(2, "0")
-          const year = date.getFullYear()
-          return `${day}/${month}/${year}`
-        }, [])(paymentForm.date) : "" // EE - Using inline format date logic or reuse existing one logic if I had access, but I will assume formatDate is available in scope or duplicate it.
-        // Wait, formatDate is defined in component scope. I can use it.
-        // rowData[134] = paymentForm.date ? formatDate(paymentForm.date) : ""
-        rowData[135] = paymentForm.amount // EF
-        rowData[136] = paymentForm.deduction // EG
-      } else {
-        // If status changed to something else, clear details? 
-        // Current logic in bulk update only updates if status is Done. 
-        // If status is not done, we just update status.
-        // But if we are editing a history record (Done) to (Pending usually not possible via UI flow easily here unless status change supported), 
-        // For now let's assume valid state transition.
-      }
+        rowData[130] = selectedRecord.actual ? formatDateTime(selectedRecord.actual) : formatTimestamp() // EA
+        rowData[133] = paymentForm.checkNo // ED - Check No
 
-      // I need to use `formatDate` but it is inside the component. 
-      // I can't easily access it here if I am pasting this code block unless I use it.
-      // Yes `formatDate` is defined above line 331 (scope-wise).
-
-      if (paymentForm.payment === "Done") {
-        // Re-implement format date simple logic just in case or use existing
+        // Format date to DD/MM/YYYY
         const d = new Date(paymentForm.date)
         const day = d.getDate().toString().padStart(2, '0')
         const month = (d.getMonth() + 1).toString().padStart(2, '0')
         const year = d.getFullYear()
-        rowData[134] = `${day}/${month}/${year}`
+        rowData[134] = `${day}/${month}/${year}` // EE - Date
+
+        rowData[135] = paymentForm.amount // EF - Amount
+        rowData[136] = paymentForm.deduction // EG - Deduction
+      } else {
+        rowData[130] = "" // Clear EA to move back to pending
+        rowData[133] = "" // Clear ED
+        rowData[134] = "" // Clear EE
+        rowData[135] = "" // Clear EF
+        rowData[136] = "" // Clear EG
       }
 
 
@@ -490,11 +471,11 @@ function PaymentPage() {
       const updatedRecord = {
         ...selectedRecord,
         payment: paymentForm.payment,
-        actual: paymentForm.payment === "Done" ? actualDate : selectedRecord.actual,
-        checkNo: paymentForm.payment === "Done" ? paymentForm.checkNo : selectedRecord.checkNo,
-        date: paymentForm.payment === "Done" ? `${new Date(paymentForm.date).getDate().toString().padStart(2, '0')}/${(new Date(paymentForm.date).getMonth() + 1).toString().padStart(2, '0')}/${new Date(paymentForm.date).getFullYear()}` : selectedRecord.date,
-        amount: paymentForm.payment === "Done" ? paymentForm.amount : selectedRecord.amount,
-        deduction: paymentForm.payment === "Done" ? paymentForm.deduction : selectedRecord.deduction,
+        actual: paymentForm.payment === "Done" ? (selectedRecord.actual ? formatDateTime(selectedRecord.actual) : formatTimestamp()) : "",
+        checkNo: paymentForm.payment === "Done" ? paymentForm.checkNo : "",
+        date: paymentForm.payment === "Done" ? `${new Date(paymentForm.date).getDate().toString().padStart(2, '0')}/${(new Date(paymentForm.date).getMonth() + 1).toString().padStart(2, '0')}/${new Date(paymentForm.date).getFullYear()}` : "",
+        amount: paymentForm.payment === "Done" ? paymentForm.amount : "",
+        deduction: paymentForm.payment === "Done" ? paymentForm.deduction : "",
       }
 
       if (isEdit) {
@@ -550,33 +531,25 @@ function PaymentPage() {
     setIsSubmitting(true)
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         const details = paymentDetails[recordId] || {}
 
         if (!record) return
 
-        // Create array with enough empty strings to ensure we have enough columns
-        const rowData = Array(140).fill("")
+        // FIXED: Use null for columns we don't want to update
+        const rowData = Array(140).fill(null)
 
         // Set specific columns:
-        // Column EC (index 132) - Status (Payment)
-        rowData[132] = status
-
-        // Column EA (index 130) - Actual timestamp
-        // Logic: if Done and NO existing actual date, write new timestamp.
-        // User request: "do not change the time logic it must as to be same"
-        if (record.actual) {
-          rowData[130] = record.actual
-        } else if (status === "Done") {
-          rowData[130] = formatTimestamp()
-        }
+        rowData[132] = status // EC - Status
 
         if (status === "Done") {
-          // Store payment details
+          rowData[130] = record.actual ? formatDateTime(record.actual) : formatTimestamp()
+
+          // Payment details (if Done)
           rowData[133] = details.checkNo || "" // ED - Check No
 
-          // Format date for sheet (DD/MM/YYYY)
+          // Format date to DD/MM/YYYY
           let formattedDate = ""
           if (details.date) {
             const dateObj = new Date(details.date)
@@ -586,9 +559,14 @@ function PaymentPage() {
             formattedDate = `${day}/${month}/${year}`
           }
           rowData[134] = formattedDate // EE - Date
-
           rowData[135] = details.amount || "" // EF - Amount
           rowData[136] = details.deduction || "" // EG - Deduction
+        } else {
+          rowData[130] = "" // Clear to move back to pending
+          rowData[133] = "" // ED - Clear
+          rowData[134] = "" // EE - Clear
+          rowData[135] = "" // EF - Clear
+          rowData[136] = "" // EG - Clear
         }
 
         // Prepare update data for this specific record
@@ -621,11 +599,13 @@ function PaymentPage() {
 
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
         const details = paymentDetails[recordId] || {}
 
-        let formattedDate = record.date
+        if (!record) return null
+
+        let formattedDate = ""
         if (status === "Done" && details.date) {
           const dateObj = new Date(details.date)
           const day = dateObj.getDate().toString().padStart(2, "0")
@@ -637,13 +617,13 @@ function PaymentPage() {
         return {
           ...record,
           payment: status,
-          actual: record.actual ? record.actual : (status === "Done" ? formatTimestamp() : ""),
-          checkNo: status === "Done" ? details.checkNo : record.checkNo,
+          actual: status === "Done" ? (record.actual ? formatDateTime(record.actual) : formatTimestamp()) : "",
+          checkNo: status === "Done" ? details.checkNo : "",
           date: formattedDate,
-          amount: status === "Done" ? details.amount : record.amount,
-          deduction: status === "Done" ? details.deduction : record.deduction,
+          amount: status === "Done" ? details.amount : "",
+          deduction: status === "Done" ? details.deduction : "",
         }
-      })
+      }).filter(Boolean)
 
       const movedToHistory = updatedRecords.filter((r) => r.payment === "Done")
       const movedToPending = updatedRecords.filter((r) => r.payment !== "Done")
@@ -1025,10 +1005,10 @@ function PaymentPage() {
                             <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyToken)}</div>
+                            <div className="text-xs text-gray-900">{formatDateTime(record.subsidyToken)}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyDisbursal)}</div>
+                            <div className="text-xs text-gray-900">{formatDateTime(record.subsidyDisbursal)}</div>
                           </td>
 
                         </tr>
@@ -1186,10 +1166,10 @@ function PaymentPage() {
                             <div className="text-xs text-gray-900">{record.projectCommission || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyToken)}</div>
+                            <div className="text-xs text-gray-900">{formatDateTime(record.subsidyToken)}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs text-gray-900">{formatDisplayDate(record.subsidyDisbursal)}</div>
+                            <div className="text-xs text-gray-900">{formatDateTime(record.subsidyDisbursal)}</div>
                           </td>
                         </tr>
                       )

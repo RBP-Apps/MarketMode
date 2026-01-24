@@ -174,15 +174,14 @@ function BillingsPage() {
           return
         }
 
-        // Updated conditions: Column CM (index 90) not null and Column CN (index 91)
-        const columnCM = rowValues[90] // Column CM
+        // Updated conditions: Enquiry Number (index 1) not null and Column CN (index 91)
+        const enquiryNumber = rowValues[1] || ""
         const columnCN = rowValues[91] // Column CN
 
-        const hasColumnCM = !isEmpty(columnCM)
-        if (!hasColumnCM) return // Skip if column CM is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -192,6 +191,8 @@ function BillingsPage() {
           _id: stableId,
           _rowIndex: googleSheetsRowIndex,
           _enquiryNumber: enquiryNumber,
+          // Preserve original row data to prevent data loss during update
+          _originalData: rowValues,
           // Basic info columns with corrected mappings
           enquiryNumber: rowValues[1] || "", // B
           beneficiaryName: rowValues[2] || "", // C
@@ -336,7 +337,7 @@ function BillingsPage() {
     setIsSubmitting(true)
     try {
       const isEdit = !isEmpty(selectedRecord.actual)
-      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+      const actualDate = isEdit ? selectedRecord._originalData[91] : formatTimestamp()
 
       // Upload images and get URLs
       let consumerBillCopyUrl = ""
@@ -354,23 +355,22 @@ function BillingsPage() {
         vendorCopyUrl = selectedRecord.vendorCopy
       }
 
-      // Prepare update data with corrected column positions including new date fields
+      // Prepare update data using a sparse array to prevent overwriting unrelated columns
+      const rowData = Array(145).fill(null)
+
+      rowData[91] = actualDate // CN - Actual timestamp
+      rowData[93] = billingForm.consumerBillNumber // CP - Consumer Bill Number
+      rowData[94] = consumerBillCopyUrl // CQ - Consumer Bill Copy
+      rowData[95] = billingForm.vendorBillNumber // CR - Vendor Bill Number
+      rowData[96] = vendorCopyUrl // CS - Vendor Copy
+      rowData[143] = formatDateForSheet(billingForm.invoiceDate) // EN - Invoice Date
+      rowData[144] = formatDateForSheet(billingForm.ipDate) // EO - IP Date
+
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
-        rowData: JSON.stringify([
-          ...Array(91).fill(""), // Fill columns A to CN (index 90) with empty strings to keep existing data
-          actualDate, // CN - Actual timestamp (index 91)
-          "", // CO - keep existing (index 92)
-          billingForm.consumerBillNumber, // CP - Consumer Bill Number (index 93)
-          consumerBillCopyUrl, // CQ - Consumer Bill Copy (index 94)
-          billingForm.vendorBillNumber, // CR - Vendor Bill Number (index 95)
-          vendorCopyUrl, // CS - Vendor Copy (index 96)
-          ...Array(46).fill(""), // Fill columns CT to EM (indexes 97-142) with empty strings
-          formatDateForSheet(billingForm.invoiceDate), // EN - Invoice Date (index 143) in DD/MM/YYYY format
-          formatDateForSheet(billingForm.ipDate), // EO - IP Date (index 144) in DD/MM/YYYY format
-        ]),
+        rowData: JSON.stringify(rowData),
       }
 
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {

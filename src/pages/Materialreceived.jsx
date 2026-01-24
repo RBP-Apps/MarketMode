@@ -179,15 +179,14 @@ function MaterialReceivedSitePage() {
           return
         }
 
-        // Check conditions: Column BV (index 73) not null and Column BW (index 74)
-        const columnBV = rowValues[73] // Column BV
+        // Check conditions: Enquiry Number (index 1) not null and Column BW (index 74)
+        const enquiryNumber = rowValues[1] || ""
         const columnBW = rowValues[74] // Column BW
 
-        const hasColumnBV = !isEmpty(columnBV)
-        if (!hasColumnBV) return // Skip if column BV is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -350,90 +349,18 @@ function MaterialReceivedSitePage() {
       const formattedDate = formatDateForDisplay(receiptForm.dateOfReceipt)
 
       // Prepare update data with correct column indices
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(78).fill(null)
+
+      rowData[74] = actualDate // BW - Actual timestamp
+      rowData[76] = copyOfReceiptUrl // BY - Copy of Receipt
+      rowData[77] = formattedDate // BZ - Date of Receipt
+
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
-        rowData: JSON.stringify([
-          "", // A - keep existing
-          "", // B - keep existing (Enquiry Number)
-          "", // C - keep existing
-          "", // D - keep existing
-          "", // E - keep existing
-          "", // F - keep existing
-          "", // G - keep existing
-          "", // H - keep existing
-          "", // I - keep existing
-          "", // J - keep existing
-          "", // K - keep existing
-          "", // L - keep existing
-          "", // M - keep existing
-          "", // N - keep existing
-          "", // O - keep existing
-          "", // P - keep existing
-          "", // Q - keep existing
-          "", // R - keep existing
-          "", // S - keep existing
-          "", // T - keep existing
-          "", // U - keep existing
-          "", // V - keep existing
-          "", // W - keep existing
-          "", // X - keep existing
-          "", // Y - keep existing
-          "", // Z - keep existing
-          "", // AA - keep existing
-          "", // AB - keep existing
-          "", // AC - keep existing
-          "", // AD - keep existing
-          "", // AE - keep existing
-          "", // AF - keep existing
-          "", // AG - keep existing
-          "", // AH - keep existing
-          "", // AI - keep existing
-          "", // AJ - keep existing
-          "", // AK - keep existing
-          "", // AL - keep existing
-          "", // AM - keep existing
-          "", // AN - keep existing
-          "", // AO - keep existing
-          "", // AP - keep existing
-          "", // AQ - keep existing
-          "", // AR - keep existing
-          "", // AS - keep existing
-          "", // AT - keep existing
-          "", // AU - keep existing
-          "", // AV - keep existing
-          "", // AW - keep existing
-          "", // AX - keep existing
-          "", // AY - keep existing
-          "", // AZ - keep existing
-          "", // BA - keep existing
-          "", // BB - keep existing
-          "", // BC - keep existing
-          "", // BD - keep existing
-          "", // BE - keep existing
-          "", // BF - keep existing
-          "", // BG - keep existing
-          "", // BH - keep existing
-          "", // BI - keep existing
-          "", // BJ - keep existing
-          "", // BK - keep existing
-          "", // BL - keep existing
-          "", // BM - keep existing
-          "", // BN - keep existing
-          "", // BO - keep existing
-          "", // BP - keep existing
-          "", // BQ - keep existing
-          "", // BR - keep existing
-          "", // BS - keep existing
-          "", // BT - keep existing
-          "", // BU - keep existing
-          "", // BV - keep existing
-          actualDate, // BW - Actual timestamp (index 74)
-          "", // BX - keep existing
-          copyOfReceiptUrl, // BY - Copy of Receipt (index 76)
-          formattedDate, // BZ - Date of Receipt (index 77)
-        ]),
+        rowData: JSON.stringify(rowData),
       }
 
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {

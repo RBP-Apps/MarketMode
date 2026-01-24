@@ -71,6 +71,37 @@ function SubsidyTokenPage() {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
   }, [])
 
+  const formatDate = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
+  }, [])
+
+  const formatDateTime = useCallback((dateString) => {
+    if (!dateString) return ""
+    // If it's already in DD/MM/YYYY HH:mm:ss format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/)) return dateString
+
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    const hours = date.getHours().toString().padStart(2, "0")
+    const minutes = date.getMinutes().toString().padStart(2, "0")
+    const seconds = date.getSeconds().toString().padStart(2, "0")
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
+
   const isEmpty = useCallback((value) => {
     return value === null || value === undefined || (typeof value === "string" && value.trim() === "")
   }, [])
@@ -192,14 +223,13 @@ function SubsidyTokenPage() {
         }
 
         // Updated conditions: Column DR (index 121) not null and Column DS (index 122)
-        const columnDR = rowValues[121] // Column DR (index 121)
+        const enquiryNumber = rowValues[1] || ""
         const columnDS = rowValues[122] // Column DS (index 122)
 
-        const hasColumnDR = !isEmpty(columnDR)
-        if (!hasColumnDR) return // Skip if column DR is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -224,7 +254,7 @@ function SubsidyTokenPage() {
           inspection: rowValues[113] || "", // DK
           projectCommission: rowValues[118] || "", // DP
           // Status and timestamp columns
-          actual: rowValues[122] || "", // DS
+          actual: formatDateTime(rowValues[122] || ""), // DS
           subsidyToken: rowValues[124] || "", // DU
         }
 
@@ -315,16 +345,23 @@ function SubsidyTokenPage() {
     setIsSubmitting(true)
     try {
       const isEdit = !isEmpty(selectedRecord.actual)
-      const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
+      const actualDate = isEdit ? formatDateTime(selectedRecord.actual) : formatTimestamp()
 
       const rowIndex = selectedRecord._rowIndex
-      const rowData = Array(150).fill("")
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(150).fill(null)
 
       // DU (124) - Status (Subsidy Token)
       rowData[124] = tokenForm.subsidyToken
 
       // DS (122) - Actual timestamp
-      rowData[122] = actualDate
+      // If status is "Done", keep existing timestamp or set new one if empty
+      // If status is NOT "Done", clear the timestamp to move it back to pending
+      if (tokenForm.subsidyToken === "Done") {
+        rowData[122] = selectedRecord.actual ? formatDateTime(selectedRecord.actual) : formatTimestamp()
+      } else {
+        rowData[122] = ""
+      }
 
       const updateData = {
         action: "update",
@@ -395,20 +432,20 @@ function SubsidyTokenPage() {
         const status = statusValues[recordId]
         if (!record) return
 
-        // Create array with 150 empty strings to ensure we have enough columns
-        const rowData = Array(150).fill("")
+        // FIXED: Use null for columns we don't want to update
+        const rowData = Array(150).fill(null)
 
         // Updated column mappings:
         // Column DU (index 124) - Status (Subsidy Token)
         rowData[124] = status
 
         // Column DS (index 122) - Actual timestamp
-        // Logic: if Done and NO existing actual date, write new timestamp.
-        // User request: "do not clear or update timestamp for sheet it has not to be updated it will same as it working perfectelly"
-        if (record.actual) {
-          rowData[122] = record.actual
-        } else if (status === "Done") {
-          rowData[122] = formatTimestamp()
+        // Logic: if Done, keep existing timestamp or set new one if empty.
+        // If status is NOT "Done", clear the timestamp to move it back to pending.
+        if (status === "Done") {
+          rowData[122] = record.actual ? formatDateTime(record.actual) : formatTimestamp()
+        } else {
+          rowData[122] = ""
         }
 
         // Prepare update data for this specific record
@@ -439,14 +476,17 @@ function SubsidyTokenPage() {
 
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
-        const record = pendingData.find((r) => r._id === recordId)
+        const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
         const status = statusValues[recordId]
+
+        if (!record) return null
+
         return {
           ...record,
           subsidyToken: status,
-          actual: record.actual ? record.actual : (status === "Done" ? formatTimestamp() : ""),
+          actual: status === "Done" ? (record.actual ? formatDateTime(record.actual) : formatTimestamp()) : "",
         }
-      })
+      }).filter(Boolean)
 
       const movedToHistory = updatedRecords.filter((r) => r.subsidyToken === "Done")
       const movedToPending = updatedRecords.filter((r) => r.subsidyToken !== "Done")

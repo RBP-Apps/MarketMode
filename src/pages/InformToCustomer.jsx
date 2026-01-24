@@ -185,15 +185,14 @@ function InformToCustomerPage() {
           return
         }
 
-        // Updated conditions: Column BR (index 69) not null and Column BS (index 70) for pending/history
-        const columnBR = rowValues[69] // Column BR (index 69)
+        // Updated conditions: Enquiry Number (index 1) not null and Column BS (index 70) for pending/history
+        const enquiryNumber = rowValues[1] || ""
         const columnBS = rowValues[70] // Column BS (index 70)
 
-        const hasColumnBR = !isEmpty(columnBR)
-        if (!hasColumnBR) return // Skip if column BR is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
           : `row_${googleSheetsRowIndex}_${Math.random().toString(36).substring(2, 15)}`
@@ -319,16 +318,20 @@ function InformToCustomerPage() {
 
         if (!record) return
 
-        // Create array with 100 empty strings to ensure we have enough columns
-        const rowData = Array(100).fill("")
+        // FIXED: Use null for columns we don't want to update
+        // Only columns with actual values will be updated
+        const rowData = Array(100).fill(null)
 
         // Set specific columns:
         // Column BU (index 72) - Status (Inform to Customer)
         rowData[72] = status
 
-        // Column BS (index 70) - Actual timestamp (only if status is "Done")
+        // Column BS (index 70) - Actual timestamp
+        // IMPORTANT: Only update column BS, nothing else
         if (status === "Done") {
-          rowData[70] = formatTimestamp()
+          rowData[70] = formatTimestamp() // Set timestamp if Done
+        } else {
+          rowData[70] = "" // Explicitly CLEAR column BS when not Done
         }
 
         // Prepare update data for this specific record

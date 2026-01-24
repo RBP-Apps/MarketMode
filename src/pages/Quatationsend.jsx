@@ -360,49 +360,18 @@ function FMSDataPage() {
       }
 
       // Prepare update data
+      // FIXED: Use null for columns we don't want to update
+      const rowData = Array(37).fill(null) // Array up to column AK (index 36)
+      rowData[32] = formatTimestamp() // AG - Actual  
+      rowData[34] = quotationForm.quotationNumber // AI - Quotation Number
+      rowData[35] = quotationForm.valueOfQuotation // AJ - Value Of Quotation
+      rowData[36] = quotationCopyUrl // AK - Quotation Copy
+
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
-        rowData: JSON.stringify([
-          "", // A - keep existing
-          "", // B - keep existing (Enquiry Number)
-          "", // C - keep existing
-          "", // D - keep existing
-          "", // E - keep existing
-          "", // F - keep existing
-          "", // G - keep existing
-          "", // H - keep existing
-          "", // I - keep existing
-          "", // J - keep existing
-          "", // K - keep existing
-          "", // L - keep existing
-          "", // M - keep existing
-          "", // N - keep existing
-          "", // O - keep existing
-          "", // P - keep existing
-          "", // Q - keep existing
-          "", // R - keep existing
-          "", // S - keep existing
-          "", // T - keep existing
-          "", // U - keep existing
-          "", // V - keep existing
-          "", // W - keep existing
-          "", // X - keep existing
-          "", // Y - keep existing
-          "", // Z - keep existing
-          "", // AA - keep existing
-          "", // AB - keep existing
-          "", // AC - keep existing
-          "", // AD - keep existing
-          "", // AE - keep existing
-          "", // AF - keep existing
-          formatTimestamp(), // AG - Actual timestamp
-          "", // AH - keep existing
-          quotationForm.quotationNumber, // AI - Quotation Number
-          quotationForm.valueOfQuotation, // AJ - Value Of Quotation
-          quotationCopyUrl, // AK - Quotation Copy
-        ]),
+        rowData: JSON.stringify(rowData)
       }
 
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {

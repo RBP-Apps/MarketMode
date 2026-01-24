@@ -120,6 +120,23 @@ export default function BeneficiaryForm() {
     }
   };
 
+  const formatDateTime = (dateString) => {
+    if (!dateString) return "";
+    // If it's already in DD/MM/YYYY HH:mm:ss format, return it
+    if (typeof dateString === "string" && dateString.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/)) return dateString;
+
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const seconds = date.getSeconds().toString().padStart(2, "0");
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  };
+
   // Fetch history data from FMS sheet
   const fetchHistoryData = async () => {
     try {
@@ -140,7 +157,7 @@ export default function BeneficiaryForm() {
           const values = row.c || [];
 
           rowData.rowIndex = index + 7;
-          rowData.timestamp = values[0]?.v || "";
+          rowData.timestamp = formatDateTime(values[0]?.v || "");
           rowData.enquiryNumber = values[1]?.v || "";
           rowData.beneficiaryName = values[2]?.v || "";
           rowData.address = values[3]?.v || "";
@@ -178,6 +195,7 @@ export default function BeneficiaryForm() {
   const startEdit = (rowData) => {
     setEditingRow(rowData.rowIndex);
     setEditFormData({
+      timestamp: rowData.timestamp,
       enquiryNumber: rowData.enquiryNumber,
       beneficiaryName: rowData.beneficiaryName,
       address: rowData.address,
@@ -213,8 +231,9 @@ export default function BeneficiaryForm() {
     try {
       setIsSubmitting(true);
 
-      const updatedRowData = new Array(150).fill("");
-      updatedRowData[0] = "";
+      // FIXED: Initialize array and skip column A (timestamp) on edit to preserve original data
+      const updatedRowData = new Array(151).fill(null);
+      updatedRowData[0] = null;
       updatedRowData[1] = editFormData.enquiryNumber || "";
       updatedRowData[2] = editFormData.beneficiaryName || "";
       updatedRowData[3] = editFormData.address || "";
@@ -386,7 +405,7 @@ export default function BeneficiaryForm() {
       const now = new Date();
       const timestamp = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
-      const submissionData = new Array(150).fill("");
+      const submissionData = new Array(151).fill(null);
       submissionData[0] = timestamp;
       submissionData[1] = "";
       submissionData[2] = formData.beneficiaryName || "";

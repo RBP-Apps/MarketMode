@@ -164,16 +164,15 @@ function CSPDCLDocPage() {
           return
         }
 
-        // Condition: Column CT (index 97) not null for both pending and history
+        // Condition: Enquiry Number (index 1) not null for both pending and history
         // Column CU (index 98) null for pending, not null for history
-        const columnCT = rowValues[97] // Column CT
+        const enquiryNumber = rowValues[1] || ""
         const columnCU = rowValues[98] // Column CU
 
-        const hasColumnCT = !isEmpty(columnCT)
-        if (!hasColumnCT) return // Skip if column CT is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -325,14 +324,19 @@ function CSPDCLDocPage() {
   )
 
   const handleDocSubmit = async () => {
-    if ((!docForm.powerPurchaseAgreement && !selectedRecord.powerPurchaseAgreement) || (!docForm.vendorConsumerAgreement && !selectedRecord.vendorConsumerAgreement)) {
-      alert("Please upload required images (Power Purchase Agreement and Vendor Consumer Agreement)")
-      return
+    // Check if this is an edit (already has actual date) or new submission
+    const isEdit = !isEmpty(selectedRecord.actual)
+
+    // Only require images for NEW submissions, not for edits
+    if (!isEdit) {
+      if (!docForm.powerPurchaseAgreement || !docForm.vendorConsumerAgreement) {
+        alert("Please upload required images (Power Purchase Agreement and Vendor Consumer Agreement)")
+        return
+      }
     }
 
     setIsSubmitting(true)
     try {
-      const isEdit = !isEmpty(selectedRecord.actual)
       const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
 
       // Upload images and get URLs
@@ -341,39 +345,27 @@ function CSPDCLDocPage() {
 
       if (docForm.powerPurchaseAgreement) {
         powerPurchaseAgreementUrl = await uploadImageToDrive(docForm.powerPurchaseAgreement)
-      } else if (isEdit && selectedRecord.powerPurchaseAgreement) {
+      } else if (selectedRecord.powerPurchaseAgreement) {
+        // Keep existing image if no new one is uploaded
         powerPurchaseAgreementUrl = selectedRecord.powerPurchaseAgreement
       }
 
       if (docForm.vendorConsumerAgreement) {
         vendorConsumerAgreementUrl = await uploadImageToDrive(docForm.vendorConsumerAgreement)
-      } else if (isEdit && selectedRecord.vendorConsumerAgreement) {
+      } else if (selectedRecord.vendorConsumerAgreement) {
+        // Keep existing image if no new one is uploaded
         vendorConsumerAgreementUrl = selectedRecord.vendorConsumerAgreement
       }
 
-      // Create a full row array with existing data plus new document data
-      // Initialize array with empty strings for all columns (up to column DG which is index 110)
-      const rowData = new Array(111).fill("")
+      // FIXED: Use null for columns we don't want to update
+      // Initialize array with null values - only specified columns will be updated
+      const rowData = new Array(111).fill(null)
 
-      // Fill existing data from selectedRecord
-      rowData[1] = selectedRecord.enquiryNumber || "" // B - Enquiry Number
-      rowData[2] = selectedRecord.beneficiaryName || "" // C - Beneficiary Name
-      rowData[3] = selectedRecord.address || "" // D - Address
-      rowData[6] = selectedRecord.contactNumber || "" // G - Contact Number
-      rowData[29] = selectedRecord.surveyorName || "" // AD - Surveyor Name
-      rowData[69] = selectedRecord.dispatchMaterial || "" // BQ - Dispatch Material (corrected index)
-      rowData[72] = selectedRecord.informToCustomer || "" // BU - Inform To Customer
-      rowData[76] = selectedRecord.copyOfReceipt || "" // BY - Copy Of Receipt
-      rowData[77] = selectedRecord.dateOfReceipt || "" // BZ - Date Of Receipt
-      rowData[81] = selectedRecord.dateOfInstallation || "" // CD - Date Of Installation
-      rowData[89] = selectedRecord.completeInstallationPhoto || "" // CL - Complete Installation Photo
-      rowData[93] = selectedRecord.consumerBillNumber || "" // CP - Consumer Bill Number
-      rowData[95] = selectedRecord.vendorBillNumber || "" // CR - Vendor Bill Number
-
+      // Only set the document-related columns that need to be updated
       // Keep Column CT unchanged (this is what identifies the record)
-      rowData[97] = selectedRecord.actual || rowData[97] // CT - Keep existing value
+      // rowData[97] = Column CT is NOT set here, so it remains unchanged
 
-      // Add new document submission data with FIXED column mapping
+      // Add new document submission data with FIXED column mapping  
       rowData[98] = actualDate // CU - Actual timestamp
       rowData[100] = powerPurchaseAgreementUrl // CW - Power Purchase Agreement
       rowData[101] = vendorConsumerAgreementUrl // CX - Vendor Consumer Agreement

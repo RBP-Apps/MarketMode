@@ -194,16 +194,15 @@ function DispatchMaterialsPage() {
           return
         }
 
-        // Updated conditions: Column BN (index 65) not null for both pending and history
+        // Updated conditions: Enquiry Number (index 1) not null for both pending and history
         // Column BO (index 66) null for pending, not null for history
-        const columnBN = rowValues[65] // Column BN
+        const enquiryNumber = rowValues[1] || ""
         const columnBO = rowValues[66] // Column BO
 
-        const hasColumnBN = !isEmpty(columnBN)
-        if (!hasColumnBN) return // Skip if column BN is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -332,16 +331,20 @@ function DispatchMaterialsPage() {
 
         if (!record) return
 
-        // Create array with 100 empty strings to ensure we have enough columns
-        const rowData = Array(100).fill("")
+        // FIXED: Use null for columns we don't want to update
+        // Only columns with actual values will be updated
+        const rowData = Array(100).fill(null)
 
         // Set specific columns:
         // Column BQ (index 68) - Status
         rowData[68] = status
 
-        // Column BO (index 66) - Actual timestamp (only if status is "Done")
+        // Column BO (index 66) - Actual timestamp
+        // IMPORTANT: Only update column BO, nothing else
         if (status === "Done") {
-          rowData[66] = formatTimestamp()
+          rowData[66] = formatTimestamp() // Set timestamp if Done
+        } else {
+          rowData[66] = "" // Explicitly CLEAR column BO when not Done
         }
 
         // Prepare update data for this specific record

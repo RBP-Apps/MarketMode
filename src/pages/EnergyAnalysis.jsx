@@ -775,8 +775,8 @@ function EnergyAnalysis() {
 
                 if (!record) return
 
-                // Create array with enough empty strings to ensure we have enough columns
-                const rowData = Array(140).fill("")
+                // FIXED: Use null for columns we don't want to update
+                const rowData = Array(141).fill(null)
 
                 // Set specific columns:
                 // Column EC (index 132) - Status (Payment)

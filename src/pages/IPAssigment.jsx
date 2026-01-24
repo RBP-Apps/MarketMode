@@ -141,15 +141,14 @@ function IPAssignmentPage() {
           return
         }
 
-        // Check conditions: Column BB (index 53) not null and Column BC (index 54)
-        const columnBB = rowValues[53] // Column BB
+        // Check conditions: Enquiry Number (index 1) not null and Column BC (index 54)
+        const enquiryNumber = rowValues[1] || ""
         const columnBC = rowValues[54] // Column BC
 
-        const hasColumnBB = !isEmpty(columnBB)
-        if (!hasColumnBB) return // Skip if column BB is empty
+        const hasEnquiry = !isEmpty(enquiryNumber)
+        if (!hasEnquiry) return // Skip if enquiry number is empty
 
         const googleSheetsRowIndex = rowIndex + 1
-        const enquiryNumber = rowValues[1] || ""
 
         const stableId = enquiryNumber
           ? `enquiry_${enquiryNumber}_${googleSheetsRowIndex}`
@@ -329,78 +328,24 @@ function IPAssignmentPage() {
       if (ipForm.workOrderCopy) workOrderCopyUrl = await uploadImageToDrive(ipForm.workOrderCopy)
       else if (isEdit && selectedRecord.workOrderCopy) workOrderCopyUrl = selectedRecord.workOrderCopy
 
-      // Prepare update data - we need to send the complete row data
+      // Prepare update data - FIXED: Use null for columns we don't want to update
+      const rowData = Array(65).fill(null) // Array up to column BM (index 64)
+      rowData[54] = actualDate // BC - Actual timestamp (index 54)
+      rowData[56] = ipForm.ipName // BE - IP Name (index 56)
+      rowData[57] = ipForm.contactNumberOfIP // BF - Contact Number Of IP (index 57)
+      rowData[58] = ipForm.gstNumber // BG - GST Number (index 58)
+      rowData[59] = gstCertificatesUrl // BH - GST Certificates (index 59)
+      rowData[60] = bankAccountDetailsUrl // BI - Bank Account Details (index 60)
+      rowData[61] = aadharCardUrl // BJ - Aadhar Card (index 61)
+      rowData[62] = panCardUrl // BK - Pan Card (index 62)
+      rowData[63] = ipForm.workOrderNumber // BL - Work Order Number (index 63)
+      rowData[64] = workOrderCopyUrl // BM - Work Order Copy (index 64)
+
       const updateData = {
         action: "update",
         sheetName: CONFIG.SOURCE_SHEET_NAME,
         rowIndex: selectedRecord._rowIndex,
-        rowData: JSON.stringify([
-          "", // A - keep existing
-          "", // B - keep existing (Enquiry Number)
-          "", // C - keep existing
-          "", // D - keep existing
-          "", // E - keep existing
-          "", // F - keep existing
-          "", // G - keep existing
-          "", // H - keep existing
-          "", // I - keep existing
-          "", // J - keep existing
-          "", // K - keep existing
-          "", // L - keep existing
-          "", // M - keep existing
-          "", // N - keep existing
-          "", // O - keep existing
-          "", // P - keep existing
-          "", // Q - keep existing
-          "", // R - keep existing
-          "", // S - keep existing
-          "", // T - keep existing
-          "", // U - keep existing
-          "", // V - keep existing
-          "", // W - keep existing
-          "", // X - keep existing
-          "", // Y - keep existing
-          "", // Z - keep existing
-          "", // AA - keep existing
-          "", // AB - keep existing
-          "", // AC - keep existing
-          "", // AD - keep existing
-          "", // AE - keep existing
-          "", // AF - keep existing
-          "", // AG - keep existing
-          "", // AH - keep existing
-          "", // AI - keep existing
-          "", // AJ - keep existing
-          "", // AK - keep existing
-          "", // AL - keep existing
-          "", // AM - keep existing
-          "", // AN - keep existing
-          "", // AO - keep existing
-          "", // AP - keep existing
-          "", // AQ - keep existing
-          "", // AR - keep existing
-          "", // AS - keep existing
-          "", // AT - keep existing
-          "", // AU - keep existing
-          "", // AV - keep existing
-          "", // AW - keep existing
-          "", // AX - keep existing
-          "", // AY - keep existing
-          "", // AZ - keep existing
-          "", // BA - keep existing
-          "", // BB - keep existing
-          actualDate, // BC - Actual timestamp (index 54)
-          "", // BD - keep existing
-          ipForm.ipName, // BE - IP Name (index 56)
-          ipForm.contactNumberOfIP, // BF - Contact Number Of IP (index 57)
-          ipForm.gstNumber, // BG - GST Number (index 58)
-          gstCertificatesUrl, // BH - GST Certificates (index 59)
-          bankAccountDetailsUrl, // BI - Bank Account Details (index 60)
-          aadharCardUrl, // BJ - Aadhar Card (index 61)
-          panCardUrl, // BK - Pan Card (index 62)
-          ipForm.workOrderNumber, // BL - Work Order Number (index 63)
-          workOrderCopyUrl, // BM - Work Order Copy (index 64)
-        ]),
+        rowData: JSON.stringify(rowData)
       }
 
       const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
