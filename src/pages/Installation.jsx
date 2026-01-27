@@ -69,6 +69,8 @@ function InstallationPage() {
     afterInstallationPhoto: null,
     photoWithCustomer: null,
     completeInstallationPhoto: null,
+    repeatedCertificate: null,
+    projectCommissioningCertificate: null,
     inverterId: "",
   })
 
@@ -280,6 +282,8 @@ function InstallationPage() {
           moduleType: rowValues[141] || "",
           structureMake: rowValues[142] || "",
           investorId: rowValues[151] || "",
+          repeatedCertificate: rowValues[152] || "", // EW
+          projectCommissioningCertificate: rowValues[153] || "", // EX
         }
 
         const isColumnCBEmpty = isEmpty(columnCB)
@@ -343,7 +347,9 @@ function InstallationPage() {
       afterInstallationPhoto: null,
       photoWithCustomer: null,
       completeInstallationPhoto: null,
-      investorId: record.investorId || "",
+      repeatedCertificate: null,
+      projectCommissioningCertificate: null,
+      inverterId: record.investorId || "",
     })
     setShowInstallModal(true)
   }, [formatDateForInput])
@@ -422,8 +428,16 @@ function InstallationPage() {
       if (installForm.completeInstallationPhoto) completeInstallationPhotoUrl = await uploadImageToDrive(installForm.completeInstallationPhoto)
       else if (isEdit && selectedRecord.completeInstallationPhoto) completeInstallationPhotoUrl = selectedRecord.completeInstallationPhoto
 
+      let repeatedCertificateUrl = ""
+      if (installForm.repeatedCertificate) repeatedCertificateUrl = await uploadImageToDrive(installForm.repeatedCertificate)
+      else if (isEdit && selectedRecord.repeatedCertificate) repeatedCertificateUrl = selectedRecord.repeatedCertificate
+
+      let projectCommissioningCertificateUrl = ""
+      if (installForm.projectCommissioningCertificate) projectCommissioningCertificateUrl = await uploadImageToDrive(installForm.projectCommissioningCertificate)
+      else if (isEdit && selectedRecord.projectCommissioningCertificate) projectCommissioningCertificateUrl = selectedRecord.projectCommissioningCertificate
+
       // FIXED: Use null for columns we don't want to update
-      const rowData = Array(152).fill(null)
+      const rowData = Array(154).fill(null)
 
       rowData[79] = actualDate // CB
       rowData[81] = formatDate(installForm.dateOfInstallation) // CD
@@ -442,7 +456,9 @@ function InstallationPage() {
       rowData[140] = installForm.moduleCapacity // EK
       rowData[141] = installForm.moduleType // EL
       rowData[142] = installForm.structureMake // EM
-      rowData[151] = installForm.investorId // EV
+      rowData[151] = installForm.inverterId // EV
+      rowData[152] = repeatedCertificateUrl // EW
+      rowData[153] = projectCommissioningCertificateUrl // EX
 
       const updateData = {
         action: "update",
@@ -476,13 +492,15 @@ function InstallationPage() {
           afterInstallationPhoto: afterInstallationPhotoUrl,
           photoWithCustomer: photoWithCustomerUrl,
           completeInstallationPhoto: completeInstallationPhotoUrl,
+          repeatedCertificate: repeatedCertificateUrl,
+          projectCommissioningCertificate: projectCommissioningCertificateUrl,
           inverterMake: installForm.inverterMake,
           inverterCapacity: installForm.inverterCapacity,
           moduleMake: installForm.moduleMake,
           moduleCapacity: installForm.moduleCapacity,
           moduleType: installForm.moduleType,
           structureMake: installForm.structureMake,
-          investorId: installForm.investorId,
+          investorId: installForm.inverterId,
         }
 
         if (isEdit) {
@@ -725,16 +743,22 @@ function InstallationPage() {
                           Wiring
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Foundation Photo
+                          Change Photo
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          After Installation Photo
+                          DCR Certificate
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Photo With Customer
+                          Module Warranty certificate
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Complete Installation Photo
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Repeated Certificate
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Project Commissioning Certificate
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Inverter Make
@@ -897,6 +921,36 @@ function InstallationPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
+                            {record.repeatedCertificate ? (
+                              <a
+                                href={record.repeatedCertificate}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            {record.projectCommissioningCertificate ? (
+                              <a
+                                href={record.projectCommissioningCertificate}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs text-gray-900">{record.inverterMake || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
@@ -921,7 +975,7 @@ function InstallationPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={25} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={27} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm ? "No history records matching your search" : "No completed installations found"}
                         </td>
                       </tr>
@@ -1341,10 +1395,10 @@ function InstallationPage() {
                     />
                   </div>
 
-                  {/* Foundation Photo */}
+                  {/* Change Photo */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Foundation Photo
+                      Change Photo
                       <span className="text-gray-500 text-xs ml-1">(Image)</span>
                     </label>
                     <input
@@ -1361,10 +1415,10 @@ function InstallationPage() {
                     )}
                   </div>
 
-                  {/* After Installation Photo */}
+                  {/* DCR Certificate */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      After Installation Photo
+                      DCR Certificate
                       <span className="text-gray-500 text-xs ml-1">(Image)</span>
                     </label>
                     <input
@@ -1381,10 +1435,10 @@ function InstallationPage() {
                     )}
                   </div>
 
-                  {/* Photo With Customer */}
+                  {/* Module Warranty certificate */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Photo With Customer
+                      Module Warranty certificate
                       <span className="text-gray-500 text-xs ml-1">(Image)</span>
                     </label>
                     <input
@@ -1417,6 +1471,46 @@ function InstallationPage() {
                       <p className="text-sm text-green-600 mt-2 flex items-center">
                         <CheckCircle2 className="h-4 w-4 mr-1" />
                         {installForm.completeInstallationPhoto.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Repeated Certificate */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Repeated Certificate
+                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload("repeatedCertificate", e.target.files[0])}
+                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    {installForm.repeatedCertificate && (
+                      <p className="text-sm text-green-600 mt-2 flex items-center">
+                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                        {installForm.repeatedCertificate.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Project Commissioning Certificate */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Commissioning Certificate
+                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload("projectCommissioningCertificate", e.target.files[0])}
+                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    {installForm.projectCommissioningCertificate && (
+                      <p className="text-sm text-green-600 mt-2 flex items-center">
+                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                        {installForm.projectCommissioningCertificate.name}
                       </p>
                     )}
                   </div>

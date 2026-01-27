@@ -23,6 +23,62 @@ const SOLAR_SYS_CODE = import.meta.env.VITE_SOLAR_SYS_CODE || '207';
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec";
 const SHEET_NAME = "Inverter_id";
 
+// Cache utility functions
+const CACHE_KEYS = {
+  INVERTERS: 'wpr_inverters_cache',
+  PERFORMANCE_PREFIX: 'wpr_performance_',
+  PS_KEYS: 'wpr_ps_keys_cache', // Cache PS Keys separately (they rarely change)
+  LAST_FETCH: 'wpr_last_fetch'
+};
+
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour cache validity
+
+const getCachedData = (key) => {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    return parsed;
+  } catch (e) {
+    console.warn('Cache read error:', e);
+    return null;
+  }
+};
+
+const setCachedData = (key, data, timestamp = Date.now()) => {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, timestamp }));
+  } catch (e) {
+    console.warn('Cache write error:', e);
+    // Clear old caches if storage is full
+    clearOldPerformanceCaches();
+  }
+};
+
+const clearOldPerformanceCaches = () => {
+  try {
+    const keys = Object.keys(localStorage);
+    const performanceKeys = keys.filter(k => k.startsWith(CACHE_KEYS.PERFORMANCE_PREFIX));
+    // Sort by timestamp and keep only last 5
+    const cachesWithTime = performanceKeys.map(key => {
+      const cached = getCachedData(key);
+      return { key, timestamp: cached?.timestamp || 0 };
+    }).sort((a, b) => b.timestamp - a.timestamp);
+
+    // Remove old caches beyond the 5 most recent
+    cachesWithTime.slice(5).forEach(({ key }) => {
+      localStorage.removeItem(key);
+    });
+  } catch (e) {
+    console.warn('Cache cleanup error:', e);
+  }
+};
+
+const generatePerformanceCacheKey = (startDate, endDate, inverterIds) => {
+  const sortedIds = [...inverterIds].sort().join(',');
+  return `${CACHE_KEYS.PERFORMANCE_PREFIX}${startDate}_${endDate}_${sortedIds.substring(0, 50)}`;
+};
+
 const WeeklyPerformanceReport = () => {
   const { token } = useDeviceContext();
   // State variables
@@ -36,6 +92,9 @@ const WeeklyPerformanceReport = () => {
   const [selectedInverters, setSelectedInverters] = useState([]);
   const [performanceData, setPerformanceData] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [isFromCache, setIsFromCache] = useState(false); // Track if showing cached data
+  const [isRefreshing, setIsRefreshing] = useState(false); // Track background refresh
+  const [fetchProgress, setFetchProgress] = useState({ current: 0, total: 0 }); // Progress tracking
 
   // Date range state
   const [dateRange, setDateRange] = useState({
@@ -52,6 +111,16 @@ const WeeklyPerformanceReport = () => {
   const [expandedView, setExpandedView] = useState('chart');
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Load cached inverters on mount
+  useEffect(() => {
+    const cachedInverters = getCachedData(CACHE_KEYS.INVERTERS);
+    if (cachedInverters?.data && cachedInverters.data.length > 0) {
+      setInverters(cachedInverters.data);
+      setSelectedInverters(cachedInverters.data.map(inv => inv.inverterId));
+      setIsFromCache(true);
+    }
+  }, []);
 
   // Initialize default date range (last 7 days)
   useEffect(() => {
@@ -73,12 +142,30 @@ const WeeklyPerformanceReport = () => {
     });
   }, []);
 
-  // Fetch inverter list from Google Sheets
-  const fetchInverterList = useCallback(async () => {
+  // Fetch inverter list from Google Sheets with caching
+  const fetchInverterList = useCallback(async (forceRefresh = false) => {
     if (loading.inverters) return;
 
+    // Check cache first if not forcing refresh
+    if (!forceRefresh) {
+      const cachedInverters = getCachedData(CACHE_KEYS.INVERTERS);
+      if (cachedInverters?.data && cachedInverters.data.length > 0) {
+        // Show cached data immediately
+        setInverters(cachedInverters.data);
+        setSelectedInverters(cachedInverters.data.map(inv => inv.inverterId));
+        setIsFromCache(true);
+
+        // Check if cache is still valid (less than 1 hour old)
+        const cacheAge = Date.now() - (cachedInverters.timestamp || 0);
+        if (cacheAge < CACHE_DURATION) {
+          return; // Cache is fresh, no need to refetch
+        }
+        // Cache is stale, continue to fetch fresh data in background
+      }
+    }
+
     setLoading(prev => ({ ...prev, inverters: true }));
-    setError('');
+    if (!isFromCache) setError('');
 
     try {
       const url = `${GOOGLE_SCRIPT_URL}?sheet=${encodeURIComponent(SHEET_NAME)}&action=fetch`;
@@ -139,16 +226,23 @@ const WeeklyPerformanceReport = () => {
         }
       });
 
+      // Cache the fresh data
+      setCachedData(CACHE_KEYS.INVERTERS, inverterList);
+
       setInverters(inverterList);
       setSelectedInverters(inverterList.map(inv => inv.inverterId));
+      setIsFromCache(false);
       setError('');
     } catch (err) {
       console.error('Error fetching inverter list:', err);
-      setError(`Failed to load inverter list: ${err.message}`);
+      // Only show error if we don't have cached data
+      if (inverters.length === 0) {
+        setError(`Failed to load inverter list: ${err.message}`);
+      }
     } finally {
       setLoading(prev => ({ ...prev, inverters: false }));
     }
-  }, [loading.inverters]);
+  }, [loading.inverters, isFromCache, inverters.length]);
 
   // Format date for API
   const formatDateForAPI = useCallback((date) => {
@@ -168,8 +262,8 @@ const WeeklyPerformanceReport = () => {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end days
   }, [dateRange]);
 
-  // Fetch performance data for all selected inverters
-  const fetchPerformanceData = useCallback(async () => {
+  // Fetch performance data for all selected inverters with caching
+  const fetchPerformanceData = useCallback(async (forceRefresh = false) => {
     if (!token) {
       setError('Please login first');
       return;
@@ -185,8 +279,40 @@ const WeeklyPerformanceReport = () => {
       return;
     }
 
-    setLoading(prev => ({ ...prev, data: true, allData: true }));
-    setError('');
+    // Generate cache key for this specific query
+    const cacheKey = generatePerformanceCacheKey(
+      dateRange.startDate,
+      dateRange.endDate,
+      selectedInverters
+    );
+
+    // Check cache first if not forcing refresh
+    if (!forceRefresh) {
+      const cachedPerformance = getCachedData(cacheKey);
+      if (cachedPerformance?.data && cachedPerformance.data.length > 0) {
+        // Show cached data immediately
+        setPerformanceData(cachedPerformance.data);
+        setLastUpdated(new Date(cachedPerformance.timestamp));
+        setIsFromCache(true);
+
+        // Check if cache is still valid (less than 1 hour old)
+        const cacheAge = Date.now() - (cachedPerformance.timestamp || 0);
+        if (cacheAge < CACHE_DURATION) {
+          return; // Cache is fresh, no need to refetch
+        }
+        // Cache is stale, continue to fetch fresh data in background
+        setIsRefreshing(true);
+      }
+    }
+
+    // Only show loading if we don't have cached data
+    if (!isFromCache) {
+      setLoading(prev => ({ ...prev, data: true, allData: true }));
+      setError('');
+    }
+
+    // Initialize progress
+    setFetchProgress({ current: 0, total: selectedInverters.length });
 
     try {
       const start = new Date(dateRange.startDate);
@@ -198,10 +324,15 @@ const WeeklyPerformanceReport = () => {
       const apiEndDate = formatDateForAPI(end);
       const daysInRange = calculateDaysInRange();
 
+      // Load cached PS Keys
+      const cachedPsKeys = getCachedData(CACHE_KEYS.PS_KEYS)?.data || {};
+      const psKeyCache = { ...cachedPsKeys };
+
       const results = [];
 
-      // Process inverters in batches to avoid rate limiting
-      const batchSize = 3;
+      // OPTIMIZED: Increased batch size from 3 to 10 for faster processing
+      const batchSize = 10;
+
       for (let i = 0; i < selectedInverters.length; i += batchSize) {
         const batch = selectedInverters.slice(i, i + batchSize);
 
@@ -211,29 +342,37 @@ const WeeklyPerformanceReport = () => {
             const inverter = inverters.find(inv => inv.inverterId === inverterId);
             if (!inverter) return null;
 
-            // 1. Get PS Key
-            const deviceRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getPVInverterRealTimeData', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-access-key': SOLAR_SECRET_KEY,
-                'sys_code': SOLAR_SYS_CODE,
-                'token': token
-              },
-              body: JSON.stringify({
-                appkey: SOLAR_APPKEY,
-                sn_list: [inverterId],
-                lang: '_en_US',
-                sys_code: 207
-              })
-            });
+            let psKey = psKeyCache[inverterId];
 
-            const deviceData = await deviceRes.json();
-            let psKey = null;
+            // 1. Get PS Key (use cache if available)
+            if (!psKey) {
+              const deviceRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getPVInverterRealTimeData', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-access-key': SOLAR_SECRET_KEY,
+                  'sys_code': SOLAR_SYS_CODE,
+                  'token': token
+                },
+                body: JSON.stringify({
+                  appkey: SOLAR_APPKEY,
+                  sn_list: [inverterId],
+                  lang: '_en_US',
+                  sys_code: 207
+                })
+              });
 
-            if (deviceData.result_code === "1" && deviceData.result_data?.device_point_list) {
-              const point = deviceData.result_data.device_point_list.find(p => p?.device_point?.ps_key);
-              psKey = point?.device_point?.ps_key;
+              const deviceData = await deviceRes.json();
+
+              if (deviceData.result_code === "1" && deviceData.result_data?.device_point_list) {
+                const point = deviceData.result_data.device_point_list.find(p => p?.device_point?.ps_key);
+                psKey = point?.device_point?.ps_key;
+
+                // Cache the PS Key for future use
+                if (psKey) {
+                  psKeyCache[inverterId] = psKey;
+                }
+              }
             }
 
             if (!psKey) {
@@ -355,32 +494,61 @@ const WeeklyPerformanceReport = () => {
         });
 
         const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults.filter(r => r !== null));
+        const validResults = batchResults.filter(r => r !== null);
+        results.push(...validResults);
 
-        // Small delay between batches to avoid rate limiting
+        // Update progress
+        const currentProgress = Math.min(i + batchSize, selectedInverters.length);
+        setFetchProgress({ current: currentProgress, total: selectedInverters.length });
+
+        // PROGRESSIVE LOADING: Update state after each batch so user sees results immediately
+        if (validResults.length > 0) {
+          const sortedPartial = [...results].sort((a, b) => {
+            const aValue = a[sortBy] || 0;
+            const bValue = b[sortBy] || 0;
+            return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
+          });
+          setPerformanceData(sortedPartial);
+        }
+
+        // OPTIMIZED: Reduced delay from 1000ms to 300ms
         if (i + batchSize < selectedInverters.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
 
-      // Sort results
+      // Save PS Key cache
+      setCachedData(CACHE_KEYS.PS_KEYS, psKeyCache);
+
+      // Sort final results
       const sortedResults = [...results].sort((a, b) => {
         const aValue = a[sortBy] || 0;
         const bValue = b[sortBy] || 0;
         return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
       });
 
+      // Cache the fresh data
+      setCachedData(cacheKey, sortedResults);
+
       setPerformanceData(sortedResults);
       setLastUpdated(new Date());
+      setIsFromCache(false);
+      setIsRefreshing(false);
+      setFetchProgress({ current: 0, total: 0 });
       setError('');
 
     } catch (err) {
       console.error('Error fetching performance data:', err);
-      setError(`Failed to fetch performance data: ${err.message}`);
+      // Only show error if we don't have cached data
+      if (performanceData.length === 0) {
+        setError(`Failed to fetch performance data: ${err.message}`);
+      }
+      setIsRefreshing(false);
+      setFetchProgress({ current: 0, total: 0 });
     } finally {
       setLoading(prev => ({ ...prev, data: false, allData: false }));
     }
-  }, [token, selectedInverters, inverters, dateRange, formatDateForAPI, calculateDaysInRange, sortBy, sortOrder]);
+  }, [token, selectedInverters, inverters, dateRange, formatDateForAPI, calculateDaysInRange, sortBy, sortOrder, isFromCache, performanceData.length]);
 
   // Initialize data
   useEffect(() => {
@@ -761,6 +929,44 @@ const WeeklyPerformanceReport = () => {
                   <p className="text-gray-600">
                     Compare performance across all inverters with customizable date range
                   </p>
+                  {/* Cache Status Indicator */}
+                  {(isFromCache || isRefreshing || lastUpdated || fetchProgress.total > 0) && (
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {isFromCache && !isRefreshing && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700">
+                          <Database className="w-3 h-3" />
+                          Showing cached data
+                        </span>
+                      )}
+                      {isRefreshing && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          Updating in background...
+                        </span>
+                      )}
+                      {/* Progress Indicator */}
+                      {fetchProgress.total > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
+                            <Zap className="w-3 h-3" />
+                            Fetching: {fetchProgress.current}/{fetchProgress.total} inverters
+                          </span>
+                          <div className="w-32 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                              style={{ width: `${(fetchProgress.current / fetchProgress.total) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {lastUpdated && !isRefreshing && fetchProgress.total === 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                          <Clock className="w-3 h-3" />
+                          Last updated: {lastUpdated.toLocaleTimeString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -777,15 +983,15 @@ const WeeklyPerformanceReport = () => {
                   </button>
 
                   <button
-                    onClick={fetchPerformanceData}
+                    onClick={() => fetchPerformanceData(true)}
                     disabled={loading.data || !token}
                     className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${loading.data || !token
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
                       }`}
                   >
-                    <RefreshCw className={`w-4 h-4 ${loading.data ? 'animate-spin' : ''}`} />
-                    Refresh Data
+                    <RefreshCw className={`w-4 h-4 ${loading.data || isRefreshing ? 'animate-spin' : ''}`} />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
                   </button>
                 </div>
               </div>
