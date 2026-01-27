@@ -1059,23 +1059,45 @@ function MaterialReceivedSitePage() {
                 {/* Material Receipt Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Copy Of Receipt */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Copy Of Receipt <span className="text-red-500">*</span>
-                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("copyOfReceipt", e.target.files[0])}
-                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {receiptForm.copyOfReceipt && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {receiptForm.copyOfReceipt.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Copy Of Receipt <span className="text-red-500">*</span>
+                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("copyOfReceipt", e.target.files[0])}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {receiptForm.copyOfReceipt && (
+                        <p className="text-sm text-green-600 mt-2 flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          New file: {receiptForm.copyOfReceipt.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-6">
+                      {selectedRecord?.copyOfReceipt ? (
+                        <a
+                          href={selectedRecord.copyOfReceipt}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Receipt"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Date Of Receipt */}
@@ -1103,7 +1125,7 @@ function MaterialReceivedSitePage() {
                   </button>
                   <button
                     onClick={handleReceiptSubmit}
-                    disabled={isSubmitting || !receiptForm.copyOfReceipt || !receiptForm.dateOfReceipt}
+                    disabled={isSubmitting || (!receiptForm.copyOfReceipt && !selectedRecord.copyOfReceipt) || !receiptForm.dateOfReceipt}
                     className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
                   >
                     {isSubmitting ? (

@@ -51,6 +51,7 @@ function InstallationPage() {
     moduleCapacity: [],
     moduleType: [],
     structureMake: [],
+    phase: [],
   })
   const [dropdownLoading, setDropdownLoading] = useState(false)
   const [installForm, setInstallForm] = useState({
@@ -141,6 +142,7 @@ function InstallationPage() {
         moduleCapacity: [],
         moduleType: [],
         structureMake: [],
+        phase: [],
       }
 
       if (data.values) {
@@ -153,6 +155,7 @@ function InstallationPage() {
             options.moduleCapacity.push(String(row[11] || ""))
             options.moduleType.push(String(row[12] || ""))
             options.structureMake.push(String(row[13] || ""))
+            if (row[15]) options.phase.push(String(row[15] || "")) // Column P (index 15)
           }
         })
       } else if (data.table && data.table.rows) {
@@ -165,6 +168,7 @@ function InstallationPage() {
             options.moduleCapacity.push(String(row.c[11]?.v || ""))
             options.moduleType.push(String(row.c[12]?.v || ""))
             options.structureMake.push(String(row.c[13]?.v || ""))
+            if (row.c[15]?.v) options.phase.push(String(row.c[15]?.v || "")) // Column P (index 15)
           }
         })
       }
@@ -743,7 +747,7 @@ function InstallationPage() {
                           Wiring
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Change Photo
+                          Plant Photo
                         </th>
                         <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           DCR Certificate
@@ -1347,16 +1351,28 @@ function InstallationPage() {
                     />
                   </div>
 
-                  {/* Routing */}
+                  {/* Phase */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Routing</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phase</label>
+                    <select
                       value={installForm.routing}
                       onChange={(e) => handleInputChange("routing", e.target.value)}
-                      placeholder="Enter routing details"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      disabled={dropdownLoading}
+                    >
+                      {dropdownLoading ? (
+                        <option>Loading options...</option>
+                      ) : (
+                        <>
+                          <option value="">-- Select Phase --</option>
+                          {dropdownOptions.phase.map((option, index) => (
+                            <option key={`phase-${index}`} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
                   </div>
 
                   {/* Earthing */}
@@ -1395,10 +1411,10 @@ function InstallationPage() {
                     />
                   </div>
 
-                  {/* Change Photo */}
+                  {/* Plant Photo */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Change Photo
+                      Plant Photo
                       <span className="text-gray-500 text-xs ml-1">(Image)</span>
                     </label>
                     <input
@@ -1412,6 +1428,19 @@ function InstallationPage() {
                         <CheckCircle2 className="h-4 w-4 mr-1" />
                         {installForm.foundationPhoto.name}
                       </p>
+                    )}
+                    {selectedRecord?.foundationPhoto && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Existing:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.foundationPhoto, '_blank', 'noopener,noreferrer')}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Image
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -1433,6 +1462,19 @@ function InstallationPage() {
                         {installForm.afterInstallationPhoto.name}
                       </p>
                     )}
+                    {selectedRecord?.afterInstallationPhoto && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Existing:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.afterInstallationPhoto, '_blank', 'noopener,noreferrer')}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Image
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Module Warranty certificate */}
@@ -1452,6 +1494,19 @@ function InstallationPage() {
                         <CheckCircle2 className="h-4 w-4 mr-1" />
                         {installForm.photoWithCustomer.name}
                       </p>
+                    )}
+                    {selectedRecord?.photoWithCustomer && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Existing:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.photoWithCustomer, '_blank', 'noopener,noreferrer')}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Image
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -1473,6 +1528,19 @@ function InstallationPage() {
                         {installForm.completeInstallationPhoto.name}
                       </p>
                     )}
+                    {selectedRecord?.completeInstallationPhoto && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Existing:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.completeInstallationPhoto, '_blank', 'noopener,noreferrer')}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Image
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Repeated Certificate */}
@@ -1493,6 +1561,19 @@ function InstallationPage() {
                         {installForm.repeatedCertificate.name}
                       </p>
                     )}
+                    {selectedRecord?.repeatedCertificate && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Existing:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.repeatedCertificate, '_blank', 'noopener,noreferrer')}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Image
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Project Commissioning Certificate */}
@@ -1512,6 +1593,19 @@ function InstallationPage() {
                         <CheckCircle2 className="h-4 w-4 mr-1" />
                         {installForm.projectCommissioningCertificate.name}
                       </p>
+                    )}
+                    {selectedRecord?.projectCommissioningCertificate && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Existing:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.projectCommissioningCertificate, '_blank', 'noopener,noreferrer')}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Image
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

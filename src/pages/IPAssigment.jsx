@@ -1009,103 +1009,213 @@ function IPAssignmentPage() {
                   </div>
 
                   {/* GST Certificates */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      GST Certificates
-                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("gstCertificates", e.target.files[0])}
-                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {ipForm.gstCertificates && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {ipForm.gstCertificates.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        GST Certificates
+                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("gstCertificates", e.target.files[0])}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {ipForm.gstCertificates && (
+                        <p className="text-sm text-green-600 mt-2 flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          New file: {ipForm.gstCertificates.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-6">
+                      {selectedRecord?.gstCertificates ? (
+                        <a
+                          href={selectedRecord.gstCertificates}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous GST Certificate"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Bank Account Details */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Bank Account Details
-                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("bankAccountDetails", e.target.files[0])}
-                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {ipForm.bankAccountDetails && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {ipForm.bankAccountDetails.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Bank Account Details
+                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("bankAccountDetails", e.target.files[0])}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {ipForm.bankAccountDetails && (
+                        <p className="text-sm text-green-600 mt-2 flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          New file: {ipForm.bankAccountDetails.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-6">
+                      {selectedRecord?.bankAccountDetails ? (
+                        <a
+                          href={selectedRecord.bankAccountDetails}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Bank Account Details"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Aadhar Card */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Aadhar Card
-                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("aadharCard", e.target.files[0])}
-                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {ipForm.aadharCard && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {ipForm.aadharCard.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Aadhar Card
+                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("aadharCard", e.target.files[0])}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {ipForm.aadharCard && (
+                        <p className="text-sm text-green-600 mt-2 flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          New file: {ipForm.aadharCard.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-6">
+                      {selectedRecord?.aadharCard ? (
+                        <a
+                          href={selectedRecord.aadharCard}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Aadhar Card"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Pan Card */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Pan Card
-                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("panCard", e.target.files[0])}
-                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {ipForm.panCard && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {ipForm.panCard.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Pan Card
+                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("panCard", e.target.files[0])}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {ipForm.panCard && (
+                        <p className="text-sm text-green-600 mt-2 flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          New file: {ipForm.panCard.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-6">
+                      {selectedRecord?.panCard ? (
+                        <a
+                          href={selectedRecord.panCard}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Pan Card"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Work Order Copy */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Work Order Copy
-                      <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("workOrderCopy", e.target.files[0])}
-                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {ipForm.workOrderCopy && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {ipForm.workOrderCopy.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Work Order Copy
+                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("workOrderCopy", e.target.files[0])}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {ipForm.workOrderCopy && (
+                        <p className="text-sm text-green-600 mt-2 flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          New file: {ipForm.workOrderCopy.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-6">
+                      {selectedRecord?.workOrderCopy ? (
+                        <a
+                          href={selectedRecord.workOrderCopy}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Work Order Copy"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

@@ -1110,57 +1110,123 @@ function FMSDataPage() {
                   </div>
 
                   {/* Copy Survey Report */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Copy Survey Report
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("copySurveyReport", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.copySurveyReport && (
-                      <p className="text-xs text-green-600 mt-1">
-                        ✓ {surveyForm.copySurveyReport.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Copy Survey Report
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("copySurveyReport", e.target.files[0])}
+                        className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {surveyForm.copySurveyReport && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ New file: {surveyForm.copySurveyReport.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-5">
+                      {selectedRecord?.col23 ? (
+                        <a
+                          href={selectedRecord.col23}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Survey Report"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Geotag Photo Site */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Geotag Photo Site
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("geotagPhoto", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.geotagPhoto && (
-                      <p className="text-xs text-green-600 mt-1">
-                        ✓ {surveyForm.geotagPhoto.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Geotag Photo Site
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("geotagPhoto", e.target.files[0])}
+                        className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {surveyForm.geotagPhoto && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ New file: {surveyForm.geotagPhoto.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-5">
+                      {selectedRecord?.col24 ? (
+                        <a
+                          href={selectedRecord.col24}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Geotag Photo"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Three Months Electricity Bill Copy */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Three Months Electricity Bill Copy
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("electricityBill", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.electricityBill && (
-                      <p className="text-xs text-green-600 mt-1">
-                        ✓ {surveyForm.electricityBill.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Three Months Electricity Bill Copy
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("electricityBill", e.target.files[0])}
+                        className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {surveyForm.electricityBill && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ New file: {surveyForm.electricityBill.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-5">
+                      {selectedRecord?.col25 ? (
+                        <a
+                          href={selectedRecord.col25}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Electricity Bill"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Aadhar Card */}
@@ -1194,22 +1260,44 @@ function FMSDataPage() {
                   </div>
 
                   {/* Address Proof */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Address Proof
-                      <span className="text-gray-500 text-xs ml-1">(Aadhar/PAN image)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("addressProof", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {surveyForm.addressProof && (
-                      <p className="text-xs text-green-600 mt-1">
-                        ✓ {surveyForm.addressProof.name}
-                      </p>
-                    )}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Address Proof
+                        <span className="text-gray-500 text-xs ml-1">(Aadhar/PAN image)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("addressProof", e.target.files[0])}
+                        className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {surveyForm.addressProof && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ New file: {surveyForm.addressProof.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-5">
+                      {selectedRecord?.col28 ? (
+                        <a
+                          href={selectedRecord.col28}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Address Proof"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Surveyor Name */}

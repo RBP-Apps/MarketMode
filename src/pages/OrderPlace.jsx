@@ -886,15 +886,51 @@ function OrderReceivePage() {
                   </div>
 
                   {/* Order Copy */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Order Copy</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload("orderCopy", e.target.files[0])}
-                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {orderForm.orderCopy && <p className="text-xs text-green-600 mt-1">✓ {orderForm.orderCopy.name}</p>}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Order Copy</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("orderCopy", e.target.files[0])}
+                        className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {orderForm.orderCopy && <p className="text-xs text-green-600 mt-1">✓ New file: {orderForm.orderCopy.name}</p>}
+                      {/* Preview Quotation Copy link */}
+                      {selectedRecord?.quotationCopy && (
+                        <div className="mt-2">
+                          <a
+                            href={selectedRecord.quotationCopy}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Quotation Copy
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center pt-5">
+                      {selectedRecord?.orderCopy ? (
+                        <a
+                          href={selectedRecord.orderCopy}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+                          title="View Previous Order Copy"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </a>
+                      ) : (
+                        <div
+                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                          title="No previous file"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

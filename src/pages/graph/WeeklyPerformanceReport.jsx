@@ -25,13 +25,8 @@ const SHEET_NAME = "Inverter_id";
 
 // Cache utility functions
 const CACHE_KEYS = {
-  INVERTERS: 'wpr_inverters_cache',
-  PERFORMANCE_PREFIX: 'wpr_performance_',
   PS_KEYS: 'wpr_ps_keys_cache', // Cache PS Keys separately (they rarely change)
-  LAST_FETCH: 'wpr_last_fetch'
 };
-
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour cache validity
 
 const getCachedData = (key) => {
   try {
@@ -50,33 +45,7 @@ const setCachedData = (key, data, timestamp = Date.now()) => {
     localStorage.setItem(key, JSON.stringify({ data, timestamp }));
   } catch (e) {
     console.warn('Cache write error:', e);
-    // Clear old caches if storage is full
-    clearOldPerformanceCaches();
   }
-};
-
-const clearOldPerformanceCaches = () => {
-  try {
-    const keys = Object.keys(localStorage);
-    const performanceKeys = keys.filter(k => k.startsWith(CACHE_KEYS.PERFORMANCE_PREFIX));
-    // Sort by timestamp and keep only last 5
-    const cachesWithTime = performanceKeys.map(key => {
-      const cached = getCachedData(key);
-      return { key, timestamp: cached?.timestamp || 0 };
-    }).sort((a, b) => b.timestamp - a.timestamp);
-
-    // Remove old caches beyond the 5 most recent
-    cachesWithTime.slice(5).forEach(({ key }) => {
-      localStorage.removeItem(key);
-    });
-  } catch (e) {
-    console.warn('Cache cleanup error:', e);
-  }
-};
-
-const generatePerformanceCacheKey = (startDate, endDate, inverterIds) => {
-  const sortedIds = [...inverterIds].sort().join(',');
-  return `${CACHE_KEYS.PERFORMANCE_PREFIX}${startDate}_${endDate}_${sortedIds.substring(0, 50)}`;
 };
 
 const WeeklyPerformanceReport = () => {
@@ -92,7 +61,6 @@ const WeeklyPerformanceReport = () => {
   const [selectedInverters, setSelectedInverters] = useState([]);
   const [performanceData, setPerformanceData] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [isFromCache, setIsFromCache] = useState(false); // Track if showing cached data
   const [isRefreshing, setIsRefreshing] = useState(false); // Track background refresh
   const [fetchProgress, setFetchProgress] = useState({ current: 0, total: 0 }); // Progress tracking
 
@@ -111,16 +79,6 @@ const WeeklyPerformanceReport = () => {
   const [expandedView, setExpandedView] = useState('chart');
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Load cached inverters on mount
-  useEffect(() => {
-    const cachedInverters = getCachedData(CACHE_KEYS.INVERTERS);
-    if (cachedInverters?.data && cachedInverters.data.length > 0) {
-      setInverters(cachedInverters.data);
-      setSelectedInverters(cachedInverters.data.map(inv => inv.inverterId));
-      setIsFromCache(true);
-    }
-  }, []);
 
   // Initialize default date range (last 7 days)
   useEffect(() => {
@@ -142,30 +100,45 @@ const WeeklyPerformanceReport = () => {
     });
   }, []);
 
-  // Fetch inverter list from Google Sheets with caching
-  const fetchInverterList = useCallback(async (forceRefresh = false) => {
+  // Track last fetched parameters to avoid redundant calls
+  const lastFetchedParamsRef = React.useRef({
+    dateRange: { startDate: '', endDate: '' },
+    selectedInverters: []
+  });
+
+  // Track sorting preferences with refs to avoid re-creating fetch function
+  const sortByRef = React.useRef(sortBy);
+  const sortOrderRef = React.useRef(sortOrder);
+
+  useEffect(() => {
+    sortByRef.current = sortBy;
+    sortOrderRef.current = sortOrder;
+  }, [sortBy, sortOrder]);
+
+  // Format date for API
+  const formatDateForAPI = useCallback((date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+  }, []);
+
+  // Calculate number of days in date range
+  const calculateDaysInRange = useCallback(() => {
+    if (!dateRange.startDate || !dateRange.endDate) return 7;
+
+    const start = new Date(dateRange.startDate);
+    const end = new Date(dateRange.endDate);
+    const diffTime = Math.abs(end - start);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end days
+  }, [dateRange]);
+
+  // Fetch inverter list from Google Sheets
+  const fetchInverterList = useCallback(async () => {
     if (loading.inverters) return;
 
-    // Check cache first if not forcing refresh
-    if (!forceRefresh) {
-      const cachedInverters = getCachedData(CACHE_KEYS.INVERTERS);
-      if (cachedInverters?.data && cachedInverters.data.length > 0) {
-        // Show cached data immediately
-        setInverters(cachedInverters.data);
-        setSelectedInverters(cachedInverters.data.map(inv => inv.inverterId));
-        setIsFromCache(true);
-
-        // Check if cache is still valid (less than 1 hour old)
-        const cacheAge = Date.now() - (cachedInverters.timestamp || 0);
-        if (cacheAge < CACHE_DURATION) {
-          return; // Cache is fresh, no need to refetch
-        }
-        // Cache is stale, continue to fetch fresh data in background
-      }
-    }
-
     setLoading(prev => ({ ...prev, inverters: true }));
-    if (!isFromCache) setError('');
+    setError('');
 
     try {
       const url = `${GOOGLE_SCRIPT_URL}?sheet=${encodeURIComponent(SHEET_NAME)}&action=fetch`;
@@ -226,44 +199,28 @@ const WeeklyPerformanceReport = () => {
         }
       });
 
-      // Cache the fresh data
-      setCachedData(CACHE_KEYS.INVERTERS, inverterList);
-
       setInverters(inverterList);
       setSelectedInverters(inverterList.map(inv => inv.inverterId));
-      setIsFromCache(false);
       setError('');
     } catch (err) {
       console.error('Error fetching inverter list:', err);
-      // Only show error if we don't have cached data
       if (inverters.length === 0) {
         setError(`Failed to load inverter list: ${err.message}`);
       }
     } finally {
       setLoading(prev => ({ ...prev, inverters: false }));
     }
-  }, [loading.inverters, isFromCache, inverters.length]);
+  }, [loading.inverters, inverters.length]);
 
-  // Format date for API
-  const formatDateForAPI = useCallback((date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
-  }, []);
+  // Handle inverter list fetching on mount
+  useEffect(() => {
+    if (token && inverters.length === 0 && !loading.inverters) {
+      fetchInverterList();
+    }
+  }, [token, inverters.length, loading.inverters, fetchInverterList]);
 
-  // Calculate number of days in date range
-  const calculateDaysInRange = useCallback(() => {
-    if (!dateRange.startDate || !dateRange.endDate) return 7;
-
-    const start = new Date(dateRange.startDate);
-    const end = new Date(dateRange.endDate);
-    const diffTime = Math.abs(end - start);
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end days
-  }, [dateRange]);
-
-  // Fetch performance data for all selected inverters with caching
-  const fetchPerformanceData = useCallback(async (forceRefresh = false) => {
+  // Fetch performance data for all selected inverters
+  const fetchPerformanceData = useCallback(async (isManualRefresh = false) => {
     if (!token) {
       setError('Please login first');
       return;
@@ -271,6 +228,7 @@ const WeeklyPerformanceReport = () => {
 
     if (selectedInverters.length === 0) {
       setError('No inverters selected');
+      setPerformanceData([]); // Clear graph if no inverters
       return;
     }
 
@@ -279,37 +237,26 @@ const WeeklyPerformanceReport = () => {
       return;
     }
 
-    // Generate cache key for this specific query
-    const cacheKey = generatePerformanceCacheKey(
-      dateRange.startDate,
-      dateRange.endDate,
-      selectedInverters
-    );
+    // Optimization: Skip if parameters haven't changed and it's not a manual refresh
+    const currentParams = {
+      dateRange: { startDate: dateRange.startDate, endDate: dateRange.endDate },
+      selectedInverters: [...selectedInverters].sort()
+    };
 
-    // Check cache first if not forcing refresh
-    if (!forceRefresh) {
-      const cachedPerformance = getCachedData(cacheKey);
-      if (cachedPerformance?.data && cachedPerformance.data.length > 0) {
-        // Show cached data immediately
-        setPerformanceData(cachedPerformance.data);
-        setLastUpdated(new Date(cachedPerformance.timestamp));
-        setIsFromCache(true);
+    const paramsChanged =
+      currentParams.dateRange.startDate !== lastFetchedParamsRef.current.dateRange.startDate ||
+      currentParams.dateRange.endDate !== lastFetchedParamsRef.current.dateRange.endDate ||
+      JSON.stringify(currentParams.selectedInverters) !== JSON.stringify(lastFetchedParamsRef.current.selectedInverters);
 
-        // Check if cache is still valid (less than 1 hour old)
-        const cacheAge = Date.now() - (cachedPerformance.timestamp || 0);
-        if (cacheAge < CACHE_DURATION) {
-          return; // Cache is fresh, no need to refetch
-        }
-        // Cache is stale, continue to fetch fresh data in background
-        setIsRefreshing(true);
-      }
+    if (!paramsChanged && !isManualRefresh && performanceData.length > 0) {
+      return; // Already have data for these params
     }
 
-    // Only show loading if we don't have cached data
-    if (!isFromCache) {
-      setLoading(prev => ({ ...prev, data: true, allData: true }));
-      setError('');
-    }
+    if (loading.data) return;
+
+    setLoading(prev => ({ ...prev, data: true, allData: true }));
+    setError('');
+    setIsRefreshing(true);
 
     // Initialize progress
     setFetchProgress({ current: 0, total: selectedInverters.length });
@@ -318,19 +265,16 @@ const WeeklyPerformanceReport = () => {
       const start = new Date(dateRange.startDate);
       const end = new Date(dateRange.endDate);
       const apiStart = new Date(start);
-      apiStart.setDate(apiStart.getDate() - 1); // Get previous day for cumulative calculation
+      apiStart.setDate(apiStart.getDate() - 1);
 
       const apiStartDate = formatDateForAPI(apiStart);
       const apiEndDate = formatDateForAPI(end);
       const daysInRange = calculateDaysInRange();
 
-      // Load cached PS Keys
       const cachedPsKeys = getCachedData(CACHE_KEYS.PS_KEYS)?.data || {};
       const psKeyCache = { ...cachedPsKeys };
 
       const results = [];
-
-      // OPTIMIZED: Increased batch size from 3 to 10 for faster processing
       const batchSize = 10;
 
       for (let i = 0; i < selectedInverters.length; i += batchSize) {
@@ -338,13 +282,11 @@ const WeeklyPerformanceReport = () => {
 
         const batchPromises = batch.map(async (inverterId) => {
           try {
-            // Find inverter details
             const inverter = inverters.find(inv => inv.inverterId === inverterId);
             if (!inverter) return null;
 
             let psKey = psKeyCache[inverterId];
 
-            // 1. Get PS Key (use cache if available)
             if (!psKey) {
               const deviceRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getPVInverterRealTimeData', {
                 method: 'POST',
@@ -367,28 +309,14 @@ const WeeklyPerformanceReport = () => {
               if (deviceData.result_code === "1" && deviceData.result_data?.device_point_list) {
                 const point = deviceData.result_data.device_point_list.find(p => p?.device_point?.ps_key);
                 psKey = point?.device_point?.ps_key;
-
-                // Cache the PS Key for future use
-                if (psKey) {
-                  psKeyCache[inverterId] = psKey;
-                }
+                if (psKey) psKeyCache[inverterId] = psKey;
               }
             }
 
             if (!psKey) {
-              console.warn(`No PS Key found for inverter: ${inverterId}`);
-              return {
-                ...inverter,
-                psKey: null,
-                totalKwh: 0,
-                avgDailyKwh: 0,
-                specYield: 0,
-                dailyData: [],
-                error: 'No PS Key found'
-              };
+              return { ...inverter, psKey: null, totalKwh: 0, avgDailyKwh: 0, specYield: 0, dailyData: [], error: 'No PS Key' };
             }
 
-            // 2. Get Energy Data for the date range
             const energyRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getDevicePointsDayMonthYearDataList', {
               method: 'POST',
               headers: {
@@ -399,13 +327,13 @@ const WeeklyPerformanceReport = () => {
               },
               body: JSON.stringify({
                 appkey: SOLAR_APPKEY,
-                data_point: 'p2', // Total Energy
-                data_type: '2', // Daily
+                data_point: 'p2',
+                data_type: '2',
                 end_time: apiEndDate,
                 lang: '_en_US',
                 order: '0',
                 ps_key_list: [psKey],
-                query_type: '1', // Range query
+                query_type: '1',
                 start_time: apiStartDate,
                 sys_code: 207
               })
@@ -422,44 +350,28 @@ const WeeklyPerformanceReport = () => {
                 const dataArray = energyData.result_data[psKeyData][dataPoint];
 
                 if (dataArray && Array.isArray(dataArray)) {
-                  // Sort by timestamp
-                  const sortedData = [...dataArray].sort((a, b) =>
-                    a.time_stamp.localeCompare(b.time_stamp)
-                  );
-
-                  // Calculate cumulative to period production
+                  const sortedData = [...dataArray].sort((a, b) => a.time_stamp.localeCompare(b.time_stamp));
                   let previousValue = 0;
                   sortedData.forEach((item, idx) => {
                     const valueKey = Object.keys(item).find(key => key !== 'time_stamp');
                     if (valueKey) {
-                      const currentValue = parseFloat(item[valueKey]) || 0;
-                      const currentKwh = currentValue / 1000; // Convert Wh to kWh
-
-                      if (idx === 0) {
-                        // First day in API range (previous day)
-                        previousValue = currentKwh;
-                      } else {
-                        // Daily production = current cumulative - previous cumulative
+                      const currentKwh = (parseFloat(item[valueKey]) || 0) / 1000;
+                      if (idx === 0) previousValue = currentKwh;
+                      else {
                         const dailyKwh = Math.max(0, currentKwh - previousValue);
-                        dailyData.push({
-                          date: item.time_stamp,
-                          dailyKwh: dailyKwh,
-                          cumulativeKwh: currentKwh
-                        });
+                        dailyData.push({ date: item.time_stamp, dailyKwh, cumulativeKwh: currentKwh });
                         previousValue = currentKwh;
                       }
                     }
                   });
 
-                  // Filter to only include dates in the selected range
                   const filteredDailyData = dailyData.filter(item => {
-                    const itemDate = item.date.slice(0, 8); // YYYYMMDD
+                    const itemDate = item.date.slice(0, 8);
                     const startStr = dateRange.startDate.replace(/-/g, '');
                     const endStr = dateRange.endDate.replace(/-/g, '');
                     return itemDate >= startStr && itemDate <= endStr;
                   });
 
-                  // Calculate totals
                   totalKwh = filteredDailyData.reduce((sum, day) => sum + day.dailyKwh, 0);
                 }
               }
@@ -478,95 +390,64 @@ const WeeklyPerformanceReport = () => {
               error: null,
               daysInRange
             };
-
           } catch (err) {
             console.error(`Error processing inverter ${inverterId}:`, err);
-            return {
-              ...inverters.find(inv => inv.inverterId === inverterId),
-              psKey: null,
-              totalKwh: 0,
-              avgDailyKwh: 0,
-              specYield: 0,
-              dailyData: [],
-              error: err.message
-            };
+            return { ...inverters.find(inv => inv.inverterId === inverterId), error: err.message, totalKwh: 0, avgDailyKwh: 0, specYield: 0 };
           }
         });
 
-        const batchResults = await Promise.all(batchPromises);
-        const validResults = batchResults.filter(r => r !== null);
-        results.push(...validResults);
+        const batchResults = (await Promise.all(batchPromises)).filter(Boolean);
+        results.push(...batchResults);
 
-        // Update progress
-        const currentProgress = Math.min(i + batchSize, selectedInverters.length);
-        setFetchProgress({ current: currentProgress, total: selectedInverters.length });
+        const currentProg = Math.min(i + batchSize, selectedInverters.length);
+        setFetchProgress({ current: currentProg, total: selectedInverters.length });
 
-        // PROGRESSIVE LOADING: Update state after each batch so user sees results immediately
-        if (validResults.length > 0) {
-          const sortedPartial = [...results].sort((a, b) => {
-            const aValue = a[sortBy] || 0;
-            const bValue = b[sortBy] || 0;
-            return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
-          });
-          setPerformanceData(sortedPartial);
-        }
+        // Progressive update without triggering sort-based re-fetch
+        setPerformanceData([...results]);
 
-        // OPTIMIZED: Reduced delay from 1000ms to 300ms
         if (i + batchSize < selectedInverters.length) {
           await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
 
-      // Save PS Key cache
       setCachedData(CACHE_KEYS.PS_KEYS, psKeyCache);
-
-      // Sort final results
-      const sortedResults = [...results].sort((a, b) => {
-        const aValue = a[sortBy] || 0;
-        const bValue = b[sortBy] || 0;
-        return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
-      });
-
-      // Cache the fresh data
-      setCachedData(cacheKey, sortedResults);
-
-      setPerformanceData(sortedResults);
+      lastFetchedParamsRef.current = currentParams; // Update fetched params tracker
       setLastUpdated(new Date());
-      setIsFromCache(false);
-      setIsRefreshing(false);
-      setFetchProgress({ current: 0, total: 0 });
       setError('');
-
     } catch (err) {
-      console.error('Error fetching performance data:', err);
-      // Only show error if we don't have cached data
-      if (performanceData.length === 0) {
-        setError(`Failed to fetch performance data: ${err.message}`);
-      }
-      setIsRefreshing(false);
-      setFetchProgress({ current: 0, total: 0 });
+      console.error('Fetch error:', err);
+      setError(`Failed to fetch: ${err.message}`);
     } finally {
       setLoading(prev => ({ ...prev, data: false, allData: false }));
+      setIsRefreshing(false);
+      setFetchProgress({ current: 0, total: 0 });
     }
-  }, [token, selectedInverters, inverters, dateRange, formatDateForAPI, calculateDaysInRange, sortBy, sortOrder, isFromCache, performanceData.length]);
+  }, [token, selectedInverters, inverters, dateRange, formatDateForAPI, calculateDaysInRange]); // sortBy/sortOrder REMOVED from dependencies
 
-  // Initialize data
+  // UNIFIED AUTO-REFRESH EFFECT
   useEffect(() => {
-    if (token && inverters.length === 0) {
-      fetchInverterList();
-    }
-  }, [token, inverters.length, fetchInverterList]);
+    // Requirements for auto-fetch
+    if (!token || inverters.length === 0 || loading.inverters || loading.data) return;
+    if (!dateRange.startDate || !dateRange.endDate) return;
 
-  // Auto-fetch when date range changes and inverters are loaded
-  useEffect(() => {
-    if (token && inverters.length > 0 && dateRange.startDate && dateRange.endDate && !loading.inverters) {
+    // Trigger if params changed or if graph is empty
+    const currentParams = {
+      dateRange: { startDate: dateRange.startDate, endDate: dateRange.endDate },
+      selectedInverters: [...selectedInverters].sort()
+    };
+
+    const paramsChanged =
+      currentParams.dateRange.startDate !== lastFetchedParamsRef.current.dateRange.startDate ||
+      currentParams.dateRange.endDate !== lastFetchedParamsRef.current.dateRange.endDate ||
+      JSON.stringify(currentParams.selectedInverters) !== JSON.stringify(lastFetchedParamsRef.current.selectedInverters);
+
+    if (paramsChanged || performanceData.length === 0) {
       const timeoutId = setTimeout(() => {
         fetchPerformanceData();
-      }, 500);
-
+      }, 300); // Small debounce for smoother transitions
       return () => clearTimeout(timeoutId);
     }
-  }, [token, inverters.length, dateRange.startDate, dateRange.endDate, fetchPerformanceData, loading.inverters]);
+  }, [token, inverters.length, selectedInverters, dateRange, performanceData.length, loading.inverters, loading.data, fetchPerformanceData]);
 
   // Handle inverter selection
   const toggleInverterSelection = useCallback((inverterId) => {
@@ -599,7 +480,6 @@ const WeeklyPerformanceReport = () => {
   const filteredData = useMemo(() => {
     let data = [...performanceData];
 
-    // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       data = data.filter(item =>
@@ -609,7 +489,6 @@ const WeeklyPerformanceReport = () => {
       );
     }
 
-    // Apply sorting
     return data.sort((a, b) => {
       const aValue = a[sortBy] || 0;
       const bValue = b[sortBy] || 0;
@@ -617,7 +496,7 @@ const WeeklyPerformanceReport = () => {
     });
   }, [performanceData, searchTerm, sortBy, sortOrder]);
 
-  // Calculate summary statistics
+  // Summary statistics
   const summaryStats = useMemo(() => {
     if (filteredData.length === 0) return null;
 
@@ -626,7 +505,6 @@ const WeeklyPerformanceReport = () => {
     const avgSpecYield = filteredData.reduce((sum, item) => sum + item.specYield, 0) / filteredData.length;
     const totalCapacity = filteredData.reduce((sum, item) => sum + item.capacity, 0);
 
-    // Find best and worst performers
     const sortedByYield = [...filteredData].sort((a, b) => b.specYield - a.specYield);
     const bestPerformer = sortedByYield[0];
     const worstPerformer = sortedByYield[sortedByYield.length - 1];
@@ -678,7 +556,7 @@ const WeeklyPerformanceReport = () => {
     });
   }, []);
 
-  // Export data to CSV
+  // Export to CSV
   const exportToCSV = useCallback(() => {
     if (filteredData.length === 0) return;
 
@@ -718,7 +596,7 @@ const WeeklyPerformanceReport = () => {
     window.URL.revokeObjectURL(url);
   }, [filteredData, dateRange, calculateDaysInRange]);
 
-  // Chart data for specific yield ranking
+  // Chart data
   const chartData = useMemo(() => {
     return filteredData.map(item => ({
       name: item.beneficiaryName,
@@ -776,20 +654,20 @@ const WeeklyPerformanceReport = () => {
               {chartType === 'bar' ? (
                 <BarChart
                   data={chartData}
-                  layout="vertical"
-                  margin={{ top: 20, right: 30, left: 150, bottom: 20 }}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 120 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
-                    type="number"
-                    label={{ value: 'Specific Yield (kWh/kW)', position: 'insideBottom', offset: -10 }}
-                    tick={{ fontSize: 12 }}
+                    dataKey="name"
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    tick={{ fontSize: 10 }}
+                    interval={0}
                   />
                   <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fontSize: 11 }}
-                    width={140}
+                    type="number"
+                    tick={{ fontSize: 12 }}
                   />
                   <Tooltip
                     content={({ active, payload }) => {
@@ -816,11 +694,11 @@ const WeeklyPerformanceReport = () => {
                       return null;
                     }}
                   />
-                  <ReferenceLine x={4} stroke="#10B981" strokeDasharray="3 3" label="Target" />
+                  <ReferenceLine y={4} stroke="#10B981" strokeDasharray="3 3" label="Target" />
                   <Bar
                     dataKey="specYield"
                     name="Specific Yield"
-                    radius={[0, 4, 4, 0]}
+                    radius={[4, 4, 0, 0]}
                   >
                     {chartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -841,7 +719,6 @@ const WeeklyPerformanceReport = () => {
                     tick={{ fontSize: 10 }}
                   />
                   <YAxis
-                    label={{ value: 'Specific Yield (kWh/kW)', angle: -90, position: 'insideLeft' }}
                     tick={{ fontSize: 12 }}
                   />
                   <Tooltip content={({ active, payload }) => {
@@ -880,7 +757,6 @@ const WeeklyPerformanceReport = () => {
                     tick={{ fontSize: 10 }}
                   />
                   <YAxis
-                    label={{ value: 'Specific Yield (kWh/kW)', angle: -90, position: 'insideLeft' }}
                     tick={{ fontSize: 12 }}
                   />
                   <Tooltip content={({ active, payload }) => {
@@ -929,22 +805,14 @@ const WeeklyPerformanceReport = () => {
                   <p className="text-gray-600">
                     Compare performance across all inverters with customizable date range
                   </p>
-                  {/* Cache Status Indicator */}
-                  {(isFromCache || isRefreshing || lastUpdated || fetchProgress.total > 0) && (
+                  {(isRefreshing || lastUpdated || fetchProgress.total > 0) && (
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {isFromCache && !isRefreshing && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700">
-                          <Database className="w-3 h-3" />
-                          Showing cached data
-                        </span>
-                      )}
                       {isRefreshing && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
                           <RefreshCw className="w-3 h-3 animate-spin" />
-                          Updating in background...
+                          Refreshing...
                         </span>
                       )}
-                      {/* Progress Indicator */}
                       {fetchProgress.total > 0 && (
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
@@ -983,20 +851,19 @@ const WeeklyPerformanceReport = () => {
                   </button>
 
                   <button
-                    onClick={() => fetchPerformanceData(true)}
+                    onClick={() => fetchPerformanceData()}
                     disabled={loading.data || !token}
                     className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${loading.data || !token
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
                       }`}
                   >
-                    <RefreshCw className={`w-4 h-4 ${loading.data || isRefreshing ? 'animate-spin' : ''}`} />
-                    {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+                    <RefreshCw className={`w-4 h-4 ${loading.data ? 'animate-spin' : ''}`} />
+                    {loading.data ? 'Refreshing...' : 'Refresh Data'}
                   </button>
                 </div>
               </div>
 
-              {/* Summary Stats */}
               {summaryStats && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
@@ -1203,7 +1070,6 @@ const WeeklyPerformanceReport = () => {
                 </div>
               </div>
 
-              {/* Filters Panel */}
               {showFilters && (
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
                   <div className="flex items-center justify-between mb-4">
@@ -1246,14 +1112,12 @@ const WeeklyPerformanceReport = () => {
                 </div>
               )}
 
-              {/* Chart View */}
               {expandedView === 'chart' && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
                   {renderChart()}
                 </div>
               )}
 
-              {/* Table View */}
               {expandedView === 'table' && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="overflow-x-auto">
@@ -1261,7 +1125,6 @@ const WeeklyPerformanceReport = () => {
                       <thead className="bg-gray-50">
                         <tr>
                           <th
-                            scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort('beneficiaryName')}
                           >
@@ -1273,66 +1136,36 @@ const WeeklyPerformanceReport = () => {
                             </div>
                           </th>
                           <th
-                            scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort('inverterId')}
                           >
-                            <div className="flex items-center gap-1">
-                              Inverter ID
-                              {sortBy === 'inverterId' && (
-                                sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
+                            Inverter ID
                           </th>
                           <th
-                            scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort('capacity')}
                           >
-                            <div className="flex items-center gap-1">
-                              Capacity (kW)
-                              {sortBy === 'capacity' && (
-                                sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
+                            Capacity
                           </th>
                           <th
-                            scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort('totalKwh')}
                           >
-                            <div className="flex items-center gap-1">
-                              Total (kWh)
-                              {sortBy === 'totalKwh' && (
-                                sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
+                            Total Energy
                           </th>
                           <th
-                            scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort('avgDailyKwh')}
                           >
-                            <div className="flex items-center gap-1">
-                              Avg/Day (kWh)
-                              {sortBy === 'avgDailyKwh' && (
-                                sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
+                            Avg Daily
                           </th>
                           <th
-                            scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort('specYield')}
                           >
-                            <div className="flex items-center gap-1">
-                              Spec. Yield (kWh/kW)
-                              {sortBy === 'specYield' && (
-                                sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
+                            Spec. Yield
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                           </th>
                         </tr>
@@ -1340,54 +1173,33 @@ const WeeklyPerformanceReport = () => {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {filteredData.map((item, index) => (
                           <tr key={item.id} className="hover:bg-gray-50 transition">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900">{item.beneficiaryName}</div>
-                                  <div className="text-sm text-gray-500">{item.serialNo}</div>
-                                </div>
-                              </div>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.beneficiaryName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                              {item.inverterId}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.capacity} kW
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                              {item.totalKwh.toFixed(2)} kWh
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
+                              {item.avgDailyKwh.toFixed(2)} kWh
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900 font-mono">{item.inverterId}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                {item.capacity} kW
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-semibold text-gray-900">{item.totalKwh.toFixed(2)}</div>
-                              <div className="text-xs text-gray-500">{item.daysInRange || calculateDaysInRange()} days</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="text-sm font-semibold text-green-600">{item.avgDailyKwh.toFixed(2)}</div>
-                                {index === 0 && summaryStats?.bestPerformer?.inverterId === item.inverterId && (
-                                  <ArrowUpRight className="w-4 h-4 text-green-500 ml-1" />
-                                )}
-                                {index === filteredData.length - 1 && summaryStats?.worstPerformer?.inverterId === item.inverterId && (
-                                  <ArrowDownRight className="w-4 h-4 text-red-500 ml-1" />
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className={`text-sm font-bold ${item.specYield >= 4 ? 'text-green-600' : item.specYield >= 3 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              <span className={`text-sm font-bold ${item.specYield >= 4 ? 'text-green-600' : item.specYield >= 3 ? 'text-yellow-600' : 'text-red-600'}`}>
                                 {item.specYield.toFixed(3)}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {item.specYield >= 4 ? 'Excellent' : item.specYield >= 3 ? 'Good' : 'Needs Improvement'}
-                              </div>
+                              </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {item.error ? (
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  <AlertCircle className="w-3 h-3 mr-1" />
                                   Error
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  <CheckCircle className="w-3 h-3 mr-1" />
                                   Active
                                 </span>
                               )}
@@ -1397,60 +1209,23 @@ const WeeklyPerformanceReport = () => {
                       </tbody>
                     </table>
                   </div>
-
-                  {/* Table Footer */}
-                  <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 flex justify-between items-center">
-                    <div className="text-sm text-gray-500">
-                      Showing {filteredData.length} of {inverters.length} inverters
-                      {lastUpdated && (
-                        <span className="ml-4">
-                          Last updated: {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={exportToCSV}
-                        disabled={filteredData.length === 0}
-                        className={`px-3 py-1 text-sm rounded ${filteredData.length === 0
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                      >
-                        Export Table
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* Error Display */}
               {error && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                    <div>
-                      <h4 className="font-medium text-red-800 text-sm">Error</h4>
-                      <p className="text-sm text-red-700 mt-1">{error}</p>
-                      <button
-                        onClick={() => setError('')}
-                        className="text-xs text-red-600 hover:text-red-800 mt-2"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  <p className="text-sm text-red-700">{error}</p>
                 </div>
               )}
 
-              {/* Loading Indicator */}
-              {(loading.data || loading.allData) && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                  <div className="bg-white p-8 rounded-xl shadow-lg text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-700 font-medium">Loading performance data...</p>
+              {loading.allData && (
+                <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+                  <div className="bg-white p-6 rounded-xl shadow-xl text-center">
+                    <RefreshCw className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-4" />
+                    <p className="font-medium text-gray-900">Fetching performance data...</p>
                     <p className="text-sm text-gray-500 mt-2">
-                      Processing {selectedInverters.length} inverters
+                      Please wait while we process {selectedInverters.length} inverters.
                     </p>
                   </div>
                 </div>
