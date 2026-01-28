@@ -948,10 +948,10 @@ export default function BeneficiaryForm() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-purple-50">
                           <tr>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Actions</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Enquiry Number</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Beneficiary Name</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Vender Name</th>
-
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Address</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Village/Block</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">District</th>
@@ -968,12 +968,20 @@ export default function BeneficiaryForm() {
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">System Type</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Need Type</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Project Mode</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-purple-700 uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {historyData.map((row, index) => (
                             <tr key={`${row.enquiryNumber}-${index}`} className="hover:bg-purple-50">
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                                <button
+                                  onClick={() => startEdit(row)}
+                                  className="text-purple-600 hover:text-purple-700"
+                                  title="Edit"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </button>
+                              </td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs font-medium text-purple-600">{row.enquiryNumber}</td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.beneficiaryName}</td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.vendorName}</td>
@@ -999,15 +1007,6 @@ export default function BeneficiaryForm() {
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.systemType}</td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.needType}</td>
                               <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{row.projectMode}</td>
-                              <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                                <button
-                                  onClick={() => startEdit(row)}
-                                  className="text-purple-600 hover:text-purple-700"
-                                  title="Edit"
-                                >
-                                  <Edit2 className="h-4 w-4" />
-                                </button>
-                              </td>
                             </tr>
                           ))}
                         </tbody>
