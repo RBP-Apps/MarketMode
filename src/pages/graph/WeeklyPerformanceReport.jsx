@@ -13,13 +13,15 @@ import {
   ChevronDown, ChevronUp, Maximize2, Minimize2,
   Layers, Database, Calculator, Info, Users, Grid3x3,
   Clock, CalendarDays, Search, X, DownloadCloud,
-  ArrowUpRight, ArrowDownRight, Target
+  ArrowUpRight, ArrowDownRight, Target, LogIn, Wifi, WifiOff
 } from 'lucide-react';
 
 // Environment variables
 const SOLAR_APPKEY = import.meta.env.VITE_SOLAR_APP_KEY;
 const SOLAR_SECRET_KEY = import.meta.env.VITE_SOLAR_SECRET_KEY;
 const SOLAR_SYS_CODE = import.meta.env.VITE_SOLAR_SYS_CODE || '207';
+const USER_ACCOUNT = import.meta.env.VITE_USER_ACCOUNT;
+const USER_PASSWORD = import.meta.env.VITE_USER_PASSWORD;
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec";
 const SHEET_NAME = "Inverter_id";
 
@@ -49,7 +51,17 @@ const setCachedData = (key, data, timestamp = Date.now()) => {
 };
 
 const WeeklyPerformanceReport = () => {
-  const { token } = useDeviceContext();
+  const { token, setToken } = useDeviceContext();
+
+  // Login state
+  const [localToken, setLocalToken] = useState(token || '');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [loginSuccess, setLoginSuccess] = useState(false);
+
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+
   // State variables
   const [loading, setLoading] = useState({
     inverters: false,
@@ -114,6 +126,123 @@ const WeeklyPerformanceReport = () => {
     sortByRef.current = sortBy;
     sortOrderRef.current = sortOrder;
   }, [sortBy, sortOrder]);
+
+  // Sync token from context
+  useEffect(() => {
+    if (token) {
+      setLocalToken(token);
+      setLoginSuccess(true);
+    }
+  }, [token]);
+
+  // Toast notification helper
+  const showToast = useCallback((message, type = 'info', duration = 5000) => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'info' });
+    }, duration);
+  }, []);
+
+  // Auto-login function
+  const handleAutoLogin = useCallback(async (retryCount = 0) => {
+    if (loginLoading) return;
+
+    setLoginLoading(true);
+    setLoginError('');
+
+    try {
+      if (!SOLAR_APPKEY || !SOLAR_SECRET_KEY || !USER_ACCOUNT || !USER_PASSWORD) {
+        throw new Error('Missing API credentials. Please check environment configuration.');
+      }
+
+      const requestBody = {
+        appkey: SOLAR_APPKEY,
+        user_account: USER_ACCOUNT,
+        user_password: USER_PASSWORD
+      };
+
+      const response = await fetch('https://gateway.isolarcloud.com.hk/openapi/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-key': SOLAR_SECRET_KEY,
+          'sys_code': SOLAR_SYS_CODE
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseText = await response.text();
+      let result;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Invalid server response. Please try again.`);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Server error (${response.status}): ${result.result_msg || 'Login failed'}`);
+      }
+
+      if (result.result_code === "1") {
+        const newToken = result.result_data?.token || '';
+        setLocalToken(newToken);
+        setToken(newToken);
+        setLoginSuccess(true);
+        setLoginError('');
+
+        localStorage.setItem('solarToken', newToken);
+        localStorage.setItem('solarTokenTimestamp', Date.now().toString());
+
+        showToast('✓ Login successful! Fetching data...', 'success');
+        console.log('Auto-login successful for WeeklyPerformanceReport');
+      } else {
+        // Retry on busy server
+        if (result.result_msg?.includes('busy') && retryCount < 2) {
+          showToast('Server busy, retrying...', 'info');
+          setTimeout(() => handleAutoLogin(retryCount + 1), 2000);
+          return;
+        }
+        throw new Error(result.result_msg || 'Login failed');
+      }
+    } catch (err) {
+      console.error('Auto-login error:', err);
+
+      // Retry on network errors
+      if (retryCount < 2) {
+        showToast(`Login attempt ${retryCount + 1} failed. Retrying...`, 'info');
+        setTimeout(() => handleAutoLogin(retryCount + 1), 2000);
+        return;
+      }
+
+      setLoginError(err.message || 'Unable to connect to server');
+      setLoginSuccess(false);
+      showToast(`⚠ Login failed: ${err.message}`, 'error', 8000);
+    } finally {
+      setLoginLoading(false);
+    }
+  }, [loginLoading, setToken, showToast]);
+
+  // Auto-login on mount if no token
+  useEffect(() => {
+    const savedToken = localStorage.getItem('solarToken');
+    const tokenTimestamp = localStorage.getItem('solarTokenTimestamp');
+
+    if (savedToken && tokenTimestamp) {
+      const tokenAge = Date.now() - parseInt(tokenTimestamp);
+      if (tokenAge < 60 * 60 * 1000) { // Token valid for 1 hour
+        setLocalToken(savedToken);
+        setToken(savedToken);
+        setLoginSuccess(true);
+        return;
+      }
+    }
+
+    // No valid token, trigger auto-login
+    if (!localToken && !loginLoading) {
+      handleAutoLogin();
+    }
+  }, []); // Only run once on mount
 
   // Format date for API
   const formatDateForAPI = useCallback((date) => {
@@ -214,15 +343,18 @@ const WeeklyPerformanceReport = () => {
 
   // Handle inverter list fetching on mount
   useEffect(() => {
-    if (token && inverters.length === 0 && !loading.inverters) {
+    const activeToken = localToken || token;
+    if (activeToken && inverters.length === 0 && !loading.inverters) {
       fetchInverterList();
     }
-  }, [token, inverters.length, loading.inverters, fetchInverterList]);
+  }, [localToken, token, inverters.length, loading.inverters, fetchInverterList]);
 
   // Fetch performance data for all selected inverters
   const fetchPerformanceData = useCallback(async (isManualRefresh = false) => {
-    if (!token) {
-      setError('Please login first');
+    const activeToken = localToken || token;
+    if (!activeToken) {
+      setError('Not logged in. Please wait for auto-login or click "Retry Login" below.');
+      showToast('⚠ Login required to fetch performance data', 'error');
       return;
     }
 
@@ -294,7 +426,7 @@ const WeeklyPerformanceReport = () => {
                   'Content-Type': 'application/json',
                   'x-access-key': SOLAR_SECRET_KEY,
                   'sys_code': SOLAR_SYS_CODE,
-                  'token': token
+                  'token': activeToken
                 },
                 body: JSON.stringify({
                   appkey: SOLAR_APPKEY,
@@ -323,7 +455,7 @@ const WeeklyPerformanceReport = () => {
                 'Content-Type': 'application/json',
                 'x-access-key': SOLAR_SECRET_KEY,
                 'sys_code': SOLAR_SYS_CODE,
-                'token': token
+                'token': activeToken
               },
               body: JSON.stringify({
                 appkey: SOLAR_APPKEY,
@@ -422,12 +554,13 @@ const WeeklyPerformanceReport = () => {
       setIsRefreshing(false);
       setFetchProgress({ current: 0, total: 0 });
     }
-  }, [token, selectedInverters, inverters, dateRange, formatDateForAPI, calculateDaysInRange]); // sortBy/sortOrder REMOVED from dependencies
+  }, [localToken, token, selectedInverters, inverters, dateRange, formatDateForAPI, calculateDaysInRange, showToast]); // sortBy/sortOrder REMOVED from dependencies
 
   // UNIFIED AUTO-REFRESH EFFECT
   useEffect(() => {
     // Requirements for auto-fetch
-    if (!token || inverters.length === 0 || loading.inverters || loading.data) return;
+    const activeToken = localToken || token;
+    if (!activeToken || inverters.length === 0 || loading.inverters || loading.data) return;
     if (!dateRange.startDate || !dateRange.endDate) return;
 
     // Trigger if params changed or if graph is empty
@@ -447,7 +580,7 @@ const WeeklyPerformanceReport = () => {
       }, 300); // Small debounce for smoother transitions
       return () => clearTimeout(timeoutId);
     }
-  }, [token, inverters.length, selectedInverters, dateRange, performanceData.length, loading.inverters, loading.data, fetchPerformanceData]);
+  }, [localToken, token, inverters.length, selectedInverters, dateRange, performanceData.length, loading.inverters, loading.data, fetchPerformanceData]);
 
   // Handle inverter selection
   const toggleInverterSelection = useCallback((inverterId) => {
@@ -791,7 +924,87 @@ const WeeklyPerformanceReport = () => {
 
   return (
     <AdminLayout>
-      <div className={`min-h-screen ${isFullScreen ? 'overflow-hidden' : 'bg-transparent'}`}>
+      {/* Toast Notification */}
+      {toast.show && (
+        <div
+          className={`fixed top-4 right-4 z-[100] max-w-md p-4 rounded-xl shadow-2xl border transform transition-all duration-500 ease-out animate-slide-in ${toast.type === 'success'
+            ? 'bg-green-50 border-green-200 text-green-800'
+            : toast.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-800'
+              : 'bg-blue-50 border-blue-200 text-blue-800'
+            }`}
+        >
+          <div className="flex items-center gap-3">
+            {toast.type === 'success' && <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />}
+            {toast.type === 'info' && <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />}
+            <p className="font-medium text-sm">{toast.message}</p>
+            <button
+              onClick={() => setToast({ show: false, message: '', type: 'info' })}
+              className="ml-auto p-1 hover:opacity-70 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Login Loading Overlay */}
+      {loginLoading && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[90] flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm mx-4 text-center">
+            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Connecting to Server</h3>
+            <p className="text-gray-600 text-sm">Please wait while we authenticate your session...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Login Error Banner */}
+      {(loginError || (!localToken && !token && !loginLoading)) && (
+        <div className="fixed top-0 left-0 right-0 z-[80] bg-gradient-to-r from-red-500 to-orange-500 text-white py-4 px-6 shadow-lg">
+          <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-full">
+                <WifiOff className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">Login Required</h3>
+                <p className="text-white/90 text-sm">
+                  {loginError || 'Unable to authenticate. This may be due to accessing from a different browser or device.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleAutoLogin(0)}
+              disabled={loginLoading}
+              className="px-6 py-2.5 bg-white text-red-600 rounded-lg font-semibold hover:bg-white/90 transition flex items-center gap-2 shadow-md disabled:opacity-50"
+            >
+              {loginLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4" />
+                  Retry Login
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Login Success Indicator */}
+      {loginSuccess && localToken && !loginLoading && (
+        <div className="fixed top-4 left-4 z-[70] flex items-center gap-2 px-3 py-1.5 bg-green-100 border border-green-200 rounded-full text-green-700 text-sm font-medium shadow-sm">
+          <Wifi className="w-4 h-4" />
+          <span>Connected</span>
+        </div>
+      )}
+
+      <div className={`min-h-screen ${isFullScreen ? 'overflow-hidden' : 'bg-transparent'} ${(loginError || (!localToken && !token && !loginLoading)) ? 'pt-20' : ''}`}>
         {!isFullScreen && (
           <div className="w-full">
             {/* Header */}
@@ -852,8 +1065,8 @@ const WeeklyPerformanceReport = () => {
 
                   <button
                     onClick={() => fetchPerformanceData()}
-                    disabled={loading.data || !token}
-                    className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${loading.data || !token
+                    disabled={loading.data || (!localToken && !token)}
+                    className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${loading.data || (!localToken && !token)
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
                       }`}

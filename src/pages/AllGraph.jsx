@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AdminLayout from "../components/layout/AdminLayout";
 import {
     Loader2, AlertTriangle, RefreshCw, Search, Zap,
     Calendar, CheckCircle, Database, Activity, Grid3x3,
-    Layers, Users, Download
+    Layers, Users, Download, LogIn, Wifi, WifiOff, X, Info
 } from "lucide-react";
 
 // Solar API Constants
@@ -38,6 +38,18 @@ function AllGraph() {
     const [solarError, setSolarError] = useState(null);
     const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
 
+    // 3. Login Status State
+    const [loginLoading, setLoginLoading] = useState(false);
+    const [loginError, setLoginError] = useState('');
+    const [loginSuccess, setLoginSuccess] = useState(!!token);
+
+    // 4. Toast Notification State
+    const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+
+    // 5. Refs for tracking auto-sync
+    const hasAutoSynced = useRef(false);
+    const isInitialMount = useRef(true);
+
     const [yearRange, setYearRange] = useState({
         startYear: new Date().getFullYear() - 9,
         endYear: new Date().getFullYear()
@@ -49,6 +61,14 @@ function AllGraph() {
         query_type: '3',
         order: '0'
     };
+
+    // Toast notification helper
+    const showToast = useCallback((message, type = 'info', duration = 5000) => {
+        setToast({ show: true, message, type });
+        setTimeout(() => {
+            setToast({ show: false, message: '', type: 'info' });
+        }, duration);
+    }, []);
 
     // 3. Fetch Inverter List from Google Sheet
     const fetchInverterDataFromSheet = async () => {
@@ -329,10 +349,137 @@ function AllGraph() {
         if (preset === '2000s') setYearRange({ startYear: 2000, endYear: 2009 });
     };
 
+    // Auto-login function (optimized with retry logic)
+    const handleAutoLogin = useCallback(async (retryCount = 0) => {
+        if (loginLoading) return;
+
+        setLoginLoading(true);
+        setLoginError('');
+
+        try {
+            if (!SOLAR_APPKEY || !SOLAR_SECRET_KEY || !USER_ACCOUNT || !USER_PASSWORD) {
+                throw new Error('Missing API credentials. Please check environment configuration.');
+            }
+
+            const response = await fetch('https://gateway.isolarcloud.com.hk/openapi/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-access-key': SOLAR_SECRET_KEY,
+                    'sys_code': SOLAR_SYS_CODE
+                },
+                body: JSON.stringify({
+                    appkey: SOLAR_APPKEY,
+                    user_account: USER_ACCOUNT,
+                    user_password: USER_PASSWORD
+                })
+            });
+
+            const responseText = await response.text();
+            let result;
+
+            try {
+                result = JSON.parse(responseText);
+            } catch (e) {
+                throw new Error('Invalid server response. Please try again.');
+            }
+
+            if (!response.ok) {
+                throw new Error(`Server error (${response.status}): ${result.result_msg || 'Login failed'}`);
+            }
+
+            if (result.result_code === "1") {
+                const newToken = result.result_data?.token || '';
+                setToken(newToken);
+                setLoginSuccess(true);
+                setLoginError('');
+
+                localStorage.setItem('solarToken', newToken);
+                localStorage.setItem('solarTokenTimestamp', Date.now().toString());
+
+                showToast('✓ Connected to Solar Cloud!', 'success');
+                console.log('Auto-login successful for AllGraph');
+                return newToken;
+            } else {
+                // Retry on busy server
+                if (result.result_msg?.includes('busy') && retryCount < 2) {
+                    showToast('Server busy, retrying...', 'info');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    return handleAutoLogin(retryCount + 1);
+                }
+                throw new Error(result.result_msg || 'Login failed');
+            }
+        } catch (err) {
+            console.error('Auto-login error:', err);
+
+            // Retry on network errors
+            if (retryCount < 2) {
+                showToast(`Connection attempt ${retryCount + 1} failed. Retrying...`, 'info');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return handleAutoLogin(retryCount + 1);
+            }
+
+            setLoginError(err.message || 'Unable to connect to server');
+            setLoginSuccess(false);
+            showToast(`⚠ Login failed: ${err.message}`, 'error', 8000);
+            return null;
+        } finally {
+            setLoginLoading(false);
+        }
+    }, [loginLoading, showToast]);
+
     // 6. Effects
+
+    // Effect 1: Fetch sheet data on mount
     useEffect(() => {
         fetchInverterDataFromSheet();
     }, []);
+
+    // Effect 2: Auto-login on mount if no valid token
+    useEffect(() => {
+        const savedToken = localStorage.getItem('solarToken');
+        const tokenTimestamp = localStorage.getItem('solarTokenTimestamp');
+
+        if (savedToken && tokenTimestamp) {
+            const tokenAge = Date.now() - parseInt(tokenTimestamp);
+            if (tokenAge < 60 * 60 * 1000) { // Token valid for 1 hour
+                setToken(savedToken);
+                setLoginSuccess(true);
+                return;
+            }
+        }
+
+        // No valid token, trigger auto-login
+        if (!token && !loginLoading) {
+            handleAutoLogin();
+        }
+    }, []); // Only run once on mount
+
+    // Effect 3: Auto-sync after inverter data is loaded and logged in
+    useEffect(() => {
+        // Skip on initial mount
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+
+        // Auto-sync when: has inverters, has token, not already syncing, hasn't auto-synced yet
+        if (
+            inverterData.length > 0 &&
+            token &&
+            !solarLoading &&
+            !hasAutoSynced.current &&
+            !loading
+        ) {
+            hasAutoSynced.current = true;
+            showToast('🔄 Auto-syncing solar data...', 'info');
+
+            // Small delay to ensure UI is ready
+            setTimeout(() => {
+                handleSyncAllSolar();
+            }, 500);
+        }
+    }, [inverterData.length, token, loading]);
 
     // Filter Logic
     const filteredData = inverterData.filter(
@@ -343,7 +490,87 @@ function AllGraph() {
 
     return (
         <AdminLayout>
-            <div className="p-8 space-y-8 bg-white min-h-full">
+            {/* Toast Notification */}
+            {toast.show && (
+                <div
+                    className={`fixed top-4 right-4 z-[100] max-w-md p-4 rounded-xl shadow-2xl border transform transition-all duration-500 ease-out ${toast.type === 'success'
+                            ? 'bg-green-50 border-green-200 text-green-800'
+                            : toast.type === 'error'
+                                ? 'bg-red-50 border-red-200 text-red-800'
+                                : 'bg-blue-50 border-blue-200 text-blue-800'
+                        }`}
+                >
+                    <div className="flex items-center gap-3">
+                        {toast.type === 'success' && <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />}
+                        {toast.type === 'error' && <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />}
+                        {toast.type === 'info' && <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />}
+                        <p className="font-medium text-sm">{toast.message}</p>
+                        <button
+                            onClick={() => setToast({ show: false, message: '', type: 'info' })}
+                            className="ml-auto p-1 hover:opacity-70 transition"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Login Loading Overlay */}
+            {loginLoading && (
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[90] flex items-center justify-center">
+                    <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm mx-4 text-center">
+                        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Connecting to Solar Cloud</h3>
+                        <p className="text-gray-600 text-sm">Authenticating your session...</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Login Error Banner */}
+            {(loginError || (!token && !loginLoading)) && (
+                <div className="fixed top-0 left-0 right-0 z-[80] bg-gradient-to-r from-red-500 to-orange-500 text-white py-4 px-6 shadow-lg">
+                    <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white/20 rounded-full">
+                                <WifiOff className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-lg">Connection Required</h3>
+                                <p className="text-white/90 text-sm">
+                                    {loginError || 'Unable to connect to Solar Cloud. This may be due to accessing from a different browser or device.'}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => handleAutoLogin(0)}
+                            disabled={loginLoading}
+                            className="px-6 py-2.5 bg-white text-red-600 rounded-lg font-semibold hover:bg-white/90 transition flex items-center gap-2 shadow-md disabled:opacity-50"
+                        >
+                            {loginLoading ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    Connecting...
+                                </>
+                            ) : (
+                                <>
+                                    <LogIn className="w-4 h-4" />
+                                    Retry Connection
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Login Success Indicator */}
+            {loginSuccess && token && !loginLoading && (
+                <div className="fixed top-4 left-4 z-[70] flex items-center gap-2 px-3 py-1.5 bg-green-100 border border-green-200 rounded-full text-green-700 text-sm font-medium shadow-sm">
+                    <Wifi className="w-4 h-4" />
+                    <span>Connected</span>
+                </div>
+            )}
+
+            <div className={`p-8 space-y-8 bg-white min-h-full ${(loginError || (!token && !loginLoading)) ? 'pt-24' : ''}`}>
 
                 {/* 1. Refined Dashboard Header (Merged Style) */}
                 <div className="bg-white rounded-3xl shadow-[0_8px_30px_-10px_rgba(0,0,0,0.08)] border border-gray-100 p-8">
