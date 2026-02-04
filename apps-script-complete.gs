@@ -171,6 +171,10 @@ function doPost(e) {
       return updateSalesData(params);
     }
     
+    if (params.action === 'syncCSVFormat') {
+      return syncCSVFormat(params);
+    }
+    
     if (params.action === 'deleteRow') {
       return deleteRow(params);
     }
@@ -534,6 +538,208 @@ function uploadFileToDrive(base64Data, fileName, mimeType, folderId) {
   }
 }
 
+function syncCSVFormat(params) {
+  try {
+    console.log("============ syncCSVFormat START ============");
+    
+    var sheetName = params.sheetName || 'Weekly_Performance_Logs';
+    var dateRangeStart = params.dateRangeStart || '';
+    var dateRangeEnd = params.dateRangeEnd || '';
+    
+    // Parse data
+    var data;
+    try {
+      data = JSON.parse(params.data);
+      console.log("Parsed data length:", data.length);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: "JSON Parse Error: " + parseError.toString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (!data || data.length === 0) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: "No data provided"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Open spreadsheet
+    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var sheet = ss.getSheetByName(sheetName);
+    
+    // Create sheet if it doesn't exist
+    if (!sheet) {
+      console.log("Creating new sheet:", sheetName);
+      sheet = ss.insertSheet(sheetName);
+    }
+    
+    var timestamp = formatTimestamp(new Date());
+    
+    // Get current last row
+    var lastRow = sheet.getLastRow();
+    
+    // Calculate starting row with 4-row gap if sheet has existing data
+    var startRow;
+    if (lastRow === 0) {
+      startRow = 1; // Start from row 1 if sheet is empty
+    } else {
+      startRow = lastRow + 5; // 4 blank rows gap (lastRow + 1 + 4 = lastRow + 5)
+    }
+    
+    console.log("Current last row:", lastRow);
+    console.log("Starting at row:", startRow);
+    
+    // ===== HEADERS - Exact format matching the CSV =====
+    var headers = [
+      "Serial No",
+      "Inverter ID", 
+      "Beneficiary Name",
+      "Capacity (kW)",
+      "Total Energy (" + dateRangeStart + " to " + dateRangeEnd + ") (kWh)",
+      "Avg Daily Energy (kWh)",
+      "Specific Yield (kWh/kW)",
+      "Days in Range",
+      "Lifetime Generation (kWh)"
+    ];
+    
+    // Write header row
+    var headerRange = sheet.getRange(startRow, 1, 1, 9);
+    headerRange.setValues([headers]);
+    
+    // Format header row - Professional blue background with white text
+    headerRange.setBackground("#2563EB");  // Blue background
+    headerRange.setFontColor("#FFFFFF");   // White text
+    headerRange.setFontWeight("bold");
+    headerRange.setHorizontalAlignment("center");
+    headerRange.setVerticalAlignment("middle");
+    headerRange.setWrap(true);
+    
+    // Set header row height for wrapped text
+    sheet.setRowHeight(startRow, 40);
+    
+    // Add borders to header
+    headerRange.setBorder(true, true, true, true, true, true, "#1E40AF", SpreadsheetApp.BorderStyle.SOLID);
+    
+    // Move to data rows
+    var dataStartRow = startRow + 1;
+    
+    // ===== BUILD DATA ROWS =====
+    var allRows = [];
+    
+    for (var i = 0; i < data.length; i++) {
+      var item = data[i];
+      
+      var row = [
+        item.serialNo || "",
+        item.inverterId || "",
+        item.beneficiaryName || "",
+        parseFloat(item.capacity) || 0,
+        parseFloat(item.totalKwh) || 0,
+        parseFloat(item.avgDailyKwh) || 0,
+        parseFloat(item.specYield) || 0,
+        parseInt(item.daysInRange) || 8,
+        parseFloat(item.lifetimeGeneration) || 0
+      ];
+      
+      allRows.push(row);
+    }
+    
+    console.log("Total data rows prepared:", allRows.length);
+    
+    // ===== WRITE ALL DATA ROWS =====
+    if (allRows.length > 0) {
+      var dataRange = sheet.getRange(dataStartRow, 1, allRows.length, 9);
+      dataRange.setValues(allRows);
+      
+      // Format data rows - IMPORTANT: Set explicit dark font color
+      dataRange.setFontColor("#111827");  // Dark gray/black text - VISIBLE!
+      dataRange.setHorizontalAlignment("center");
+      dataRange.setVerticalAlignment("middle");
+      dataRange.setFontSize(10);
+      
+      // Add borders to all data cells
+      dataRange.setBorder(true, true, true, true, true, true, "#D1D5DB", SpreadsheetApp.BorderStyle.SOLID);
+      
+      // Alternate row colors for better readability
+      for (var j = 0; j < allRows.length; j++) {
+        var rowNum = dataStartRow + j;
+        var bgColor = (j % 2 === 0) ? "#F9FAFB" : "#FFFFFF";  // Light gray / White
+        sheet.getRange(rowNum, 1, 1, 9).setBackground(bgColor);
+      }
+      
+      // Format number columns with proper decimal places
+      // Column D (Capacity) - 0 decimals for whole numbers
+      sheet.getRange(dataStartRow, 4, allRows.length, 1).setNumberFormat("0");
+      
+      // Column E (Total Energy) - 1 decimal
+      sheet.getRange(dataStartRow, 5, allRows.length, 1).setNumberFormat("0.0");
+      
+      // Column F (Avg Daily) - 2 decimals  
+      sheet.getRange(dataStartRow, 6, allRows.length, 1).setNumberFormat("0.00");
+      
+      // Column G (Specific Yield) - 3 decimals
+      sheet.getRange(dataStartRow, 7, allRows.length, 1).setNumberFormat("0.000");
+      
+      // Column H (Days) - 0 decimals
+      sheet.getRange(dataStartRow, 8, allRows.length, 1).setNumberFormat("0");
+      
+      // Column I (Lifetime Gen) - 1 decimal
+      sheet.getRange(dataStartRow, 9, allRows.length, 1).setNumberFormat("0.0");
+    }
+    
+    // ===== SET COLUMN WIDTHS =====
+    sheet.setColumnWidth(1, 70);   // Serial No
+    sheet.setColumnWidth(2, 120);  // Inverter ID
+    sheet.setColumnWidth(3, 280);  // Beneficiary Name
+    sheet.setColumnWidth(4, 100);  // Capacity
+    sheet.setColumnWidth(5, 280);  // Total Energy (with date range)
+    sheet.setColumnWidth(6, 140);  // Avg Daily
+    sheet.setColumnWidth(7, 140);  // Specific Yield
+    sheet.setColumnWidth(8, 100);  // Days in Range
+    sheet.setColumnWidth(9, 180);  // Lifetime Generation
+    
+    // ===== ADD SYNC INFO ROW (optional - small footer) =====
+    var footerRow = dataStartRow + allRows.length + 1;
+    var syncInfo = "Synced: " + timestamp + " | Records: " + allRows.length;
+    sheet.getRange(footerRow, 1).setValue(syncInfo);
+    sheet.getRange(footerRow, 1, 1, 9).merge();
+    sheet.getRange(footerRow, 1).setFontColor("#6B7280");
+    sheet.getRange(footerRow, 1).setFontSize(9);
+    sheet.getRange(footerRow, 1).setFontStyle("italic");
+    
+    var finalRowCount = sheet.getLastRow();
+    console.log("Final row count:", finalRowCount);
+    console.log("============ syncCSVFormat END ============");
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      message: "Data synced successfully!",
+      newRows: allRows.length,
+      updatedRows: 0,
+      totalRows: finalRowCount,
+      timestamp: timestamp,
+      debug: {
+        headerRow: startRow,
+        dataStartRow: dataStartRow,
+        rowsWritten: allRows.length
+      }
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    console.error("============ syncCSVFormat ERROR ============");
+    console.error("Error:", error.toString());
+    console.error("Stack:", error.stack);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString(),
+      message: "Sync failed: " + error.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
 function setCorsHeaders(response) {
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
