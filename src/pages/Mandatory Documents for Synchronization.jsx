@@ -17,8 +17,8 @@ const CONFIG = {
   SOURCE_SHEET_NAME: "FMS",
   // Updated page configuration
   PAGE_CONFIG: {
-    title: "CSPDCL Doc",
-    historyTitle: "CSPDCL Doc History",
+    title: "Mandatory Documents for Synchronization",
+    historyTitle: "Mandatory Documents for Synchronization History",
     description: "Manage pending document submissions",
     historyDescription: "View completed document records",
   },
@@ -57,8 +57,8 @@ function CSPDCLDocPage() {
 
   // Document form state - Updated to use checkboxes that store 'OK' or blank
   const [docForm, setDocForm] = useState({
-    powerPurchaseAgreement: null,
-    vendorConsumerAgreement: null,
+    powerPurchaseAgreement: "", // Changed from null to empty string for URL storage
+    vendorConsumerAgreement: "", // Changed from null to empty string for URL storage
     quotationCopy: false,
     applicationCopy: false,
     physibilityReport: false,
@@ -68,6 +68,12 @@ function CSPDCLDocPage() {
     cancellationCheque: false,
     electricityBill: false,
     witnessIdProof: false,
+  })
+
+  // Professional file upload status state
+  const [fileUploads, setFileUploads] = useState({
+    powerPurchaseAgreement: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+    vendorConsumerAgreement: { uploading: false, uploaded: false, url: "", error: null, name: "" },
   })
 
   // Debounced search term for better performance
@@ -258,32 +264,6 @@ function CSPDCLDocPage() {
       : historyData
   }, [historyData, debouncedSearchTerm])
 
-  const handleDocClick = useCallback((record) => {
-    setSelectedRecord(record)
-    setDocForm({
-      powerPurchaseAgreement: null,
-      vendorConsumerAgreement: null,
-      quotationCopy: record.quotationCopy === "OK",
-      applicationCopy: record.applicationCopy === "OK",
-      physibilityReport: record.physibilityReport === "OK",
-      tokenForSubsidy: record.tokenForSubsidy === "OK",
-      panCard: record.panCard === "OK",
-      aadharCard: record.aadharCard === "OK",
-      cancellationCheque: record.cancellationCheque === "OK",
-      electricityBill: record.electricityBill === "OK",
-      witnessIdProof: record.witnessIdProof === "OK",
-    })
-    setShowDocModal(true)
-  }, [])
-
-  const handleFileUpload = useCallback((field, file) => {
-    setDocForm((prev) => ({ ...prev, [field]: file }))
-  }, [])
-
-  const handleCheckboxChange = useCallback((field, checked) => {
-    setDocForm((prev) => ({ ...prev, [field]: checked }))
-  }, [])
-
   const fileToBase64 = useCallback((file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -300,7 +280,7 @@ function CSPDCLDocPage() {
         const formData = new FormData()
         formData.append("action", "uploadFile")
         formData.append("base64Data", base64Data)
-        formData.append("fileName", `${selectedRecord._enquiryNumber}_${Date.now()}.${file.name.split(".").pop()}`)
+        formData.append("fileName", `${selectedRecord._enquiryNumber}_doc_${Date.now()}.${file.name.split(".").pop()}`)
         formData.append("mimeType", file.type)
         formData.append("folderId", CONFIG.DRIVE_FOLDER_ID)
 
@@ -323,39 +303,131 @@ function CSPDCLDocPage() {
     [selectedRecord, fileToBase64],
   )
 
+  const handleDocClick = useCallback((record) => {
+    setSelectedRecord(record)
+    setDocForm({
+      powerPurchaseAgreement: record.powerPurchaseAgreement || "",
+      vendorConsumerAgreement: record.vendorConsumerAgreement || "",
+      quotationCopy: record.quotationCopy === "OK",
+      applicationCopy: record.applicationCopy === "OK",
+      physibilityReport: record.physibilityReport === "OK",
+      tokenForSubsidy: record.tokenForSubsidy === "OK",
+      panCard: record.panCard === "OK",
+      aadharCard: record.aadharCard === "OK",
+      cancellationCheque: record.cancellationCheque === "OK",
+      electricityBill: record.electricityBill === "OK",
+      witnessIdProof: record.witnessIdProof === "OK",
+    })
+
+    // Initialize professional upload status
+    setFileUploads({
+      powerPurchaseAgreement: {
+        uploading: false,
+        uploaded: !!record.powerPurchaseAgreement,
+        url: record.powerPurchaseAgreement || "",
+        error: null,
+        name: record.powerPurchaseAgreement ? "Existing Document" : ""
+      },
+      vendorConsumerAgreement: {
+        uploading: false,
+        uploaded: !!record.vendorConsumerAgreement,
+        url: record.vendorConsumerAgreement || "",
+        error: null,
+        name: record.vendorConsumerAgreement ? "Existing Document" : ""
+      }
+    })
+
+    setShowDocModal(true)
+  }, [])
+
+  const handleFileUpload = useCallback(async (field, file) => {
+    if (!file) return
+
+    // Update form state (backward compatibility)
+    setDocForm((prev) => ({ ...prev, [field]: file }))
+
+    // Start professional upload process
+    setFileUploads(prev => ({
+      ...prev,
+      [field]: { ...prev[field], uploading: true, error: null, name: file.name }
+    }))
+
+    try {
+      const url = await uploadImageToDrive(file)
+      setFileUploads(prev => ({
+        ...prev,
+        [field]: { uploading: false, uploaded: true, url, error: null, name: file.name }
+      }))
+    } catch (error) {
+      console.error(`Upload error for ${field}:`, error)
+      setFileUploads(prev => ({
+        ...prev,
+        [field]: { uploading: false, uploaded: false, url: "", error: error.message, name: file.name }
+      }))
+    }
+  }, [uploadImageToDrive])
+
+  const UploadStatus = ({ field }) => {
+    const status = fileUploads[field]
+    if (!status) return null
+
+    if (status.uploading) {
+      return (
+        <div className="flex items-center mt-2 text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs animate-pulse">
+          <div className="h-3 w-3 mr-1 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          Uploading to Drive...
+        </div>
+      )
+    }
+    if (status.error) {
+      return (
+        <div className="flex items-center mt-2 text-red-600 bg-red-50 px-2 py-1 rounded text-xs border border-red-100">
+          <X className="h-3 w-3 mr-1" />
+          Failed: {status.error}
+        </div>
+      )
+    }
+    if (status.uploaded) {
+      return (
+        <div className="flex items-center mt-2 text-green-600 bg-green-50 px-2 py-1 rounded text-xs border border-green-100 font-medium">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Successfully Uploaded
+        </div>
+      )
+    }
+    return null
+  }
+
+  const handleCheckboxChange = useCallback((field, checked) => {
+    setDocForm((prev) => ({ ...prev, [field]: checked }))
+  }, [])
+
   const handleDocSubmit = async () => {
     // Check if this is an edit (already has actual date) or new submission
     const isEdit = !isEmpty(selectedRecord.actual)
 
-    // Only require images for NEW submissions, not for edits
-    if (!isEdit) {
-      if (!docForm.powerPurchaseAgreement || !docForm.vendorConsumerAgreement) {
-        alert("Please upload required images (Power Purchase Agreement and Vendor Consumer Agreement)")
-        return
-      }
-    }
-
     setIsSubmitting(true)
     try {
+      // Check if any uploads are still in progress
+      const uploadingFields = Object.keys(fileUploads).filter(key => fileUploads[key].uploading)
+      if (uploadingFields.length > 0) {
+        alert("Please wait for all documents to finish uploading before submitting.")
+        return
+      }
+
+      // Only require images for NEW submissions, not for edits
+      if (!isEdit) {
+        if (!fileUploads.powerPurchaseAgreement.url || !fileUploads.vendorConsumerAgreement.url) {
+          alert("Please upload required images (Power Purchase Agreement and Vendor Consumer Agreement)")
+          return
+        }
+      }
+
       const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
 
-      // Upload images and get URLs
-      let powerPurchaseAgreementUrl = ""
-      let vendorConsumerAgreementUrl = ""
-
-      if (docForm.powerPurchaseAgreement) {
-        powerPurchaseAgreementUrl = await uploadImageToDrive(docForm.powerPurchaseAgreement)
-      } else if (selectedRecord.powerPurchaseAgreement) {
-        // Keep existing image if no new one is uploaded
-        powerPurchaseAgreementUrl = selectedRecord.powerPurchaseAgreement
-      }
-
-      if (docForm.vendorConsumerAgreement) {
-        vendorConsumerAgreementUrl = await uploadImageToDrive(docForm.vendorConsumerAgreement)
-      } else if (selectedRecord.vendorConsumerAgreement) {
-        // Keep existing image if no new one is uploaded
-        vendorConsumerAgreementUrl = selectedRecord.vendorConsumerAgreement
-      }
+      // Use URLs from professional upload state
+      const powerPurchaseAgreementUrl = fileUploads.powerPurchaseAgreement.url
+      const vendorConsumerAgreementUrl = fileUploads.vendorConsumerAgreement.url
 
       // FIXED: Use null for columns we don't want to update
       // Initialize array with null values - only specified columns will be updated
@@ -893,87 +965,61 @@ function CSPDCLDocPage() {
                 {/* Document Submission Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Power Purchase Agreement */}
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Power Purchase Agreement <span className="text-red-500">*</span>
-                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload("powerPurchaseAgreement", e.target.files[0])}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      />
-                      {docForm.powerPurchaseAgreement && (
-                        <p className="text-sm text-green-600 mt-2 flex items-center">
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          New file: {docForm.powerPurchaseAgreement.name}
-                        </p>
-                      )}
-                    </div>
-                    <div className="shrink-0 flex items-center pt-6">
-                      {selectedRecord?.powerPurchaseAgreement ? (
-                        <a
-                          href={selectedRecord.powerPurchaseAgreement}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
-                          title="View Previous Power Purchase Agreement"
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Power Purchase Agreement <span className="text-red-500">*</span>
+                      <span className="text-gray-500 text-xs ml-1">(Image/PDF)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => handleFileUpload("powerPurchaseAgreement", e.target.files[0])}
+                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    <UploadStatus field="powerPurchaseAgreement" />
+
+                    {selectedRecord?.powerPurchaseAgreement && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500 font-medium italic">Existing Doc:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.powerPurchaseAgreement, "_blank", "noopener,noreferrer")}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                         >
-                          <Eye className="h-5 w-5" />
-                        </a>
-                      ) : (
-                        <div
-                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
-                          title="No previous file"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Previous
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Vendor Consumer Agreement */}
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Vendor Consumer Agreement <span className="text-red-500">*</span>
-                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload("vendorConsumerAgreement", e.target.files[0])}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      />
-                      {docForm.vendorConsumerAgreement && (
-                        <p className="text-sm text-green-600 mt-2 flex items-center">
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          New file: {docForm.vendorConsumerAgreement.name}
-                        </p>
-                      )}
-                    </div>
-                    <div className="shrink-0 flex items-center pt-6">
-                      {selectedRecord?.vendorConsumerAgreement ? (
-                        <a
-                          href={selectedRecord.vendorConsumerAgreement}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
-                          title="View Previous Vendor Consumer Agreement"
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Vendor Consumer Agreement <span className="text-red-500">*</span>
+                      <span className="text-gray-500 text-xs ml-1">(Image/PDF)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => handleFileUpload("vendorConsumerAgreement", e.target.files[0])}
+                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    <UploadStatus field="vendorConsumerAgreement" />
+
+                    {selectedRecord?.vendorConsumerAgreement && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500 font-medium italic">Existing Doc:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.vendorConsumerAgreement, "_blank", "noopener,noreferrer")}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                         >
-                          <Eye className="h-5 w-5" />
-                        </a>
-                      ) : (
-                        <div
-                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
-                          title="No previous file"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Previous
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Checkbox Fields */}
@@ -1111,7 +1157,7 @@ function CSPDCLDocPage() {
                       (!docForm.powerPurchaseAgreement && !selectedRecord?.powerPurchaseAgreement) ||
                       (!docForm.vendorConsumerAgreement && !selectedRecord?.vendorConsumerAgreement)
                     }
-                    className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                    className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center shadow-lg transform transition-all hover:scale-[1.02] active:scale-95"
                   >
                     {isSubmitting ? (
                       <>

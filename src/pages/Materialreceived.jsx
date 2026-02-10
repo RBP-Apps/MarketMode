@@ -56,8 +56,13 @@ function MaterialReceivedSitePage() {
 
   // Material Receipt form state
   const [receiptForm, setReceiptForm] = useState({
-    copyOfReceipt: null,
+    copyOfReceipt: "", // Changed from null to empty string for URL storage
     dateOfReceipt: "",
+  })
+
+  // Professional file upload status state
+  const [fileUploads, setFileUploads] = useState({
+    copyOfReceipt: { uploading: false, uploaded: false, url: "", error: null, name: "" }
   })
 
   // Debounced search term for better performance
@@ -267,23 +272,6 @@ function MaterialReceivedSitePage() {
       : historyData
   }, [historyData, debouncedSearchTerm])
 
-  const handleAtSiteClick = useCallback((record) => {
-    setSelectedRecord(record)
-    setReceiptForm({
-      copyOfReceipt: null,
-      dateOfReceipt: formatDateForInput(record.dateOfReceipt || ""),
-    })
-    setShowReceiptModal(true)
-  }, [formatDateForInput])
-
-  const handleFileUpload = useCallback((field, file) => {
-    setReceiptForm((prev) => ({ ...prev, [field]: file }))
-  }, [])
-
-  const handleInputChange = useCallback((field, value) => {
-    setReceiptForm((prev) => ({ ...prev, [field]: value }))
-  }, [])
-
   const fileToBase64 = useCallback((file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -326,8 +314,99 @@ function MaterialReceivedSitePage() {
     [selectedRecord, fileToBase64],
   )
 
+  const handleAtSiteClick = useCallback((record) => {
+    setSelectedRecord(record)
+    setReceiptForm({
+      copyOfReceipt: record.copyOfReceipt || "",
+      dateOfReceipt: formatDateForInput(record.dateOfReceipt || ""),
+    })
+
+    // Initialize professional upload status
+    setFileUploads({
+      copyOfReceipt: {
+        uploading: false,
+        uploaded: !!record.copyOfReceipt,
+        url: record.copyOfReceipt || "",
+        error: null,
+        name: record.copyOfReceipt ? "Existing Document" : ""
+      }
+    })
+
+    setShowReceiptModal(true)
+  }, [formatDateForInput])
+
+  const handleFileUpload = useCallback(async (field, file) => {
+    if (!file) return
+
+    // Update form state (backward compatibility)
+    setReceiptForm((prev) => ({ ...prev, [field]: file }))
+
+    // Start professional upload process
+    setFileUploads(prev => ({
+      ...prev,
+      [field]: { ...prev[field], uploading: true, error: null, name: file.name }
+    }))
+
+    try {
+      const url = await uploadImageToDrive(file)
+      setFileUploads(prev => ({
+        ...prev,
+        [field]: { uploading: false, uploaded: true, url, error: null, name: file.name }
+      }))
+    } catch (error) {
+      console.error(`Upload error for ${field}:`, error)
+      setFileUploads(prev => ({
+        ...prev,
+        [field]: { uploading: false, uploaded: false, url: "", error: error.message, name: file.name }
+      }))
+    }
+  }, [uploadImageToDrive])
+
+  const UploadStatus = ({ field }) => {
+    const status = fileUploads[field]
+    if (!status) return null
+
+    if (status.uploading) {
+      return (
+        <div className="flex items-center mt-2 text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs animate-pulse">
+          <div className="h-3 w-3 mr-1 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          Uploading to Drive...
+        </div>
+      )
+    }
+    if (status.error) {
+      return (
+        <div className="flex items-center mt-2 text-red-600 bg-red-50 px-2 py-1 rounded text-xs border border-red-100">
+          <X className="h-3 w-3 mr-1" />
+          Failed: {status.error}
+        </div>
+      )
+    }
+    if (status.uploaded) {
+      return (
+        <div className="flex items-center mt-2 text-green-600 bg-green-50 px-2 py-1 rounded text-xs border border-green-100 font-medium">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Successfully Uploaded
+        </div>
+      )
+    }
+    return null
+  }
+
+  const handleInputChange = useCallback((field, value) => {
+    setReceiptForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
   const handleReceiptSubmit = async () => {
-    if ((!receiptForm.copyOfReceipt && !selectedRecord.copyOfReceipt) || !receiptForm.dateOfReceipt) {
+    // Check if any uploads are still in progress
+    const uploadingFields = Object.keys(fileUploads).filter(key => fileUploads[key].uploading)
+    if (uploadingFields.length > 0) {
+      alert("Please wait for the document to finish uploading before submitting.")
+      return
+    }
+
+    // Check for required fields using fileUploads state
+    if (!fileUploads.copyOfReceipt.url || !receiptForm.dateOfReceipt) {
       alert("Please fill in all required fields (Copy of Receipt and Date of Receipt)")
       return
     }
@@ -337,13 +416,8 @@ function MaterialReceivedSitePage() {
       const isEdit = !isEmpty(selectedRecord.actual)
       const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
 
-      // Upload image and get URL
-      let copyOfReceiptUrl = ""
-      if (receiptForm.copyOfReceipt) {
-        copyOfReceiptUrl = await uploadImageToDrive(receiptForm.copyOfReceipt)
-      } else if (isEdit && selectedRecord.copyOfReceipt) {
-        copyOfReceiptUrl = selectedRecord.copyOfReceipt
-      }
+      // Use URL from professional upload state
+      const copyOfReceiptUrl = fileUploads.copyOfReceipt.url
 
       // Format date for storage
       const formattedDate = formatDateForDisplay(receiptForm.dateOfReceipt)
@@ -1059,45 +1133,32 @@ function MaterialReceivedSitePage() {
                 {/* Material Receipt Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Copy Of Receipt */}
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Copy Of Receipt <span className="text-red-500">*</span>
-                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload("copyOfReceipt", e.target.files[0])}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      />
-                      {receiptForm.copyOfReceipt && (
-                        <p className="text-sm text-green-600 mt-2 flex items-center">
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          New file: {receiptForm.copyOfReceipt.name}
-                        </p>
-                      )}
-                    </div>
-                    <div className="shrink-0 flex items-center pt-6">
-                      {selectedRecord?.copyOfReceipt ? (
-                        <a
-                          href={selectedRecord.copyOfReceipt}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
-                          title="View Previous Receipt"
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Copy Of Receipt <span className="text-red-500">*</span>
+                      <span className="text-gray-500 text-xs ml-1">(Image/PDF)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => handleFileUpload("copyOfReceipt", e.target.files[0])}
+                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    <UploadStatus field="copyOfReceipt" />
+
+                    {selectedRecord?.copyOfReceipt && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Existing:</span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(selectedRecord.copyOfReceipt, "_blank", "noopener,noreferrer")}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                         >
-                          <Eye className="h-5 w-5" />
-                        </a>
-                      ) : (
-                        <div
-                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
-                          title="No previous file"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview Existing Receipt
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Date Of Receipt */}

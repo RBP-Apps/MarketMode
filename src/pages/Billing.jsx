@@ -17,10 +17,10 @@ const CONFIG = {
   SOURCE_SHEET_NAME: "FMS",
   // Updated page configuration
   PAGE_CONFIG: {
-    title: "Billings",
-    historyTitle: "Billing History",
-    description: "Manage pending billings",
-    historyDescription: "View completed billing records",
+    title: "Billings and Payment Details",
+    historyTitle: "Billing and Payment Details History",
+    description: "Manage pending billings and payment details",
+    historyDescription: "View completed billing and payment details records",
   },
 }
 
@@ -55,7 +55,7 @@ function BillingsPage() {
   const [userRole, setUserRole] = useState("")
   const [username, setUsername] = useState("")
 
-  // Billing form state - Updated with new date fields
+  // Billing form state - Updated with new date and payment fields
   const [billingForm, setBillingForm] = useState({
     consumerBillNumber: "",
     consumerBillCopy: null,
@@ -63,6 +63,21 @@ function BillingsPage() {
     vendorCopy: null,
     invoiceDate: "",
     ipDate: "",
+    amountReceived: "",
+    paymentReference: "",
+    paymentDate: "",
+    deduction: "",
+    paymentReferenceNumber: "",
+    paymentStatus: "",
+    outstanding: "",
+    paymentReceipt: null,
+  })
+
+  // Professional upload state management
+  const [fileUploads, setFileUploads] = useState({
+    consumerBillCopy: { uploading: false, uploaded: false, url: "", error: null, name: "", ready: false },
+    vendorCopy: { uploading: false, uploaded: false, url: "", error: null, name: "", ready: false },
+    paymentReceipt: { uploading: false, uploaded: false, url: "", error: null, name: "", ready: false }
   })
 
   // Debounced search term for better performance
@@ -174,12 +189,16 @@ function BillingsPage() {
           return
         }
 
-        // Updated conditions: Enquiry Number (index 1) not null and Column CN (index 91)
+        // Updated conditions: Column CM (Index 90) must be NOT NULL
         const enquiryNumber = rowValues[1] || ""
+        const columnCM = rowValues[90] // Column CM
         const columnCN = rowValues[91] // Column CN
 
         const hasEnquiry = !isEmpty(enquiryNumber)
-        if (!hasEnquiry) return // Skip if enquiry number is empty
+        const isColumnCMEmpty = isEmpty(columnCM)
+
+        // Skip if enquiry number is empty OR Column CM is empty
+        if (!hasEnquiry || isColumnCMEmpty) return
 
         const googleSheetsRowIndex = rowIndex + 1
 
@@ -212,15 +231,18 @@ function BillingsPage() {
           afterInstallationPhoto: rowValues[87] || "", // CJ (corrected from 86 to 87)
           photoWithCustomer: rowValues[88] || "", // CK (corrected from 87 to 88)
           completeInstallationPhoto: rowValues[89] || "", // CL (corrected from 88 to 89)
-          // Billing data with corrected mappings
-          actual: formatDate(rowValues[91] || ""), // CN (corrected from 90 to 91)
-          consumerBillNumber: rowValues[93] || "", // CP (corrected from 92 to 93)
-          consumerBillCopy: rowValues[94] || "", // CQ (corrected from 93 to 94)
-          vendorBillNumber: rowValues[95] || "", // CR (corrected from 94 to 95)
-          vendorCopy: rowValues[96] || "", // CS (corrected from 95 to 96)
-          // New date fields
-          invoiceDate: formatDate(rowValues[143] || ""), // EN (column 144, index 143)
-          ipDate: formatDate(rowValues[144] || ""), // EO (column 145, index 144)
+          // Billing data with updated mappings
+          actual: formatDate(rowValues[91] || ""), // CN (Actual Timestamp)
+          consumerBillNumber: rowValues[93] || "", // CP (Invoice Number)
+          vendorBillNumber: rowValues[94] || "", // CQ (Invoice Amount)
+          invoiceDate: formatDate(rowValues[95] || ""), // CR (Invoice Date)
+          consumerBillCopy: rowValues[96] || "", // CS (Invoice Copy)
+          amountReceived: rowValues[143] || "", // EN (Amount Received)
+          paymentDate: formatDate(rowValues[144] || ""), // EO (Payment Date)
+          deduction: rowValues[154] || "", // EY (Deduction)
+          paymentReference: rowValues[155] || "", // EZ (Payment Reference)
+          paymentReferenceNumber: rowValues[156] || "", // FA (Reference Number)
+          outstanding: rowValues[157] || "", // FB (Outstanding)
         }
 
         // Check if Column CN is null for pending, not null for history
@@ -277,16 +299,91 @@ function BillingsPage() {
       vendorCopy: null,
       invoiceDate: formatDateForInput(record.invoiceDate || ""),
       ipDate: formatDateForInput(record.ipDate || ""),
+      amountReceived: record.amountReceived || "",
+      paymentReference: record.paymentReference || record.paymentMode || "",
+      paymentDate: formatDateForInput(record.paymentDate || ""),
+      deduction: record.deduction || record.paymentDeduction || "",
+      paymentReferenceNumber: record.paymentReferenceNumber || "",
+      paymentStatus: record.paymentStatus || "Completed",
+      outstanding: record.outstanding || "",
+      paymentReceipt: null,
     })
+
+    setFileUploads({
+      consumerBillCopy: { uploading: false, uploaded: !!record.consumerBillCopy, url: record.consumerBillCopy || "", error: null, name: record.consumerBillCopy ? "Existing Bill" : "", ready: false },
+      vendorCopy: { uploading: false, uploaded: !!record.vendorCopy, url: record.vendorCopy || "", error: null, name: record.vendorCopy ? "Existing Bill" : "", ready: false },
+      paymentReceipt: { uploading: false, uploaded: !!record.paymentReceipt, url: record.paymentReceipt || "", error: null, name: record.paymentReceipt ? "Existing Receipt" : "", ready: false }
+    })
+
     setShowBillingModal(true)
   }, [formatDateForInput])
 
   const handleFileUpload = useCallback((field, file) => {
+    if (!file) return;
+
     setBillingForm((prev) => ({ ...prev, [field]: file }))
+
+    setFileUploads(prev => ({
+      ...prev,
+      [field]: { ...prev[field], uploading: false, uploaded: false, error: null, name: file.name, ready: true }
+    }))
   }, [])
 
+  const UploadStatus = ({ field }) => {
+    const status = fileUploads[field]
+    if (!status) return null
+
+    if (status.uploading) {
+      return (
+        <div className="flex items-center mt-2 text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs animate-pulse border border-blue-100">
+          <div className="h-3 w-3 mr-1 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          Uploading to Drive...
+        </div>
+      )
+    }
+    if (status.error) {
+      return (
+        <div className="flex items-center mt-2 text-red-600 bg-red-50 px-2 py-1 rounded text-xs border border-red-100">
+          <X className="h-3 w-3 mr-1" />
+          Failed: {status.error}
+        </div>
+      )
+    }
+    if (status.uploaded) {
+      return (
+        <div className="flex items-center mt-2 text-green-600 bg-green-50 px-2 py-1 rounded text-xs border border-green-100 font-medium">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          {status.name.includes("Existing") ? "Document Available" : "Successfully Uploaded"}
+        </div>
+      )
+    }
+    if (status.ready) {
+      return (
+        <div className="flex items-center mt-2 text-amber-600 bg-amber-50 px-2 py-1 rounded text-xs border border-amber-100 font-medium italic">
+          <Calendar className="h-3 w-3 mr-1" />
+          File selected: {status.name} (Ready to upload)
+        </div>
+      )
+    }
+    return null
+  }
+
   const handleInputChange = useCallback((field, value) => {
-    setBillingForm((prev) => ({ ...prev, [field]: value }))
+    setBillingForm((prev) => {
+      const updated = { ...prev, [field]: value }
+
+      // Auto-calculate outstanding = Invoice Amount - Amount Received - Deduction
+      // Note: vendorBillNumber is being used for Invoice Amount in this UI
+      if (["vendorBillNumber", "amountReceived", "deduction"].includes(field)) {
+        const invoiceAmount = parseFloat(updated.vendorBillNumber) || 0
+        const received = parseFloat(updated.amountReceived) || 0
+        const deduction = parseFloat(updated.deduction) || 0
+        const calcOutstanding = invoiceAmount - received - deduction
+        updated.outstanding = calcOutstanding.toFixed(2)
+      }
+
+      return updated
+    })
   }, [])
 
   const fileToBase64 = useCallback((file) => {
@@ -329,42 +426,70 @@ function BillingsPage() {
   )
 
   const handleBillingSubmit = async () => {
-    if (!billingForm.consumerBillNumber || !billingForm.vendorBillNumber || !billingForm.invoiceDate || !billingForm.ipDate) {
-      alert("Please fill in all required fields: Invoice Bill Number, IP Bill Number, Invoice Date, and IP Date")
+    if (!billingForm.consumerBillNumber || !billingForm.vendorBillNumber || !billingForm.invoiceDate) {
+      alert("Please fill in all required fields: Invoice Bill Number, IP Bill Number, and Invoice Date")
       return
     }
 
     setIsSubmitting(true)
     try {
       const isEdit = !isEmpty(selectedRecord.actual)
-      const actualDate = isEdit ? selectedRecord._originalData[91] : formatTimestamp()
+      const actualDate = formatTimestamp()
 
-      // Upload images and get URLs
-      let consumerBillCopyUrl = ""
-      let vendorCopyUrl = ""
+      // Process Sequential Uploads
+      const fieldsToUpload = ["consumerBillCopy", "vendorCopy", "paymentReceipt"]
+      const currentFileUploads = { ...fileUploads }
 
-      if (billingForm.consumerBillCopy) {
-        consumerBillCopyUrl = await uploadImageToDrive(billingForm.consumerBillCopy)
-      } else if (isEdit && selectedRecord.consumerBillCopy) {
-        consumerBillCopyUrl = selectedRecord.consumerBillCopy
+      for (const field of fieldsToUpload) {
+        const fileObj = billingForm[field]
+        if (fileObj && fileObj instanceof File) {
+          setFileUploads(prev => ({
+            ...prev,
+            [field]: { ...prev[field], uploading: true, error: null }
+          }))
+
+          try {
+            const uploadedUrl = await uploadImageToDrive(fileObj)
+            currentFileUploads[field] = {
+              uploading: false,
+              uploaded: true,
+              url: uploadedUrl,
+              error: null,
+              name: fileObj.name,
+              ready: false
+            }
+            setFileUploads(prev => ({
+              ...prev,
+              [field]: currentFileUploads[field]
+            }))
+          } catch (uploadError) {
+            setFileUploads(prev => ({
+              ...prev,
+              [field]: { ...prev[field], uploading: false, error: uploadError.message }
+            }))
+            throw new Error(`Failed to upload ${field}. Please try again.`)
+          }
+        }
       }
 
-      if (billingForm.vendorCopy) {
-        vendorCopyUrl = await uploadImageToDrive(billingForm.vendorCopy)
-      } else if (isEdit && selectedRecord.vendorCopy) {
-        vendorCopyUrl = selectedRecord.vendorCopy
-      }
+      const consumerBillCopyUrl = currentFileUploads.consumerBillCopy.url
+      const vendorCopyUrl = currentFileUploads.vendorCopy.url
+      const paymentReceiptUrl = currentFileUploads.paymentReceipt.url
 
-      // Prepare update data using a sparse array to prevent overwriting unrelated columns
-      const rowData = Array(145).fill(null)
+      // Prepare update data using a sparse array (at least 167 columns for FK)
+      const rowData = Array(Math.max(200, selectedRecord._originalData.length)).fill(null)
 
-      rowData[91] = actualDate // CN - Actual timestamp
-      rowData[93] = billingForm.consumerBillNumber // CP - Consumer Bill Number
-      rowData[94] = consumerBillCopyUrl // CQ - Consumer Bill Copy
-      rowData[95] = billingForm.vendorBillNumber // CR - Vendor Bill Number
-      rowData[96] = vendorCopyUrl // CS - Vendor Copy
-      rowData[143] = formatDateForSheet(billingForm.invoiceDate) // EN - Invoice Date
-      rowData[144] = formatDateForSheet(billingForm.ipDate) // EO - IP Date
+      rowData[91] = actualDate // CN - Actual Timestamp
+      rowData[93] = billingForm.consumerBillNumber // CP
+      rowData[94] = billingForm.vendorBillNumber // CQ (Invoice Amount)
+      rowData[95] = formatDateForSheet(billingForm.invoiceDate) // CR
+      rowData[96] = consumerBillCopyUrl // CS
+      rowData[143] = billingForm.amountReceived // EN
+      rowData[144] = formatDateForSheet(billingForm.paymentDate) // EO
+      rowData[154] = billingForm.deduction // EY
+      rowData[155] = billingForm.paymentReference // EZ
+      rowData[156] = billingForm.paymentReferenceNumber // FA
+      rowData[157] = billingForm.outstanding // FB
 
       const updateData = {
         action: "update",
@@ -387,16 +512,21 @@ function BillingsPage() {
         setSuccessMessage(`Billing completed successfully for Enquiry Number: ${selectedRecord._enquiryNumber}`)
         setShowBillingModal(false)
 
-        // Add to history with updated data
+        // Updated record for local state
+        // Updated record for local state (must match fetchSheetData mapping)
         const updatedRecord = {
           ...selectedRecord,
-          actual: actualDate,
-          consumerBillNumber: billingForm.consumerBillNumber,
-          consumerBillCopy: consumerBillCopyUrl,
-          vendorBillNumber: billingForm.vendorBillNumber,
-          vendorCopy: vendorCopyUrl,
-          invoiceDate: formatDateForSheet(billingForm.invoiceDate),
-          ipDate: formatDateForSheet(billingForm.ipDate),
+          actual: formatDate(actualDate), // CN (formatted for consistency)
+          consumerBillNumber: billingForm.consumerBillNumber, // CP
+          vendorBillNumber: billingForm.vendorBillNumber, // CQ
+          invoiceDate: billingForm.invoiceDate ? formatDate(billingForm.invoiceDate) : "—", // CR
+          consumerBillCopy: consumerBillCopyUrl, // CS
+          amountReceived: billingForm.amountReceived, // EN
+          paymentDate: billingForm.paymentDate ? formatDate(billingForm.paymentDate) : "—", // EO
+          deduction: billingForm.deduction, // EY
+          paymentReference: billingForm.paymentReference, // EZ
+          paymentReferenceNumber: billingForm.paymentReferenceNumber, // FA
+          outstanding: billingForm.outstanding, // FB
         }
 
         if (isEdit) {
@@ -406,10 +536,7 @@ function BillingsPage() {
           setHistoryData((prev) => [updatedRecord, ...prev])
         }
 
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSuccessMessage("")
-        }, 3000)
+        setTimeout(() => setSuccessMessage(""), 3000)
       } else {
         throw new Error(result.error || "Failed to submit billing")
       }
@@ -596,28 +723,36 @@ function BillingsPage() {
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Complete Installation Photo
                     </th>
-                    {showHistory && (
-                      <>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Invoice Bill Number
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Invoice Bill Copy
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          IP Bill Number
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          IP Bill Copy
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Invoice Date
-                        </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          IP Date
-                        </th>
-                      </>
-                    )}
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Invoice Number
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Invoice Amount
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Invoice Date
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Invoice Copy
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount Received
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Payment Date
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Deduction
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Payment Reference
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Reference Number
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      OutStanding
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -751,8 +886,15 @@ function BillingsPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs font-medium text-green-600">
-                              {record.consumerBillNumber || "—"}
+                            <div className="text-xs font-medium text-green-600">{record.consumerBillNumber || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs font-medium text-green-600">{record.vendorBillNumber || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs font-medium text-blue-600 flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {record.invoiceDate || "—"}
                             </div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
@@ -771,42 +913,31 @@ function BillingsPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs font-medium text-green-600">
-                              {record.vendorBillNumber || "—"}
-                            </div>
-                          </td>
-                          <td className="px-2 py-3 whitespace-nowrap">
-                            {record.vendorCopy ? (
-                              <a
-                                href={record.vendorCopy}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                View
-                              </a>
-                            ) : (
-                              <span className="text-gray-400 text-xs">—</span>
-                            )}
+                            <div className="text-xs font-medium text-green-600">{record.amountReceived || "—"}</div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-blue-600 flex items-center">
                               <Calendar className="h-3 w-3 mr-1" />
-                              {record.invoiceDate ? formatDate(record.invoiceDate) : "—"}
+                              {record.paymentDate || "—"}
                             </div>
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
-                            <div className="text-xs font-medium text-purple-600 flex items-center">
-                              <Calendar className="h-3 w-3 mr-1" />
-                              {record.ipDate ? formatDate(record.ipDate) : "—"}
-                            </div>
+                            <div className="text-xs font-medium text-red-600">{record.deduction || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs font-medium text-purple-600">{record.paymentReference || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs font-medium text-gray-700">{record.paymentReferenceNumber || "—"}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <div className="text-xs font-medium text-orange-600">{record.outstanding || "—"}</div>
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={25} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={29} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm ? "No history records matching your search" : "No completed billings found"}
                         </td>
                       </tr>
@@ -946,11 +1077,59 @@ function BillingsPage() {
                             <span className="text-gray-400 text-xs">—</span>
                           )}
                         </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-green-600">{record.consumerBillNumber || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-green-600">{record.vendorBillNumber || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-blue-600 flex items-center">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {record.invoiceDate || "—"}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          {record.consumerBillCopy ? (
+                            <a
+                              href={record.consumerBillCopy}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-green-600">{record.amountReceived || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-blue-600 flex items-center">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {record.paymentDate || "—"}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-red-600">{record.deduction || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-purple-600">{record.paymentReference || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-gray-700">{record.paymentReferenceNumber || "—"}</div>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-orange-600">{record.outstanding || "—"}</div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={19} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={29} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm ? "No pending billings matching your search" : "No pending billings found"}
                       </td>
                     </tr>
@@ -968,7 +1147,7 @@ function BillingsPage() {
               <div className="sticky top-0 bg-white border-b border-gray-200 p-4 rounded-t-lg">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-medium text-gray-900">
-                    Billing Form - Enquiry: {selectedRecord.enquiryNumber}
+                    Billings and Payment  - Enquiry: {selectedRecord.enquiryNumber}
                   </h3>
                   <button onClick={closeBillingModal} className="text-gray-400 hover:text-gray-600">
                     <X className="h-5 w-5" />
@@ -1012,143 +1191,193 @@ function BillingsPage() {
                 </div>
 
                 {/* Billing Form */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Consumer Bill Number */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Invoice Bill Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={billingForm.consumerBillNumber}
-                      onChange={(e) => handleInputChange("consumerBillNumber", e.target.value)}
-                      placeholder="Enter invoice bill number"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-
-                  {/* Consumer Bill Copy */}
-                  <div className="flex gap-4">
-                    <div className="flex-1">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-gray-100">
+                    {/* invoice Number */}
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Invoice Bill Copy
-                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                        Invoice Number <span className="text-red-500">*</span>
                       </label>
                       <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload("consumerBillCopy", e.target.files[0])}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        type="text"
+                        value={billingForm.consumerBillNumber}
+                        onChange={(e) => handleInputChange("consumerBillNumber", e.target.value)}
+                        placeholder="Enter invoice number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
                       />
-                      {billingForm.consumerBillCopy && (
-                        <p className="text-sm text-green-600 mt-2 flex items-center">
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          New file: {billingForm.consumerBillCopy.name}
-                        </p>
-                      )}
                     </div>
-                    <div className="shrink-0 flex items-center pt-6">
-                      {selectedRecord.consumerBillCopy ? (
-                        <a
-                          href={selectedRecord.consumerBillCopy}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
-                          title="View Previous Invoice"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </a>
-                      ) : (
-                        <div
-                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
-                          title="No previous file"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Invoice Date */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Invoice Date <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={billingForm.invoiceDate}
-                      onChange={(e) => handleInputChange("invoiceDate", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-
-                  {/* Vendor Bill Number */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      IP Bill Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={billingForm.vendorBillNumber}
-                      onChange={(e) => handleInputChange("vendorBillNumber", e.target.value)}
-                      placeholder="Enter vendor bill number"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-
-                  {/* Vendor Copy */}
-                  <div className="flex gap-4">
-                    <div className="flex-1">
+                    {/* Invoice Amount */}
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        IP Bill Copy
-                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                        Invoice Amount <span className="text-red-500">*</span>
                       </label>
                       <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload("vendorCopy", e.target.files[0])}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        type="text"
+                        value={billingForm.vendorBillNumber}
+                        onChange={(e) => handleInputChange("vendorBillNumber", e.target.value)}
+                        placeholder="Enter invoice amount"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
                       />
-                      {billingForm.vendorCopy && (
-                        <p className="text-sm text-green-600 mt-2 flex items-center">
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          New file: {billingForm.vendorCopy.name}
-                        </p>
-                      )}
                     </div>
-                    <div className="shrink-0 flex items-center pt-6">
-                      {selectedRecord.vendorCopy ? (
-                        <a
-                          href={selectedRecord.vendorCopy}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
-                          title="View Previous IP Bill"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </a>
-                      ) : (
-                        <div
-                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
-                          title="No previous file"
-                        >
-                          <Eye className="h-5 w-5" />
+
+                    {/* Invoice Date */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Invoice Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={billingForm.invoiceDate}
+                        onChange={(e) => handleInputChange("invoiceDate", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
+                      />
+                    </div>
+
+                    {/* Invoice Copy */}
+                    <div className="flex flex-col">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Invoice Copy
+                        <span className="text-gray-500 text-xs ml-1">(Image)</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleFileUpload("consumerBillCopy", e.target.files[0])}
+                            className="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all border border-gray-200 rounded-md"
+                          />
                         </div>
-                      )}
+                        <div className="w-10 h-9 shrink-0">
+                          {selectedRecord.consumerBillCopy ? (
+                            <a
+                              href={selectedRecord.consumerBillCopy}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full h-full flex items-center justify-center border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-xs"
+                              title="View Previous Invoice"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </a>
+                          ) : (
+                            <div
+                              className="w-full h-full flex items-center justify-center border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
+                              title="No previous file"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <UploadStatus field="consumerBillCopy" />
                     </div>
                   </div>
 
-                  {/* IP Date */}
+                  {/* Payment Details Section */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      IP Date <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={billingForm.ipDate}
-                      onChange={(e) => handleInputChange("ipDate", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
+                    <div className="flex items-center gap-2 mb-6">
+                      <div className="h-4 w-1 bg-blue-600 rounded-full"></div>
+                      <h3 className="text-lg font-semibold text-gray-800">Payment Details</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Amount Received */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Amount Received
+                        </label>
+                        <input
+                          type="text"
+                          value={billingForm.amountReceived}
+                          onChange={(e) => handleInputChange("amountReceived", e.target.value)}
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
+                        />
+                      </div>
+
+
+                      {/* Payment Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Payment Date <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={billingForm.paymentDate}
+                          onChange={(e) => handleInputChange("paymentDate", e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
+                        />
+                      </div>
+
+                      {/* Deduction */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Deduction
+                        </label>
+                        <input
+                          type="text"
+                          value={billingForm.deduction}
+                          onChange={(e) => handleInputChange("deduction", e.target.value)}
+                          placeholder="Enter deduction if any"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
+                        />
+                      </div>
+
+                      {/* Payment Reference */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Payment Reference <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={billingForm.paymentReference}
+                          onChange={(e) => handleInputChange("paymentReference", e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all bg-white"
+                        >
+                          <option value="">Select Reference</option>
+                          <option value="UPI">UPI</option>
+                          <option value="Net Banking">Net Banking</option>
+                          <option value="RTGs">RTGs</option>
+                          <option value="NEFT">NEFT</option>
+                          <option value="Credit Card">Credit Card</option>
+                          <option value="Debit Card">Debit Card</option>
+                          <option value="Cash">Cash</option>
+                          <option value="Cheque">Cheque</option>
+                          <option value="Demand Draft">Demand Draft</option>
+                        </select>
+                      </div>
+
+                      {/*Reference Number */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Reference Number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={billingForm.paymentReferenceNumber}
+                          onChange={(e) => handleInputChange("paymentReferenceNumber", e.target.value)}
+                          placeholder="Enter Cheque/RTGS Number"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
+                        />
+                      </div>
+
+
+                      {/* OutStanding*/}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          OutStanding
+                        </label>
+                        <input
+                          type="text"
+                          value={billingForm.outstanding}
+                          onChange={(e) => handleInputChange("outstanding", e.target.value)}
+                          placeholder="Enter OutStanding"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
+                        />
+                      </div>
+
+
+                    </div>
                   </div>
                 </div>
 
@@ -1163,18 +1392,18 @@ function BillingsPage() {
                   </button>
                   <button
                     onClick={handleBillingSubmit}
-                    disabled={isSubmitting || !billingForm.consumerBillNumber || !billingForm.vendorBillNumber || !billingForm.invoiceDate || !billingForm.ipDate}
-                    className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                    disabled={isSubmitting || !billingForm.consumerBillNumber || !billingForm.vendorBillNumber || !billingForm.invoiceDate || !billingForm.paymentReference || !billingForm.paymentDate || !billingForm.paymentReferenceNumber}
+                    className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center shadow-lg transition-all hover:scale-[1.02] active:scale-95"
                   >
                     {isSubmitting ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Submitting...
+                        Processing...
                       </>
                     ) : (
                       <>
                         <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Submit
+                        Submit Billing
                       </>
                     )}
                   </button>

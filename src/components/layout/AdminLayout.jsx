@@ -116,7 +116,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/OrderPlace",
-      label: "Varyaa",
+      label: "Solarkart ",
       icon: ShoppingCart,
       active: location.pathname === "/dashboard/OrderPlace",
       showFor: ["admin", "user"]
@@ -158,14 +158,14 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/Billing",
-      label: "Billing",
+      label: "Billings and Payment Details",
       icon: Receipt,
       active: location.pathname === "/dashboard/Billing",
       showFor: ["admin", "user"]
     },
     {
       href: "/dashboard/CspdclForSynconization",
-      label: "CSPDCL For Synchronization",
+      label: "Mandatory Documents for Synchronization",
       icon: Zap,
       active: location.pathname === "/dashboard/CspdclForSynconization",
       showFor: ["admin", "user"]
@@ -186,7 +186,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/Redemption",
-      label: "Subsidy e-Token",
+      label: "Subsidy Redemption",
       icon: RotateCcw,
       active: location.pathname === "/dashboard/Redemption",
       showFor: ["admin", "user"]
@@ -205,13 +205,20 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       active: location.pathname === "/dashboard/Payment",
       showFor: ["admin", "user"]
     },
-    // {
-    //   href: "/dashboard/energy-analysis",
-    //   label: "Energy Analysis",
-    //   icon: CreditCard,
-    //   active: location.pathname === "/dashboard/energy-analysis",
-    //   showFor: ["admin", "user"]
-    // },
+    {
+      href: "/dashboard/Insurance",
+      label: "Insurance",
+      icon: CreditCard,
+      active: location.pathname === "/dashboard/Insurance",
+      showFor: ["admin", "user"]
+    },
+    {
+      href: "/dashboard/ModuleEntry",
+      label: "Module Entry",
+      icon: Package,
+      active: location.pathname === "/dashboard/ModuleEntry",
+      showFor: ["admin", "user"]
+    },
     {
       href: "/dashboard/analysis-graph",
       label: "Analysis Graph",
@@ -281,8 +288,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
             <span>Market Mode</span>
           </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto p-2">
-          <ul className="space-y-1">
+        <nav className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+          <ul className="space-y-1 pb-20">
             {accessibleRoutes.map((route) => (
               <li key={route.label}>
                 {route.submenu ? (
@@ -393,7 +400,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="fixed inset-0 bg-black/20" onClick={() => setIsMobileMenuOpen(false)}></div>
-          <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg">
+          <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg flex flex-col">
             <div className="flex h-14 items-center border-b border-blue-200 px-4 bg-gradient-to-r from-blue-100 to-purple-100">
               <Link
                 to="/dashboard/admin"
@@ -404,8 +411,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                 <span>Market Mode</span>
               </Link>
             </div>
-            <nav className="flex-1 overflow-y-auto p-2 bg-white">
-              <ul className="space-y-1">
+            <nav className="flex-1 overflow-y-auto p-2 bg-white custom-scrollbar">
+              <ul className="space-y-1 pb-20">
                 {accessibleRoutes.map((route) => (
                   <li key={route.label}>
                     {route.submenu ? (
@@ -517,7 +524,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
           <h1 className="text-lg font-semibold text-blue-700">Market Mode</h1>
           <div className="w-8"></div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gradient-to-br from-blue-50 to-purple-50">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 bg-gradient-to-br from-blue-50 to-purple-50 custom-scrollbar">
           {children}
           <div className="fixed md:left-64 left-0 right-0 bottom-0 py-1 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-center text-sm shadow-md z-10">
             <a

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import {
   BarChart3,
@@ -13,6 +13,7 @@ import {
   Network,
   RefreshCw,
   DollarSign,
+  User,
 } from "lucide-react";
 
 import AdminLayout from "../../components/layout/AdminLayout.jsx";
@@ -35,16 +36,11 @@ export default function FMSDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedName, setSelectedName] = useState("all");
 
-  // State for FMS data
   const [fmsData, setFmsData] = useState({
-    totalEnquiry: 0,
-    installation: 0,
-    pendingInstallation: 0,
-    commissions: 0,
-    ipAssignment: 0,
-    projectTypesData: [],
     allRecords: [],
+    uniqueNames: [],
     loading: true,
     error: null,
   });
@@ -103,49 +99,35 @@ export default function FMSDashboard() {
       };
 
       const allRecords = [];
+      const uniqueNamesSet = new Set();
 
       // Process rows starting from row 11 (slice from index 10)
       // Process all rows from the sheet
       data.table.rows.slice(2).forEach((row, index) => {
         const rowIndex = index + 2; // Adjust for original row index
 
-        // Column B (index 1) - Total Enquiry
-        const enquiryValue = getCellValue(row, 1);
-        if (isNotNull(enquiryValue)) {
-          totalEnquiry++;
-        }
-
-        // Installation logic: CA (index 78) NOT NULL AND CB (index 79) NOT NULL
+        // Get common values for metrics and records
+        const enquiryValue = getCellValue(row, 1); // Column B
         const caValue = getCellValue(row, 78); // Column CA
         const cbValue = getCellValue(row, 79); // Column CB
-
-        if (isNotNull(caValue) && isNotNull(cbValue)) {
-          installation++;
-        }
-
-        // Pending Installation: CA (index 78) NOT NULL AND CB (index 79) NULL
-        if (isNotNull(caValue) && !isNotNull(cbValue)) {
-          pendingInstallation++;
-        }
-
-        // Commissions: DM (index 116) NOT NULL AND DN (index 117) NOT NULL
         const dmValue = getCellValue(row, 116); // Column DM
         const dnValue = getCellValue(row, 117); // Column DN
-
-        if (isNotNull(dmValue) && isNotNull(dnValue)) {
-          commissions++;
-        }
-
-        // IP Assignment: BB (index 53) NOT NULL AND BC (index 54) NOT NULL
         const bbValue = getCellValue(row, 53); // Column BB
         const bcValue = getCellValue(row, 54); // Column BC
+        const projectType = getCellValue(row, 17); // Column R
+        const fmsUserName = getCellValue(row, 150); // Column EU
 
-        if (isNotNull(bbValue) && isNotNull(bcValue)) {
-          ipAssignment++;
+        // Update counters/trackers
+        if (isNotNull(enquiryValue)) totalEnquiry++;
+        if (isNotNull(caValue) && isNotNull(cbValue)) installation++;
+        if (isNotNull(caValue) && !isNotNull(cbValue)) pendingInstallation++;
+        if (isNotNull(dmValue) && isNotNull(dnValue)) commissions++;
+        if (isNotNull(bbValue) && isNotNull(bcValue)) ipAssignment++;
+
+        if (fmsUserName && typeof fmsUserName === "string") {
+          uniqueNamesSet.add(fmsUserName.trim());
         }
 
-        // Project Types from Column R (index 17)
-        const projectType = getCellValue(row, 17);
         if (projectType && typeof projectType === "string") {
           const type = projectType.trim();
           if (projectTypesCount.hasOwnProperty(type)) {
@@ -156,12 +138,12 @@ export default function FMSDashboard() {
         }
 
         // Store record for filtering/searching
-        if (isNotNull(enquiryValue)) {
+        // Include any row that has at least one identifying piece of data (Enquiry, Name, or Project Type)
+        if (isNotNull(enquiryValue) || isNotNull(fmsUserName) || isNotNull(projectType)) {
           allRecords.push({
             id: rowIndex,
             enquiry: enquiryValue,
             projectType: projectType || "Unknown",
-            // New fields from columns C to S
             beneficiaryName: getCellValue(row, 2), // Column C
             address: getCellValue(row, 3), // Column D
             villageBlock: getCellValue(row, 4), // Column E
@@ -177,9 +159,8 @@ export default function FMSDashboard() {
             structureType: getCellValue(row, 14), // Column O
             roofType: getCellValue(row, 15), // Column P
             systemType: getCellValue(row, 16), // Column Q
-            needType: getCellValue(row, 17), // Column R (already in projectType)
+            needType: projectType, // Column R
             projectMode: getCellValue(row, 18), // Column S
-            // Existing fields
             caValue,
             cbValue,
             bbValue,
@@ -200,6 +181,7 @@ export default function FMSDashboard() {
               isNotNull(dmValue) && isNotNull(dnValue)
                 ? "Completed"
                 : "Pending",
+            userName: fmsUserName?.toString().trim() || "Unknown Vendor",
           });
         }
       }); // End of forEach loop
@@ -221,25 +203,12 @@ export default function FMSDashboard() {
         }));
 
       setFmsData({
-        totalEnquiry,
-        installation,
-        pendingInstallation,
-        commissions,
-        ipAssignment,
-        projectTypesData,
         allRecords,
+        uniqueNames: Array.from(uniqueNamesSet).sort(),
         loading: false,
         error: null,
       });
 
-      console.log("FMS Data Summary:", {
-        totalEnquiry,
-        installation,
-        pendingInstallation,
-        commissions,
-        ipAssignment,
-        projectTypesData,
-      });
     } catch (error) {
       console.error("Error fetching FMS data:", error);
       setFmsData((prev) => ({
@@ -270,29 +239,58 @@ export default function FMSDashboard() {
         return false;
     }
 
+    // Filter by selected name
+    if (selectedName !== "all") {
+      if (record.userName !== selectedName) return false;
+    }
+
     // Filter by search query
     if (searchQuery && searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase().trim();
-      if (
-        record.projectType &&
-        record.projectType.toLowerCase().includes(query)
-      )
-        return true;
-      if (
-        record.enquiry &&
-        record.enquiry.toString().toLowerCase().includes(query)
-      )
-        return true;
-      if (
-        record.installationStatus &&
-        record.installationStatus.toLowerCase().includes(query)
-      )
-        return true;
-      return false;
+      return (
+        record.projectType?.toLowerCase().includes(query) ||
+        record.enquiry?.toString().toLowerCase().includes(query) ||
+        record.beneficiaryName?.toLowerCase().includes(query) ||
+        record.installationStatus?.toLowerCase().includes(query)
+      );
     }
 
     return true;
   });
+
+  // Calculate dynamic metrics based on filtered records using useMemo
+  const metrics = useMemo(() => {
+    const counts = {
+      totalEnquiry: 0,
+      installation: 0,
+      pendingInstallation: 0,
+      commissions: 0,
+      ipAssignment: 0,
+      projectTypes: {}
+    };
+
+    filteredRecords.forEach(record => {
+      // Use record properties for counts
+      if (isNotNull(record.enquiry)) counts.totalEnquiry++;
+      if (record.installationStatus === "Completed") counts.installation++;
+      if (record.installationStatus === "Pending") counts.pendingInstallation++;
+      if (record.commissionStatus === "Completed") counts.commissions++;
+      if (record.ipStatus === "Assigned") counts.ipAssignment++;
+
+      const type = record.projectType || "Others";
+      counts.projectTypes[type] = (counts.projectTypes[type] || 0) + 1;
+    });
+
+    const projectTypesData = Object.entries(counts.projectTypes).map(([name, value]) => ({
+      name,
+      value,
+      color: name === "Residential" ? "#8884d8" :
+        name === "Society" ? "#00C49F" :
+          name === "Commercial" ? "#FFBB28" : "#FF8042"
+    }));
+
+    return { ...counts, projectTypesData };
+  }, [filteredRecords]);
 
   // Project Types Chart Component
   const ProjectTypesChart = () => {
@@ -300,7 +298,7 @@ export default function FMSDashboard() {
       <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie
-            data={fmsData.projectTypesData}
+            data={metrics.projectTypesData}
             cx="50%"
             cy="50%"
             innerRadius={60}
@@ -308,7 +306,7 @@ export default function FMSDashboard() {
             paddingAngle={2}
             dataKey="value"
           >
-            {fmsData.projectTypesData.map((entry, index) => (
+            {metrics.projectTypesData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
@@ -324,8 +322,8 @@ export default function FMSDashboard() {
     const chartData = [
       {
         name: "Installation",
-        Completed: fmsData.installation,
-        Pending: fmsData.pendingInstallation,
+        Completed: metrics.installation,
+        Pending: metrics.pendingInstallation,
       },
     ];
 
@@ -607,6 +605,35 @@ export default function FMSDashboard() {
     <AdminLayout>
       <div className="space-y-8 p-6">
         {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-purple-900">Dashboard OverView</h1>
+            <p className="text-purple-600">Monitor and manage your solar installations and enquiries</p>
+          </div>
+          <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-purple-200 shadow-sm">
+            <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+              <User className="h-5 w-5" />
+            </div>
+            <div className="flex flex-col min-w-[200px]">
+              <label htmlFor="name-dropdown" className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">
+                Select Vendor Name
+              </label>
+              <select
+                id="name-dropdown"
+                value={selectedName}
+                onChange={(e) => setSelectedName(e.target.value)}
+                className="bg-transparent border-none text-sm font-semibold text-purple-900 focus:ring-0 cursor-pointer p-0"
+              >
+                <option value="all">Vendor Name</option>
+                {fmsData.uniqueNames.map((name, index) => (
+                  <option key={index} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
         {/* Main Metrics Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
           <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
@@ -624,7 +651,7 @@ export default function FMSDashboard() {
               </div>
               <div className="space-y-1">
                 <p className="text-3xl font-bold text-blue-700">
-                  {fmsData.totalEnquiry}
+                  {metrics.totalEnquiry}
                 </p>
                 <p className="text-sm text-blue-600">
                   Total enquiries received
@@ -648,7 +675,7 @@ export default function FMSDashboard() {
               </div>
               <div className="space-y-1">
                 <p className="text-3xl font-bold text-emerald-700">
-                  {fmsData.installation}
+                  {metrics.installation}
                 </p>
                 <p className="text-sm text-emerald-600">
                   Completed installations
@@ -672,7 +699,7 @@ export default function FMSDashboard() {
               </div>
               <div className="space-y-1">
                 <p className="text-3xl font-bold text-amber-700">
-                  {fmsData.pendingInstallation}
+                  {metrics.pendingInstallation}
                 </p>
                 <p className="text-sm text-amber-600">Awaiting installation</p>
               </div>
@@ -694,7 +721,7 @@ export default function FMSDashboard() {
               </div>
               <div className="space-y-1">
                 <p className="text-3xl font-bold text-green-700">
-                  {fmsData.commissions}
+                  {metrics.commissions}
                 </p>
                 <p className="text-sm text-green-600">Completed commissions</p>
               </div>
@@ -716,7 +743,7 @@ export default function FMSDashboard() {
               </div>
               <div className="space-y-1">
                 <p className="text-3xl font-bold text-purple-700">
-                  {fmsData.ipAssignment}
+                  {metrics.ipAssignment}
                 </p>
                 <p className="text-sm text-purple-600">IP addresses assigned</p>
               </div>
@@ -798,9 +825,9 @@ export default function FMSDashboard() {
                         Installation Rate
                       </div>
                       <div className="text-2xl font-bold text-purple-800">
-                        {fmsData.totalEnquiry > 0
+                        {metrics.totalEnquiry > 0
                           ? (
-                            (fmsData.installation / fmsData.totalEnquiry) *
+                            (metrics.installation / metrics.totalEnquiry) *
                             100
                           ).toFixed(1)
                           : 0}
@@ -810,9 +837,9 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${fmsData.totalEnquiry > 0
-                              ? (fmsData.installation /
-                                fmsData.totalEnquiry) *
+                            width: `${metrics.totalEnquiry > 0
+                              ? (metrics.installation /
+                                metrics.totalEnquiry) *
                               100
                               : 0
                               }%`,
@@ -826,9 +853,9 @@ export default function FMSDashboard() {
                         IP Assignment Rate
                       </div>
                       <div className="text-2xl font-bold text-blue-800">
-                        {fmsData.totalEnquiry > 0
+                        {metrics.totalEnquiry > 0
                           ? (
-                            (fmsData.ipAssignment / fmsData.totalEnquiry) *
+                            (metrics.ipAssignment / metrics.totalEnquiry) *
                             100
                           ).toFixed(1)
                           : 0}
@@ -838,9 +865,9 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${fmsData.totalEnquiry > 0
-                              ? (fmsData.ipAssignment /
-                                fmsData.totalEnquiry) *
+                            width: `${metrics.totalEnquiry > 0
+                              ? (metrics.ipAssignment /
+                                metrics.totalEnquiry) *
                               100
                               : 0
                               }%`,
@@ -854,9 +881,9 @@ export default function FMSDashboard() {
                         Commission Rate
                       </div>
                       <div className="text-2xl font-bold text-green-800">
-                        {fmsData.totalEnquiry > 0
+                        {metrics.totalEnquiry > 0
                           ? (
-                            (fmsData.commissions / fmsData.totalEnquiry) *
+                            (metrics.commissions / metrics.totalEnquiry) *
                             100
                           ).toFixed(1)
                           : 0}
@@ -866,8 +893,8 @@ export default function FMSDashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-500"
                           style={{
-                            width: `${fmsData.totalEnquiry > 0
-                              ? (fmsData.commissions / fmsData.totalEnquiry) *
+                            width: `${metrics.totalEnquiry > 0
+                              ? (metrics.commissions / metrics.totalEnquiry) *
                               100
                               : 0
                               }%`,
@@ -885,27 +912,27 @@ export default function FMSDashboard() {
                       {[
                         {
                           label: "Total Enquiries Processed",
-                          value: fmsData.totalEnquiry,
+                          value: metrics.totalEnquiry,
                           color: "purple",
                         },
                         {
                           label: "Installations Completed",
-                          value: fmsData.installation,
+                          value: metrics.installation,
                           color: "emerald",
                         },
                         {
                           label: "Pending Installations",
-                          value: fmsData.pendingInstallation,
+                          value: metrics.pendingInstallation,
                           color: "amber",
                         },
                         {
                           label: "Commissions Completed",
-                          value: fmsData.commissions,
+                          value: metrics.commissions,
                           color: "green",
                         },
                         {
                           label: "IP Assignments",
-                          value: fmsData.ipAssignment,
+                          value: metrics.ipAssignment,
                           color: "blue",
                         },
                       ].map((item, index) => (

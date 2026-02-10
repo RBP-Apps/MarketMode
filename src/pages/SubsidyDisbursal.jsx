@@ -55,7 +55,11 @@ function SubsidyDisbursalPage() {
   const [selectedRecord, setSelectedRecord] = useState(null)
   const [subsidyForm, setSubsidyForm] = useState({
     subsidyDisbursal: "",
+    centralSubsidy: "",
+    stateSubsidy: "",
   })
+  const [centralSubsidyValues, setCentralSubsidyValues] = useState({})
+  const [stateSubsidyValues, setStateSubsidyValues] = useState({})
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -261,6 +265,9 @@ function SubsidyDisbursalPage() {
           witnessIdProof: rowValues[110] || "", // DG
           inspection: rowValues[114] || "", // DK
           projectCommission: rowValues[119] || "", // DP
+          // Subsidy columns
+          centralSubsidy: rowValues[159] || "", // FD (index 159)
+          stateSubsidy: rowValues[160] || "", // FE (index 160)
           // Status columns
           subsidyDisbursal: rowValues[128] || "", // DY
           actual: formatDateTime(rowValues[126] || ""), // DW
@@ -293,13 +300,23 @@ function SubsidyDisbursalPage() {
   // Initialize status values with existing subsidy disbursal values
   useEffect(() => {
     const initialStatusValues = {}
+    const initialCentralValues = {}
+    const initialStateValues = {}
     const allRecords = [...pendingData, ...historyData]
     allRecords.forEach((record) => {
       if (record.subsidyDisbursal && record.subsidyDisbursal !== "") {
         initialStatusValues[record._id] = record.subsidyDisbursal
       }
+      if (record.centralSubsidy && record.centralSubsidy !== "") {
+        initialCentralValues[record._id] = record.centralSubsidy
+      }
+      if (record.stateSubsidy && record.stateSubsidy !== "") {
+        initialStateValues[record._id] = record.stateSubsidy
+      }
     })
     setStatusValues(initialStatusValues)
+    setCentralSubsidyValues(initialCentralValues)
+    setStateSubsidyValues(initialStateValues)
   }, [pendingData, historyData])
 
   // Optimized filtered data with debounced search
@@ -337,10 +354,26 @@ function SubsidyDisbursalPage() {
     }))
   }, [])
 
+  const handleCentralSubsidyChange = useCallback((recordId, value) => {
+    setCentralSubsidyValues((prev) => ({
+      ...prev,
+      [recordId]: value,
+    }))
+  }, [])
+
+  const handleStateSubsidyChange = useCallback((recordId, value) => {
+    setStateSubsidyValues((prev) => ({
+      ...prev,
+      [recordId]: value,
+    }))
+  }, [])
+
   const handleSubsidyClick = useCallback((record) => {
     setSelectedRecord(record)
     setSubsidyForm({
       subsidyDisbursal: record.subsidyDisbursal || "",
+      centralSubsidy: record.centralSubsidy || "",
+      stateSubsidy: record.stateSubsidy || "",
     })
     setShowSubsidyModal(true)
   }, [])
@@ -359,9 +392,10 @@ function SubsidyDisbursalPage() {
       // Calculate row index (ensure it exists)
       const rowIndex = selectedRecord._rowIndex
 
-      // FIXED: Use null for columns we don't want to update
-      const rowData = Array(130).fill(null)
+      const rowData = Array(170).fill(null)
       rowData[128] = subsidyForm.subsidyDisbursal // DY - Status
+      rowData[159] = subsidyForm.centralSubsidy || "" // FD - Central subsidy
+      rowData[160] = subsidyForm.stateSubsidy || "" // FE - State subsidy
       // DW (126) - Actual timestamp
       // If status is "Done", keep existing timestamp or set new one if empty
       // If status is NOT "Done", clear the timestamp to move it back to pending
@@ -395,6 +429,8 @@ function SubsidyDisbursalPage() {
         const updatedRecord = {
           ...selectedRecord,
           subsidyDisbursal: subsidyForm.subsidyDisbursal,
+          centralSubsidy: subsidyForm.centralSubsidy,
+          stateSubsidy: subsidyForm.stateSubsidy,
           actual: actualDate,
         }
 
@@ -427,7 +463,12 @@ function SubsidyDisbursalPage() {
     }
 
     // Check if all selected records have status selected
-    const missingStatus = selectedRecordIds.filter((id) => !statusValues[id] || statusValues[id] === "Select")
+    const missingStatus = selectedRecordIds.filter((id) => {
+      const record = pendingData.find((r) => r._id === id) || historyData.find((r) => r._id === id)
+      const currentStatus = statusValues[id] || record?.subsidyDisbursal
+      return !currentStatus || currentStatus === "Select"
+    })
+
     if (missingStatus.length > 0) {
       alert("Please select status for all selected records")
       return
@@ -437,14 +478,17 @@ function SubsidyDisbursalPage() {
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
         const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
-        const status = statusValues[recordId]
         if (!record) return
 
+        const status = statusValues[recordId] || record.subsidyDisbursal
+
         // FIXED: Use null for columns we don't want to update
-        const rowData = Array(130).fill(null)
+        const rowData = Array(170).fill(null)
 
         // Set specific columns:
         rowData[128] = status // DY - Status
+        rowData[159] = centralSubsidyValues[recordId] || "" // FD
+        rowData[160] = stateSubsidyValues[recordId] || "" // FE
 
         // Column DW (index 126) - Actual timestamp
         // Logic: if Done, keep existing timestamp or set new one if empty.
@@ -486,13 +530,15 @@ function SubsidyDisbursalPage() {
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
         const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
-        const status = statusValues[recordId]
-
         if (!record) return null
+
+        const status = statusValues[recordId] || record.subsidyDisbursal
 
         return {
           ...record,
           subsidyDisbursal: status,
+          centralSubsidy: centralSubsidyValues[recordId] || record.centralSubsidy,
+          stateSubsidy: stateSubsidyValues[recordId] || record.stateSubsidy,
           actual: status === "Done" ? (record.actual ? formatDateTime(record.actual) : formatTimestamp()) : "",
         }
       }).filter(Boolean)
@@ -513,6 +559,8 @@ function SubsidyDisbursalPage() {
       // Clear selections and status values
       setSelectedRows({})
       setStatusValues({})
+      setCentralSubsidyValues({})
+      setStateSubsidyValues({})
 
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -531,6 +579,8 @@ function SubsidyDisbursalPage() {
     setSearchTerm("")
     setSelectedRows({})
     setStatusValues({})
+    setCentralSubsidyValues({})
+    setStateSubsidyValues({})
   }, [])
 
   return (
@@ -668,6 +718,12 @@ function SubsidyDisbursalPage() {
                       Status
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Central subsidy
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      State subsidy
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -736,6 +792,26 @@ function SubsidyDisbursalPage() {
                                 </option>
                               ))}
                             </select>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={centralSubsidyValues[record._id] || record.centralSubsidy || ""}
+                              onChange={(e) => handleCentralSubsidyChange(record._id, e.target.value)}
+                              disabled={!selectedRows[record._id]}
+                              placeholder="Central subsidy"
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-32 px-2 py-1 block"
+                            />
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={stateSubsidyValues[record._id] || record.stateSubsidy || ""}
+                              onChange={(e) => handleStateSubsidyChange(record._id, e.target.value)}
+                              disabled={!selectedRows[record._id]}
+                              placeholder="State subsidy"
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-32 px-2 py-1 block"
+                            />
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
@@ -814,7 +890,7 @@ function SubsidyDisbursalPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={15} className="px-4 py-8 text-center text-gray-500 text-sm">
+                        <td colSpan={17} className="px-4 py-8 text-center text-gray-500 text-sm">
                           {searchTerm
                             ? "No history records matching your search"
                             : "No completed subsidy disbursal found"}
@@ -846,6 +922,26 @@ function SubsidyDisbursalPage() {
                               </option>
                             ))}
                           </select>
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <input
+                            type="number"
+                            value={centralSubsidyValues[record._id] || record.centralSubsidy || ""}
+                            onChange={(e) => handleCentralSubsidyChange(record._id, e.target.value)}
+                            disabled={!selectedRows[record._id]}
+                            placeholder="Central subsidy"
+                            className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-32 px-2 py-1 block"
+                          />
+                        </td>
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <input
+                            type="number"
+                            value={stateSubsidyValues[record._id] || record.stateSubsidy || ""}
+                            onChange={(e) => handleStateSubsidyChange(record._id, e.target.value)}
+                            disabled={!selectedRows[record._id]}
+                            placeholder="State subsidy"
+                            className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-32 px-2 py-1 block"
+                          />
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs font-medium text-blue-900">{record.enquiryNumber || "—"}</div>
@@ -923,7 +1019,7 @@ function SubsidyDisbursalPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={16} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={19} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm
                           ? "No pending subsidy disbursal matching your search"
                           : "No pending subsidy disbursal found"}
@@ -954,7 +1050,7 @@ function SubsidyDisbursalPage() {
                     <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
                       Edit Subsidy Disbursal
                     </h3>
-                    <div className="mt-4">
+                    <div className="space-y-4">
                       {/* Status Dropdown */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700">Subsidy Disbursal Status</label>
@@ -970,6 +1066,30 @@ function SubsidyDisbursalPage() {
                             </option>
                           ))}
                         </select>
+                      </div>
+
+                      {/* Central Subsidy */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Central subsidy</label>
+                        <input
+                          type="number"
+                          value={subsidyForm.centralSubsidy}
+                          onChange={(e) => setSubsidyForm({ ...subsidyForm, centralSubsidy: e.target.value })}
+                          placeholder="Enter Central subsidy"
+                          className="mt-1 block w-full px-3 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        />
+                      </div>
+
+                      {/* State Subsidy */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">State subsidy</label>
+                        <input
+                          type="number"
+                          value={subsidyForm.stateSubsidy}
+                          onChange={(e) => setSubsidyForm({ ...subsidyForm, stateSubsidy: e.target.value })}
+                          placeholder="Enter State subsidy"
+                          className="mt-1 block w-full px-3 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        />
                       </div>
                     </div>
                   </div>
