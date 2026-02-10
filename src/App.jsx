@@ -27,6 +27,7 @@ import { DeviceProvider } from "./pages/graph/DeviceContext"
 import AllGraph from "./pages/AllGraph"
 import WeeklyPerformanceReport from "./pages/graph/WeeklyPerformanceReport"
 import InsurancePage from "./pages/Insurance"
+import ModuleEntryPage from "./pages/ModuleEntry"
 
 import "./index.css"
 
@@ -247,6 +248,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <InsurancePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard/ModuleEntry"
+            element={
+              <ProtectedRoute>
+                <ModuleEntryPage />
               </ProtectedRoute>
             }
           />

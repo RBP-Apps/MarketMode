@@ -6,7 +6,7 @@ import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
-    APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec ",
+    APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
     SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
     SOURCE_SHEET_NAME: "FMS",
     DROPDOWN_SHEET_NAME: "Drop-Down Value",
