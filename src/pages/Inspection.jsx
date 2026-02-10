@@ -8,7 +8,7 @@ import AdminLayout from "../components/layout/AdminLayout"
 const CONFIG = {
   // Updated Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec ",
   // Updated Google Sheets ID
   SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   // Sheet names
@@ -60,7 +60,9 @@ function InspectionPage() {
   const [inspectionForm, setInspectionForm] = useState({
     inspection: "",
     date: "",
+    remarks: "",
   })
+  const [remarksValues, setRemarksValues] = useState({})
 
   // Debounced search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -264,6 +266,7 @@ function InspectionPage() {
           // Status columns
           inspection: rowValues[114] || "", // Column DK (index 114)
           date: formatDate(rowValues[115] || ""), // Column DL (index 115)
+          remarks: rowValues[158] || "", // Column FC (index 158)
           actual: rowValues[112] || "", // Column DI (index 112)
         }
 
@@ -296,6 +299,7 @@ function InspectionPage() {
   useEffect(() => {
     const initialStatusValues = {}
     const initialDateValues = {}
+    const initialRemarksValues = {}
     const allRecords = [...pendingData, ...historyData]
 
     allRecords.forEach((record) => {
@@ -305,10 +309,14 @@ function InspectionPage() {
       if (record.date && record.date !== "") {
         initialDateValues[record._id] = formatDateForInput(record.date)
       }
+      if (record.remarks && record.remarks !== "") {
+        initialRemarksValues[record._id] = record.remarks
+      }
     })
 
     setStatusValues(initialStatusValues)
     setDateValues(initialDateValues)
+    setRemarksValues(initialRemarksValues)
   }, [pendingData, historyData, formatDateForInput])
 
   // Optimized filtered data with debounced search
@@ -360,12 +368,20 @@ function InspectionPage() {
     }))
   }, [])
 
+  const handleRemarksChange = useCallback((recordId, remarks) => {
+    setRemarksValues((prev) => ({
+      ...prev,
+      [recordId]: remarks,
+    }))
+  }, [])
+
   const handleInspectionClick = useCallback(
     (record) => {
       setSelectedRecord(record)
       setInspectionForm({
         inspection: record.inspection || "",
         date: formatDateForInput(record.date || ""),
+        remarks: record.remarks || "",
       })
       setShowInspectionModal(true)
     },
@@ -386,12 +402,14 @@ function InspectionPage() {
     setIsSubmitting(true)
     try {
       const status = inspectionForm.inspection
+      const isEdit = !!selectedRecord.actual
       const actualDate = status === "Done" ? (selectedRecord.actual || formatTimestamp()) : ""
 
       // FIXED: Use null for columns we don't want to update
-      const rowData = Array(120).fill(null)
+      const rowData = Array(160).fill(null)
       rowData[114] = status // DK - Inspection status
       rowData[115] = (status === "Done" && inspectionForm.date) ? formatDate(inspectionForm.date) : "" // DL - Date
+      rowData[158] = inspectionForm.remarks || "" // FC - Remarks
       rowData[112] = actualDate // DI - Actual timestamp
 
       const updateData = {
@@ -413,6 +431,7 @@ function InspectionPage() {
         ...selectedRecord,
         inspection: status,
         date: (status === "Done" && inspectionForm.date) ? formatDate(inspectionForm.date) : "",
+        remarks: inspectionForm.remarks || "",
         actual: actualDate,
       }
 
@@ -458,16 +477,24 @@ function InspectionPage() {
     }
 
     // Check if all selected records have status selected
-    const missingStatus = selectedRecordIds.filter((id) => !statusValues[id] || statusValues[id] === "Select")
+    const missingStatus = selectedRecordIds.filter((id) => {
+      const record = pendingData.find((r) => r._id === id) || historyData.find((r) => r._id === id)
+      const currentStatus = statusValues[id] || record?.inspection
+      return !currentStatus || currentStatus === "Select"
+    })
+
     if (missingStatus.length > 0) {
       alert("Please select status for all selected records")
       return
     }
 
     // Check if records with "Done" status have dates
-    const missingDates = selectedRecordIds.filter(
-      (id) => statusValues[id] === "Done" && (!dateValues[id] || dateValues[id] === ""),
-    )
+    const missingDates = selectedRecordIds.filter((id) => {
+      const record = pendingData.find((r) => r._id === id) || historyData.find((r) => r._id === id)
+      const currentStatus = statusValues[id] || record?.inspection
+      return currentStatus === "Done" && (!dateValues[id] || dateValues[id] === "")
+    })
+
     if (missingDates.length > 0) {
       alert("Please select date for all records with 'Done' status")
       return
@@ -477,17 +504,18 @@ function InspectionPage() {
     try {
       const updatePromises = selectedRecordIds.map(async (recordId) => {
         const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
-        const status = statusValues[recordId]
-        const selectedDate = dateValues[recordId]
-
         if (!record) return
 
+        const status = statusValues[recordId] || record.inspection
+        const selectedDate = dateValues[recordId]
+
         // FIXED: Use null for columns we don't want to update
-        const rowData = Array(120).fill(null)
+        const rowData = Array(160).fill(null)
 
         // Update only inspection-specific columns:
         rowData[114] = status // DK - Inspection status
         rowData[115] = selectedDate ? formatDate(selectedDate) : "" // DL - Date
+        rowData[158] = remarksValues[recordId] || "" // FC - Remarks
 
         // Clear or set actual date based on status
         if (status === "Done") {
@@ -527,13 +555,17 @@ function InspectionPage() {
       // Update local state
       const updatedRecords = selectedRecordIds.map((recordId) => {
         const record = pendingData.find((r) => r._id === recordId) || historyData.find((r) => r._id === recordId)
-        const status = statusValues[recordId]
+        if (!record) return null
+
+        const status = statusValues[recordId] || record.inspection
         const selectedDate = dateValues[recordId]
+        const remarks = remarksValues[recordId]
 
         return {
           ...record,
           inspection: status,
           date: selectedDate ? formatDate(selectedDate) : record.date,
+          remarks: remarks || record.remarks,
           actual: status === "Done" ? formatTimestamp() : record.actual,
         }
       })
@@ -555,6 +587,7 @@ function InspectionPage() {
       setSelectedRows({})
       setStatusValues({})
       setDateValues({})
+      setRemarksValues({})
 
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -574,6 +607,7 @@ function InspectionPage() {
     setSelectedRows({})
     setStatusValues({})
     setDateValues({})
+    setRemarksValues({})
   }, [])
 
   return (
@@ -714,6 +748,9 @@ function InspectionPage() {
                       Date
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Remarks
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Enquiry Number
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -788,6 +825,20 @@ function InspectionPage() {
                               />
                               <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                             </div>
+                          </td>
+                          <td className="px-2 py-3">
+                            <textarea
+                              value={remarksValues[record._id] || record.remarks || ""}
+                              onChange={(e) => {
+                                handleRemarksChange(record._id, e.target.value)
+                                e.target.style.height = "auto"
+                                e.target.style.height = e.target.scrollHeight + "px"
+                              }}
+                              disabled={!selectedRows[record._id]}
+                              placeholder="Enter remarks"
+                              rows={1}
+                              className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-48 px-2 py-1 resize-none overflow-hidden block"
+                            />
                           </td>
                           <td className="px-2 py-3 whitespace-nowrap">
                             <div className="text-xs font-medium text-gray-900">{record.enquiryNumber || "—"}</div>
@@ -900,6 +951,20 @@ function InspectionPage() {
                             className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </td>
+                        <td className="px-2 py-3">
+                          <textarea
+                            value={remarksValues[record._id] || record.remarks || ""}
+                            onChange={(e) => {
+                              handleRemarksChange(record._id, e.target.value)
+                              e.target.style.height = "auto"
+                              e.target.style.height = e.target.scrollHeight + "px"
+                            }}
+                            disabled={!selectedRows[record._id]}
+                            placeholder="Enter remarks"
+                            rows={1}
+                            className="text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-48 px-2 py-1 resize-none overflow-hidden block"
+                          />
+                        </td>
                         <td className="px-2 py-3 whitespace-nowrap">
                           <div className="text-xs font-medium text-blue-900">{record.enquiryNumber || "—"}</div>
                         </td>
@@ -970,7 +1035,7 @@ function InspectionPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={14} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={15} className="px-4 py-8 text-center text-gray-500 text-sm">
                         {searchTerm ? "No pending inspection matching your search" : "No pending inspection found"}
                       </td>
                     </tr>
@@ -1029,6 +1094,24 @@ function InspectionPage() {
                             value={inspectionForm.date}
                             onChange={(e) => setInspectionForm({ ...inspectionForm, date: e.target.value })}
                             className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Remarks Input */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Remarks</label>
+                        <div className="mt-1 relative rounded-md shadow-sm">
+                          <textarea
+                            value={inspectionForm.remarks}
+                            onChange={(e) => {
+                              setInspectionForm({ ...inspectionForm, remarks: e.target.value })
+                              e.target.style.height = "auto"
+                              e.target.style.height = e.target.scrollHeight + "px"
+                            }}
+                            rows={3}
+                            className="focus:ring-blue-500 focus:border-blue-500 block w-full px-3 py-2 sm:text-sm border-gray-300 rounded-md resize-none overflow-hidden"
+                            placeholder="Enter inspection remarks"
                           />
                         </div>
                       </div>

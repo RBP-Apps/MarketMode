@@ -116,7 +116,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/OrderPlace",
-      label: "Varyaa",
+      label: "Solarkart ",
       icon: ShoppingCart,
       active: location.pathname === "/dashboard/OrderPlace",
       showFor: ["admin", "user"]
@@ -158,14 +158,14 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/Billing",
-      label: "Billing",
+      label: "Billings and Payment Details",
       icon: Receipt,
       active: location.pathname === "/dashboard/Billing",
       showFor: ["admin", "user"]
     },
     {
       href: "/dashboard/CspdclForSynconization",
-      label: "CSPDCL For Synchronization",
+      label: "Mandatory Documents for Synchronization",
       icon: Zap,
       active: location.pathname === "/dashboard/CspdclForSynconization",
       showFor: ["admin", "user"]
@@ -186,7 +186,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/Redemption",
-      label: "Subsidy e-Token",
+      label: "Subsidy Redemption",
       icon: RotateCcw,
       active: location.pathname === "/dashboard/Redemption",
       showFor: ["admin", "user"]
@@ -203,6 +203,13 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       label: "Payment",
       icon: CreditCard,
       active: location.pathname === "/dashboard/Payment",
+      showFor: ["admin", "user"]
+    },
+     {
+      href: "/dashboard/Insurance",
+      label: "Insurance",
+      icon: CreditCard,
+      active: location.pathname === "/dashboard/Insurance",
       showFor: ["admin", "user"]
     },
     // {

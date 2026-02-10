@@ -8,7 +8,7 @@ import AdminLayout from "../components/layout/AdminLayout"
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec ",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1SFoN0eZ8TS6qEruTlGj-WELKkm8Gw2iU",
   // Sheet names
@@ -984,7 +984,7 @@ function IPAssignmentPage() {
                   </div>
 
                   {/* GST Number */}
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">GST Number</label>
                     <input
                       type="text"
@@ -994,10 +994,10 @@ function IPAssignmentPage() {
                       maxLength="15"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
-                  </div>
+                  </div> */}
 
                   {/* Work Order Number */}
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Work Order Number</label>
                     <input
                       type="text"
@@ -1006,10 +1006,10 @@ function IPAssignmentPage() {
                       placeholder="Enter work order number"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
-                  </div>
+                  </div> */}
 
                   {/* GST Certificates */}
-                  <div className="flex gap-4">
+                  {/* <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         GST Certificates
@@ -1048,10 +1048,10 @@ function IPAssignmentPage() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Bank Account Details */}
-                  <div className="flex gap-4">
+                  {/* <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Bank Account Details
@@ -1090,10 +1090,10 @@ function IPAssignmentPage() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Aadhar Card */}
-                  <div className="flex gap-4">
+                  {/* <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Aadhar Card
@@ -1132,10 +1132,10 @@ function IPAssignmentPage() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Pan Card */}
-                  <div className="flex gap-4">
+                  {/* <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Pan Card
@@ -1174,10 +1174,10 @@ function IPAssignmentPage() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Work Order Copy */}
-                  <div className="flex gap-4">
+                  {/* <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Work Order Copy
@@ -1216,7 +1216,7 @@ function IPAssignmentPage() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Action Buttons */}

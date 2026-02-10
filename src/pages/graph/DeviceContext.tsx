@@ -67,6 +67,12 @@ export const DeviceProvider = ({ children }) => {
     }
   };
 
+  // Clear token
+  const clearToken = () => {
+    setToken('');
+    localStorage.removeItem('solarToken');
+  };
+
   const value = {
     psKey,
     setPsKey,
@@ -75,6 +81,7 @@ export const DeviceProvider = ({ children }) => {
     token,
     setToken,
     clearDeviceData,
+    clearToken,
     updateDeviceData
   };
 

@@ -494,10 +494,10 @@ function AllGraph() {
             {toast.show && (
                 <div
                     className={`fixed top-4 right-4 z-[100] max-w-md p-4 rounded-xl shadow-2xl border transform transition-all duration-500 ease-out ${toast.type === 'success'
-                            ? 'bg-green-50 border-green-200 text-green-800'
-                            : toast.type === 'error'
-                                ? 'bg-red-50 border-red-200 text-red-800'
-                                : 'bg-blue-50 border-blue-200 text-blue-800'
+                        ? 'bg-green-50 border-green-200 text-green-800'
+                        : toast.type === 'error'
+                            ? 'bg-red-50 border-red-200 text-red-800'
+                            : 'bg-blue-50 border-blue-200 text-blue-800'
                         }`}
                 >
                     <div className="flex items-center gap-3">

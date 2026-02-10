@@ -1,11 +1,11 @@
 "use client"
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Wrench } from "lucide-react"
+import { CheckCircle2, X, Search, History, MapPin, Users, Phone, Eye, Wrench, Loader2, CloudUpload, AlertCircle } from "lucide-react"
 import AdminLayout from "../components/layout/AdminLayout"
 
 const CONFIG = {
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec ",
   DRIVE_FOLDER_ID: "1SUhoI00UZ8jkao8tXVCPAbyBZLoYp5ko",
   SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
   SOURCE_SHEET_NAME: "FMS",
@@ -73,6 +73,15 @@ function InstallationPage() {
     repeatedCertificate: null,
     projectCommissioningCertificate: null,
     inverterId: "",
+  })
+
+  const [fileUploads, setFileUploads] = useState({
+    foundationPhoto: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+    afterInstallationPhoto: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+    photoWithCustomer: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+    completeInstallationPhoto: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+    repeatedCertificate: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+    projectCommissioningCertificate: { uploading: false, uploaded: false, url: "", error: null, name: "" },
   })
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -355,16 +364,73 @@ function InstallationPage() {
       projectCommissioningCertificate: null,
       inverterId: record.investorId || "",
     })
+    // Initialize file uploads state with existing data and progress tracking
+    setFileUploads({
+      foundationPhoto: { uploading: false, uploaded: !!record.foundationPhoto, url: record.foundationPhoto || "", error: null, name: record.foundationPhoto ? "Existing Photo" : "", progress: 0 },
+      afterInstallationPhoto: { uploading: false, uploaded: !!record.afterInstallationPhoto, url: record.afterInstallationPhoto || "", error: null, name: record.afterInstallationPhoto ? "Existing Photo" : "", progress: 0 },
+      photoWithCustomer: { uploading: false, uploaded: !!record.photoWithCustomer, url: record.photoWithCustomer || "", error: null, name: record.photoWithCustomer ? "Existing Photo" : "", progress: 0 },
+      completeInstallationPhoto: { uploading: false, uploaded: !!record.completeInstallationPhoto, url: record.completeInstallationPhoto || "", error: null, name: record.completeInstallationPhoto ? "Existing Photo" : "", progress: 0 },
+      repeatedCertificate: { uploading: false, uploaded: !!record.repeatedCertificate, url: record.repeatedCertificate || "", error: null, name: record.repeatedCertificate ? "Existing Photo" : "", progress: 0 },
+      projectCommissioningCertificate: { uploading: false, uploaded: !!record.projectCommissioningCertificate, url: record.projectCommissioningCertificate || "", error: null, name: record.projectCommissioningCertificate ? "Existing Photo" : "", progress: 0 },
+    })
     setShowInstallModal(true)
   }, [formatDateForInput])
 
-  const handleFileUpload = useCallback((field, file) => {
-    setInstallForm((prev) => ({ ...prev, [field]: file }))
-  }, [])
+  const compressImage = useCallback((file) => {
+    return new Promise((resolve) => {
+      // Skip if not an image or if it's a small SVG/GIF that might be corrupted by canvas
+      if (!file.type.startsWith("image/") || file.type.includes("svg") || file.type.includes("gif") || file.size < 1024 * 1024) {
+        resolve(file);
+        return;
+      }
 
-  const handleInputChange = useCallback((field, value) => {
-    setInstallForm((prev) => ({ ...prev, [field]: value }))
-  }, [])
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+
+          // Target high quality but reasonable dimensions for 4G/Mobile networks
+          const MAX_DIM = 2500;
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height *= MAX_DIM / width;
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width *= MAX_DIM / height;
+              height = MAX_DIM;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const compressedFile = new File([blob], file.name, {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            });
+            console.log(`Optimized ${file.name}: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+            resolve(compressedFile);
+          }, "image/jpeg", 0.8);
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  }, []);
 
   const fileToBase64 = useCallback((file) => {
     return new Promise((resolve, reject) => {
@@ -376,34 +442,127 @@ function InstallationPage() {
   }, [])
 
   const uploadImageToDrive = useCallback(
-    async (file) => {
+    async (file, onProgress) => {
       try {
-        const base64Data = await fileToBase64(file)
-        const formData = new FormData()
-        formData.append("action", "uploadFile")
-        formData.append("base64Data", base64Data)
-        formData.append("fileName", `${selectedRecord._enquiryNumber}_${Date.now()}.${file.name.split(".").pop()}`)
-        formData.append("mimeType", file.type)
-        formData.append("folderId", CONFIG.DRIVE_FOLDER_ID)
+        // Step 1: Optimize if it's a photo
+        const processedFile = await compressImage(file);
 
-        const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
-          method: "POST",
-          body: formData,
-        })
-
-        const result = await response.json()
-        if (result.success) {
-          return result.fileUrl
-        } else {
-          throw new Error("Failed to upload image")
+        // Step 2: Check Payload Limits (GAS limit is ~50MB, base64 adds 33%)
+        if (processedFile.size > 35 * 1024 * 1024) {
+          throw new Error("File is too large for transmission. Please select a file smaller than 35MB.");
         }
+
+        // Step 3: Convert to Base64
+        const base64Data = await fileToBase64(processedFile);
+
+        // Step 4: Transmit with progress monitoring
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", CONFIG.APPS_SCRIPT_URL);
+
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              onProgress(percent);
+            }
+          };
+
+          xhr.onload = () => {
+            try {
+              const result = JSON.parse(xhr.responseText);
+              if (result.success) {
+                resolve(result.fileUrl);
+              } else {
+                reject(new Error(result.error || "Upload failed. Please check your connection."));
+              }
+            } catch (err) {
+              reject(new Error("Server returned an invalid response."));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Network connection lost. Please try again."));
+
+          const formData = new FormData();
+          formData.append("action", "uploadFile");
+          formData.append("base64Data", base64Data);
+          formData.append("fileName", `${selectedRecord._enquiryNumber}_${Date.now()}.${processedFile.name.split(".").pop()}`);
+          formData.append("mimeType", processedFile.type);
+          formData.append("folderId", CONFIG.DRIVE_FOLDER_ID);
+
+          xhr.send(formData);
+        });
       } catch (error) {
-        console.error("Error uploading image:", error)
-        throw error
+        console.error("Error uploading image:", error);
+        throw error;
       }
     },
-    [selectedRecord, fileToBase64],
+    [selectedRecord, fileToBase64, compressImage],
   )
+
+  const handleFileUpload = useCallback((field, file) => {
+    if (!file) return;
+
+    // Only update the form state with the File object
+    setInstallForm((prev) => ({ ...prev, [field]: file }))
+
+    // Update the professional upload status to show it's selected but not yet uploading
+    setFileUploads(prev => ({
+      ...prev,
+      [field]: { ...prev[field], uploading: false, uploaded: false, error: null, name: file.name, ready: true }
+    }))
+  }, [])
+
+  const UploadStatus = ({ field }) => {
+    const status = fileUploads[field]
+    if (status.uploading) {
+      return (
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center justify-between text-blue-600 px-2 py-1 rounded text-xs animate-pulse border border-blue-100 bg-blue-50">
+            <div className="flex items-center">
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              {status.progress < 100 ? "Processing & Uploading..." : "Finalizing on Drive..."}
+            </div>
+            <span className="font-bold">{status.progress}%</span>
+          </div>
+          <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
+            <div
+              className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+              style={{ width: `${status.progress}%` }}
+            />
+          </div>
+        </div>
+      )
+    }
+    if (status.error) {
+      return (
+        <div className="flex items-center mt-2 text-red-600 bg-red-50 px-2 py-1 rounded text-xs border border-red-100">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Failed: {status.error}
+        </div>
+      )
+    }
+    if (status.uploaded) {
+      return (
+        <div className="flex items-center mt-2 text-green-600 bg-green-50 px-2 py-1 rounded text-xs border border-green-100 font-medium">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          {status.name.includes("Existing") ? "Document Available" : "Successfully Uploaded"}
+        </div>
+      )
+    }
+    if (status.ready) {
+      return (
+        <div className="flex items-center mt-2 text-amber-600 bg-amber-50 px-2 py-1 rounded text-xs border border-amber-100 font-medium italic">
+          <CloudUpload className="h-3 w-3 mr-1" />
+          File selected: {status.name} (Ready to upload)
+        </div>
+      )
+    }
+    return null
+  }
+
+  const handleInputChange = useCallback((field, value) => {
+    setInstallForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
 
   const handleInstallSubmit = async () => {
     if (!installForm.dateOfInstallation) {
@@ -416,29 +575,66 @@ function InstallationPage() {
       const isEdit = !isEmpty(selectedRecord.actual)
       const actualDate = isEdit ? selectedRecord.actual : formatTimestamp()
 
-      let foundationPhotoUrl = ""
-      if (installForm.foundationPhoto) foundationPhotoUrl = await uploadImageToDrive(installForm.foundationPhoto)
-      else if (isEdit && selectedRecord.foundationPhoto) foundationPhotoUrl = selectedRecord.foundationPhoto
+      // 1. Process Sequential Uploads
+      const fieldsToUpload = [
+        "foundationPhoto",
+        "afterInstallationPhoto",
+        "photoWithCustomer",
+        "completeInstallationPhoto",
+        "repeatedCertificate",
+        "projectCommissioningCertificate"
+      ];
 
-      let afterInstallationPhotoUrl = ""
-      if (installForm.afterInstallationPhoto) afterInstallationPhotoUrl = await uploadImageToDrive(installForm.afterInstallationPhoto)
-      else if (isEdit && selectedRecord.afterInstallationPhoto) afterInstallationPhotoUrl = selectedRecord.afterInstallationPhoto
+      const currentFileUploads = { ...fileUploads };
 
-      let photoWithCustomerUrl = ""
-      if (installForm.photoWithCustomer) photoWithCustomerUrl = await uploadImageToDrive(installForm.photoWithCustomer)
-      else if (isEdit && selectedRecord.photoWithCustomer) photoWithCustomerUrl = selectedRecord.photoWithCustomer
+      for (const field of fieldsToUpload) {
+        const fileObj = installForm[field];
+        // Only upload if it's a new File object
+        if (fileObj && fileObj instanceof File) {
+          // Update UI to show uploading
+          setFileUploads(prev => ({
+            ...prev,
+            [field]: { ...prev[field], uploading: true, error: null, progress: 0 }
+          }));
 
-      let completeInstallationPhotoUrl = ""
-      if (installForm.completeInstallationPhoto) completeInstallationPhotoUrl = await uploadImageToDrive(installForm.completeInstallationPhoto)
-      else if (isEdit && selectedRecord.completeInstallationPhoto) completeInstallationPhotoUrl = selectedRecord.completeInstallationPhoto
+          try {
+            const uploadedUrl = await uploadImageToDrive(fileObj, (percent) => {
+              setFileUploads(prev => ({
+                ...prev,
+                [field]: { ...prev[field], progress: percent }
+              }));
+            });
+            // Update local tracking
+            currentFileUploads[field] = {
+              uploading: false,
+              uploaded: true,
+              url: uploadedUrl,
+              error: null,
+              name: fileObj.name,
+              ready: false,
+              progress: 100
+            };
+            // Update persistent state
+            setFileUploads(prev => ({
+              ...prev,
+              [field]: currentFileUploads[field]
+            }));
+          } catch (uploadError) {
+            setFileUploads(prev => ({
+              ...prev,
+              [field]: { ...prev[field], uploading: false, error: uploadError.message }
+            }));
+            throw new Error(`Failed to upload ${field}. Please try again.`);
+          }
+        }
+      }
 
-      let repeatedCertificateUrl = ""
-      if (installForm.repeatedCertificate) repeatedCertificateUrl = await uploadImageToDrive(installForm.repeatedCertificate)
-      else if (isEdit && selectedRecord.repeatedCertificate) repeatedCertificateUrl = selectedRecord.repeatedCertificate
-
-      let projectCommissioningCertificateUrl = ""
-      if (installForm.projectCommissioningCertificate) projectCommissioningCertificateUrl = await uploadImageToDrive(installForm.projectCommissioningCertificate)
-      else if (isEdit && selectedRecord.projectCommissioningCertificate) projectCommissioningCertificateUrl = selectedRecord.projectCommissioningCertificate
+      const foundationPhotoUrl = currentFileUploads.foundationPhoto.url
+      const afterInstallationPhotoUrl = currentFileUploads.afterInstallationPhoto.url
+      const photoWithCustomerUrl = currentFileUploads.photoWithCustomer.url
+      const completeInstallationPhotoUrl = currentFileUploads.completeInstallationPhoto.url
+      const repeatedCertificateUrl = currentFileUploads.repeatedCertificate.url
+      const projectCommissioningCertificateUrl = currentFileUploads.projectCommissioningCertificate.url
 
       // FIXED: Use null for columns we don't want to update
       const rowData = Array(154).fill(null)
@@ -554,6 +750,14 @@ function InstallationPage() {
       completeInstallationPhoto: null,
       investorId: "",
     })
+    setFileUploads({
+      foundationPhoto: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+      afterInstallationPhoto: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+      photoWithCustomer: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+      completeInstallationPhoto: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+      repeatedCertificate: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+      projectCommissioningCertificate: { uploading: false, uploaded: false, url: "", error: null, name: "" },
+    })
   }, [])
 
   return (
@@ -619,7 +823,7 @@ function InstallationPage() {
 
         {/* Table Container with Fixed Height */}
         <div className="rounded-lg border border-blue-200 shadow-md bg-white overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-3">
             <h2 className="text-blue-700 font-medium flex items-center text-sm">
               {showHistory ? (
                 <>
@@ -990,7 +1194,7 @@ function InstallationPage() {
                         <td className="px-2 py-3 whitespace-nowrap">
                           <button
                             onClick={() => handleInstallClick(record)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-linear-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 shadow-sm transition-all hover:scale-105 active:scale-95"
                           >
                             <Wrench className="h-3 w-3 mr-1" />
                             Install
@@ -1423,12 +1627,8 @@ function InstallationPage() {
                       onChange={(e) => handleFileUpload("foundationPhoto", e.target.files[0])}
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {installForm.foundationPhoto && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {installForm.foundationPhoto.name}
-                      </p>
-                    )}
+                    <UploadStatus field="foundationPhoto" />
+
                     {selectedRecord?.foundationPhoto && (
                       <div className="mt-2 flex items-center space-x-2">
                         <span className="text-xs text-gray-500">Existing:</span>
@@ -1456,12 +1656,8 @@ function InstallationPage() {
                       onChange={(e) => handleFileUpload("afterInstallationPhoto", e.target.files[0])}
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {installForm.afterInstallationPhoto && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {installForm.afterInstallationPhoto.name}
-                      </p>
-                    )}
+                    <UploadStatus field="afterInstallationPhoto" />
+
                     {selectedRecord?.afterInstallationPhoto && (
                       <div className="mt-2 flex items-center space-x-2">
                         <span className="text-xs text-gray-500">Existing:</span>
@@ -1489,12 +1685,8 @@ function InstallationPage() {
                       onChange={(e) => handleFileUpload("photoWithCustomer", e.target.files[0])}
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {installForm.photoWithCustomer && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {installForm.photoWithCustomer.name}
-                      </p>
-                    )}
+                    <UploadStatus field="photoWithCustomer" />
+
                     {selectedRecord?.photoWithCustomer && (
                       <div className="mt-2 flex items-center space-x-2">
                         <span className="text-xs text-gray-500">Existing:</span>
@@ -1522,12 +1714,8 @@ function InstallationPage() {
                       onChange={(e) => handleFileUpload("completeInstallationPhoto", e.target.files[0])}
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {installForm.completeInstallationPhoto && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {installForm.completeInstallationPhoto.name}
-                      </p>
-                    )}
+                    <UploadStatus field="completeInstallationPhoto" />
+
                     {selectedRecord?.completeInstallationPhoto && (
                       <div className="mt-2 flex items-center space-x-2">
                         <span className="text-xs text-gray-500">Existing:</span>
@@ -1555,12 +1743,8 @@ function InstallationPage() {
                       onChange={(e) => handleFileUpload("repeatedCertificate", e.target.files[0])}
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {installForm.repeatedCertificate && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {installForm.repeatedCertificate.name}
-                      </p>
-                    )}
+                    <UploadStatus field="repeatedCertificate" />
+
                     {selectedRecord?.repeatedCertificate && (
                       <div className="mt-2 flex items-center space-x-2">
                         <span className="text-xs text-gray-500">Existing:</span>
@@ -1588,12 +1772,8 @@ function InstallationPage() {
                       onChange={(e) => handleFileUpload("projectCommissioningCertificate", e.target.files[0])}
                       className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {installForm.projectCommissioningCertificate && (
-                      <p className="text-sm text-green-600 mt-2 flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {installForm.projectCommissioningCertificate.name}
-                      </p>
-                    )}
+                    <UploadStatus field="projectCommissioningCertificate" />
+
                     {selectedRecord?.projectCommissioningCertificate && (
                       <div className="mt-2 flex items-center space-x-2">
                         <span className="text-xs text-gray-500">Existing:</span>
@@ -1621,18 +1801,18 @@ function InstallationPage() {
                   </button>
                   <button
                     onClick={handleInstallSubmit}
-                    disabled={isSubmitting || !installForm.dateOfInstallation}
-                    className="px-6 py-2 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center"
+                    disabled={isSubmitting}
+                    className="px-6 py-2 bg-linear-to-r from-green-500 to-blue-600 text-white rounded-md hover:from-green-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center shadow-lg transition-all hover:scale-[1.02] active:scale-95"
                   >
                     {isSubmitting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Submitting...
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
                       </>
                     ) : (
                       <>
                         <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Submit
+                        Complete Installation
                       </>
                     )}
                   </button>

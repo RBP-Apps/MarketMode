@@ -15,7 +15,7 @@ import InformToCustomerPage from "./pages/InformToCustomer"
 import MaterialreceivedPage from "./pages/Materialreceived"
 import InstallationPage from "./pages/Installation"
 import BillingPage from "./pages/Billing"
-import CspdclForSynconizationPage from "./pages/CspdclForSynconization"
+import CspdclForSynconizationPage from "./pages/Mandatory Documents for Synchronization"
 import InspectionPage from "./pages/Inspection"
 import ProjectCommissioningPage from "./pages/ProjectCommissioning"
 import RedemptionPage from "./pages/Redemption"
@@ -26,6 +26,7 @@ import AnalysisGraphPage from "./pages/Analysisgraph"
 import { DeviceProvider } from "./pages/graph/DeviceContext"
 import AllGraph from "./pages/AllGraph"
 import WeeklyPerformanceReport from "./pages/graph/WeeklyPerformanceReport"
+import InsurancePage from "./pages/Insurance"
 
 import "./index.css"
 
@@ -236,6 +237,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <PaymentPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/*Insurance route for user */}
+          <Route
+            path="/dashboard/Insurance"
+            element={
+              <ProtectedRoute>
+                <InsurancePage />
               </ProtectedRoute>
             }
           />

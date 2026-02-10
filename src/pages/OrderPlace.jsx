@@ -8,7 +8,7 @@ import AdminLayout from "../components/layout/AdminLayout"
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec ",
   // Updated Google Drive folder ID for file uploads
   DRIVE_FOLDER_ID: "1O67xaSjucSi761g-WRA0D7i0ck344FtT",
   // Sheet names
@@ -16,7 +16,7 @@ const CONFIG = {
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
   // Updated page configuration
   PAGE_CONFIG: {
-    title: "Varya",
+    title: "Solarkart",
     historyTitle: "Varya History",
     description: "Manage pending orders",
     historyDescription: "View completed order records",
@@ -58,7 +58,12 @@ function OrderReceivePage() {
     bos: "",
     acdb: "",
     dcdb: "",
-    orderCopy: null,
+    orderCopy: "", // Changed from null to empty string for URL storage
+  })
+
+  // Professional file upload status state
+  const [fileUploads, setFileUploads] = useState({
+    orderCopy: { uploading: false, uploaded: false, url: "", error: null, name: "" }
   })
 
   // Debounced search term for better performance
@@ -238,27 +243,6 @@ function OrderReceivePage() {
       : historyData
   }, [historyData, debouncedSearchTerm])
 
-  const handleOrderClick = useCallback((record) => {
-    setSelectedRecord(record)
-    setOrderForm({
-      module: record.module || "",
-      inverter: record.inverter || "",
-      bos: record.bos || "",
-      acdb: record.acdb || "",
-      dcdb: record.dcdb || "",
-      orderCopy: null,
-    })
-    setShowOrderModal(true)
-  }, [])
-
-  const handleFileUpload = useCallback((field, file) => {
-    setOrderForm((prev) => ({ ...prev, [field]: file }))
-  }, [])
-
-  const handleInputChange = useCallback((field, value) => {
-    setOrderForm((prev) => ({ ...prev, [field]: value }))
-  }, [])
-
   const fileToBase64 = useCallback((file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -301,6 +285,93 @@ function OrderReceivePage() {
     [selectedRecord, fileToBase64],
   )
 
+  const handleOrderClick = useCallback((record) => {
+    setSelectedRecord(record)
+    setOrderForm({
+      module: record.module || "",
+      inverter: record.inverter || "",
+      bos: record.bos || "",
+      acdb: record.acdb || "",
+      dcdb: record.dcdb || "",
+      orderCopy: record.orderCopy || "",
+    })
+
+    // Initialize professional upload status
+    setFileUploads({
+      orderCopy: {
+        uploading: false,
+        uploaded: !!record.orderCopy,
+        url: record.orderCopy || "",
+        error: null,
+        name: record.orderCopy ? "Existing Order Copy" : ""
+      }
+    })
+
+    setShowOrderModal(true)
+  }, [])
+
+  const handleFileUpload = useCallback(async (field, file) => {
+    if (!file) return
+
+    // Update form state (backward compatibility)
+    setOrderForm((prev) => ({ ...prev, [field]: file }))
+
+    // Start professional upload process
+    setFileUploads(prev => ({
+      ...prev,
+      [field]: { ...prev[field], uploading: true, error: null, name: file.name }
+    }))
+
+    try {
+      const url = await uploadImageToDrive(file)
+      setFileUploads(prev => ({
+        ...prev,
+        [field]: { uploading: false, uploaded: true, url, error: null, name: file.name }
+      }))
+    } catch (error) {
+      console.error(`Upload error for ${field}:`, error)
+      setFileUploads(prev => ({
+        ...prev,
+        [field]: { uploading: false, uploaded: false, url: "", error: error.message, name: file.name }
+      }))
+    }
+  }, [uploadImageToDrive])
+
+  const UploadStatus = ({ field }) => {
+    const status = fileUploads[field]
+    if (!status) return null
+
+    if (status.uploading) {
+      return (
+        <div className="flex items-center mt-2 text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs animate-pulse">
+          <div className="h-3 w-3 mr-1 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          Uploading to Drive...
+        </div>
+      )
+    }
+    if (status.error) {
+      return (
+        <div className="flex items-center mt-2 text-red-600 bg-red-50 px-2 py-1 rounded text-xs border border-red-100">
+          <X className="h-3 w-3 mr-1" />
+          Failed: {status.error}
+        </div>
+      )
+    }
+    if (status.uploaded) {
+      return (
+        <div className="flex items-center mt-2 text-green-600 bg-green-50 px-2 py-1 rounded text-xs border border-green-100 font-medium">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Successfully Uploaded
+        </div>
+      )
+    }
+    return null
+  }
+
+  const handleInputChange = useCallback((field, value) => {
+    setOrderForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
   const handleOrderSubmit = async () => {
     if (!orderForm.module || !orderForm.inverter) {
       alert("Please fill in required fields (Module and Inverter)")
@@ -309,16 +380,18 @@ function OrderReceivePage() {
 
     setIsSubmitting(true)
     try {
+      // Check if any uploads are still in progress
+      const uploadingFields = Object.keys(fileUploads).filter(key => fileUploads[key].uploading)
+      if (uploadingFields.length > 0) {
+        alert("Please wait for the document to finish uploading before submitting.")
+        return
+      }
+
       const isEdit = !isEmpty(selectedRecord.actualDate)
       const actualDate = isEdit ? selectedRecord.actualDate : formatTimestamp()
 
-      // Upload order copy image and get URL
-      let orderCopyUrl = ""
-      if (orderForm.orderCopy) {
-        orderCopyUrl = await uploadImageToDrive(orderForm.orderCopy)
-      } else if (isEdit && selectedRecord.orderCopy) {
-        orderCopyUrl = selectedRecord.orderCopy
-      }
+      // Use URL from professional upload state
+      const orderCopyUrl = fileUploads.orderCopy.url
 
       // FIXED: Use null for columns we don't want to update
       const rowData = Array(53).fill(null) // Array up to column BA (index 52)
@@ -886,48 +959,43 @@ function OrderReceivePage() {
                   </div>
 
                   {/* Order Copy */}
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Order Copy</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload("orderCopy", e.target.files[0])}
-                        className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      />
-                      {orderForm.orderCopy && <p className="text-xs text-green-600 mt-1">✓ New file: {orderForm.orderCopy.name}</p>}
-                      {/* Preview Quotation Copy link */}
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Order Copy <span className="text-gray-500 text-[10px] ml-1">(Image/PDF)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => handleFileUpload("orderCopy", e.target.files[0])}
+                      className="mt-1 block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    <UploadStatus field="orderCopy" />
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {selectedRecord?.orderCopy && (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] text-gray-500 font-medium italic">Existing Order:</span>
+                          <button
+                            type="button"
+                            onClick={() => window.open(selectedRecord.orderCopy, "_blank", "noopener,noreferrer")}
+                            className="inline-flex items-center px-2 py-1 text-[10px] font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Preview Previous Order
+                          </button>
+                        </div>
+                      )}
+
                       {selectedRecord?.quotationCopy && (
-                        <div className="mt-2">
-                          <a
-                            href={selectedRecord.quotationCopy}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800"
+                        <div className="flex items-center space-x-2 border-l border-gray-200 pl-2">
+                          <button
+                            type="button"
+                            onClick={() => window.open(selectedRecord.quotationCopy, "_blank", "noopener,noreferrer")}
+                            className="inline-flex items-center px-2 py-1 text-[10px] font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition-colors"
                           >
                             <Eye className="h-3 w-3 mr-1" />
                             View Quotation Copy
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                    <div className="shrink-0 flex items-center pt-5">
-                      {selectedRecord?.orderCopy ? (
-                        <a
-                          href={selectedRecord.orderCopy}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 border border-blue-200 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
-                          title="View Previous Order Copy"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </a>
-                      ) : (
-                        <div
-                          className="p-2 border border-gray-200 rounded-md text-gray-300 bg-gray-50 cursor-not-allowed"
-                          title="No previous file"
-                        >
-                          <Eye className="h-5 w-5" />
+                          </button>
                         </div>
                       )}
                     </div>

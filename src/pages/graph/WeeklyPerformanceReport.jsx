@@ -23,7 +23,7 @@ const SOLAR_SECRET_KEY = import.meta.env.VITE_SOLAR_SECRET_KEY || '';
 const SOLAR_SYS_CODE = import.meta.env.VITE_SOLAR_SYS_CODE || '207';
 const USER_ACCOUNT = import.meta.env.VITE_USER_ACCOUNT || '';
 const USER_PASSWORD = import.meta.env.VITE_USER_PASSWORD || '';
-const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec";
+const GOOGLE_SCRIPT_URL = (import.meta.env.VITE_GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec").trim();
 const SHEET_NAME = "Inverter_id";
 
 // Cache utility functions - Moved outside component
@@ -177,7 +177,7 @@ const WeeklyPerformanceReport = () => {
   const getNextAutoSyncDate = useCallback((today) => {
     const nextDate = new Date(today);
     const dayOfWeek = today.getDay();
-    
+
     // If today is Monday, next is Wednesday (2 days)
     // If today is Wednesday, next is Monday (5 days)
     if (dayOfWeek === 1) { // Monday
@@ -189,7 +189,7 @@ const WeeklyPerformanceReport = () => {
       const daysUntilMonday = (8 - dayOfWeek) % 7 || 7;
       nextDate.setDate(nextDate.getDate() + daysUntilMonday);
     }
-    
+
     return nextDate;
   }, []);
 
@@ -198,14 +198,14 @@ const WeeklyPerformanceReport = () => {
     const today = new Date();
     const isToday = isTodayAutoSyncDay();
     const lastAutoSyncDate = getCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE);
-    
+
     // Calculate next auto-sync date
     const nextAutoSync = new Date(today);
     if (isToday) {
       // If today is auto-sync day, check if already synced
       const todayStr = today.toDateString();
       const hasSyncedToday = lastAutoSyncDate === todayStr;
-      
+
       if (!hasSyncedToday) {
         setAutoSyncStatus(prev => ({
           ...prev,
@@ -1031,11 +1031,11 @@ const WeeklyPerformanceReport = () => {
       setTimeout(async () => {
         try {
           const result = await syncCSVFormatRef.current();
-          
+
           if (result.success) {
             // Mark as synced
             setCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE, todayStr);
-            
+
             // Update auto-sync status
             setAutoSyncStatus(prev => ({
               ...prev,
@@ -1045,7 +1045,7 @@ const WeeklyPerformanceReport = () => {
 
             // Show success toast
             showToast('✅ Auto-sync: Weekly report submitted successfully!', 'success', 8000);
-            
+
             console.log('✅ AUTO-SYNC: Completed successfully');
           } else {
             console.error('❌ AUTO-SYNC: Failed:', result.error);
@@ -1291,22 +1291,22 @@ const WeeklyPerformanceReport = () => {
     }
 
     showToast("🔄 Manually triggering auto-sync...", "info");
-    
+
     try {
       const result = await handleSyncCSVFormat();
-      
+
       if (result.success) {
         // Mark as synced
         const todayStr = new Date().toDateString();
         setCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE, todayStr);
-        
+
         // Update auto-sync status
         setAutoSyncStatus(prev => ({
           ...prev,
           lastAutoSync: new Date(),
           autoSyncTriggered: true
         }));
-        
+
         showToast("✅ Manual auto-sync completed!", "success");
       } else {
         showToast("❌ Manual auto-sync failed", "error");
@@ -1733,7 +1733,7 @@ const WeeklyPerformanceReport = () => {
                       <FileText className={`w-4 h-4 ${syncLoading ? 'animate-pulse' : ''}`} />
                       {syncLoading ? 'Syncing...' : 'Sync CSV Format'}
                     </button>
-                    
+
                     {/* Manual Auto-sync Trigger */}
                     {autoSyncStatus.isTodayAutoSyncDay && !autoSyncStatus.autoSyncTriggered && (
                       <button
@@ -1842,7 +1842,7 @@ const WeeklyPerformanceReport = () => {
                         </p>
                       )}
                       <p className={`font-medium ${autoSyncStatus.isTodayAutoSyncDay ? 'text-orange-600' : 'text-gray-600'}`}>
-                        {autoSyncStatus.isTodayAutoSyncDay 
+                        {autoSyncStatus.isTodayAutoSyncDay
                           ? (autoSyncStatus.autoSyncTriggered ? '✅ Auto-sync completed today' : '🔄 Auto-sync pending for today')
                           : 'Auto-sync not scheduled today'}
                       </p>
