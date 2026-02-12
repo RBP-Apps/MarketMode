@@ -16,8 +16,8 @@ const CONFIG = {
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
   // Updated page configuration
   PAGE_CONFIG: {
-    title: "Subsidy Token",
-    historyTitle: "Subsidy Token History",
+    title: "Subsidy Redemption",
+    historyTitle: "Subsidy Redemption History",
     description: "Manage pending subsidy token records",
     historyDescription: "View completed subsidy token records",
   },
@@ -620,12 +620,12 @@ function SubsidyTokenPage() {
               {showHistory ? (
                 <>
                   <History className="h-4 w-4 mr-2" />
-                  Subsidy Token History
+                  Subsidy Redemption History
                 </>
               ) : (
                 <>
                   <FileText className="h-4 w-4 mr-2" />
-                  Pending Subsidy Token Records
+                  Pending Subsidy Redemption Records
                 </>
               )}
             </h2>
@@ -1080,7 +1080,7 @@ function SubsidyTokenPage() {
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                     <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                      Edit Subsidy Token
+                      Edit Subsidy Redemption
                     </h3>
                     <div className="mt-4">
                       {/* Status Dropdown */}

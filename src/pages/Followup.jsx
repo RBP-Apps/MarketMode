@@ -10,7 +10,7 @@ const CONFIG = {
   APPS_SCRIPT_URL:
     "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
   // Updated Google Drive folder ID for file uploads
-  DRIVE_FOLDER_ID: "1KjZwLhFFEGvrUPtnbPV-S_QFJfSPjPDR",
+  // DRIVE_FOLDER_ID: "1KjZwLhFFEGvrUPtnbPV-S_QFJfSPjPDR",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
@@ -71,6 +71,25 @@ function FollowUpPage() {
     const hours = now.getHours().toString().padStart(2, "0")
     const minutes = now.getMinutes().toString().padStart(2, "0")
     const seconds = now.getSeconds().toString().padStart(2, "0")
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+  }, [])
+
+  // Normalize any date value (ISO string, Date object, etc.) to DD/MM/YYYY HH:mm:ss
+  const normalizeTimestamp = useCallback((value) => {
+    if (!value) return ""
+    // Already in correct DD/MM/YYYY HH:mm:ss format
+    if (typeof value === "string" && /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/.test(value)) {
+      return value
+    }
+    // Convert from ISO / Date object to local DD/MM/YYYY HH:mm:ss
+    const date = new Date(value)
+    if (isNaN(date.getTime())) return value
+    const day = date.getDate().toString().padStart(2, "0")
+    const month = (date.getMonth() + 1).toString().padStart(2, "0")
+    const year = date.getFullYear()
+    const hours = date.getHours().toString().padStart(2, "0")
+    const minutes = date.getMinutes().toString().padStart(2, "0")
+    const seconds = date.getSeconds().toString().padStart(2, "0")
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
   }, [])
 
@@ -314,30 +333,19 @@ function FollowUpPage() {
     setIsSubmitting(true)
     try {
       const isEdit = !isEmpty(selectedRecord.actual)
-      // Determine if we should store the actual date (when stage is "Order Received")
-      const shouldStoreActualDate = followUpForm.stage === "Order Received"
 
-      // Determine if we should clear the actual date (when stage is "Negotiation")
-      // Adding both common spelling and user's specific requested spelling
-      const isNegotiation = followUpForm.stage === "Negotiation" || followUpForm.stage === "Negotian"
-
-      // If editing, preserve the original actual date unless stage is changed to Negotiation
-      // If new (pending -> history), use current timestamp if Order Received
-      let actualDate = isEdit ? selectedRecord.actual : (shouldStoreActualDate ? formatTimestamp() : "")
-
-      if (isNegotiation) {
-        actualDate = "" // Clear the actual date for negotiation
-      }
+      // ALWAYS generate timestamp for new submissions from pending
+      // If editing from history, normalize the existing timestamp to DD/MM/YYYY HH:mm:ss
+      const actualDate = isEdit ? normalizeTimestamp(selectedRecord.actual) : formatTimestamp()
 
       // FIXED: Use null for columns we don't want to update
       const rowData = new Array(44).fill(null)
 
       // Only set the specific columns we want to update
-      rowData[38] = actualDate // AM - Actual date
+      rowData[38] = actualDate // AM - Actual date (DD/MM/YYYY HH:mm:ss)
       rowData[40] = followUpForm.whatDidCustomerSay // AO - What Did The Customer Say
       rowData[41] = followUpForm.stage // AP - Stage
-      // Only store next date if not "Order Received"
-      rowData[42] = followUpForm.stage !== "Order Received" ? formatDateForStorage(followUpForm.nextDateOfCall) : "" // AQ - Next Date Of Call
+      rowData[42] = formatDateForStorage(followUpForm.nextDateOfCall) // AQ - Next Date Of Call
       rowData[43] = followUpForm.valueOfOrder // AR - Value Of Order
 
       const updateData = {
@@ -371,22 +379,12 @@ function FollowUpPage() {
         }
 
         if (isEdit) {
-          if (isNegotiation) {
-            // Move from history back to pending
-            setHistoryData((prev) => prev.filter((rec) => rec._id !== selectedRecord._id))
-            setPendingData((prev) => [updatedRecord, ...prev])
-          } else {
-            // Update in history
-            setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
-          }
+          // Already in history, update in history
+          setHistoryData((prev) => prev.map((rec) => (rec._id === selectedRecord._id ? updatedRecord : rec)))
         } else {
-          // New submission from pending
-          if (shouldStoreActualDate) {
-            setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
-            setHistoryData((prev) => [updatedRecord, ...prev])
-          } else {
-            setPendingData((prev) => prev.map((record) => (record._id === selectedRecord._id ? updatedRecord : record)))
-          }
+          // New submission from pending — always move to history
+          setPendingData((prev) => prev.filter((record) => record._id !== selectedRecord._id))
+          setHistoryData((prev) => [updatedRecord, ...prev])
         }
 
         // Clear success message after 3 seconds

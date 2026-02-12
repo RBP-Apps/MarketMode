@@ -607,7 +607,7 @@ export default function FMSDashboard() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-purple-900">Dashboard OverView</h1>
+            <h1 className="text-2xl font-bold text-purple-900">Dashboard</h1>
             <p className="text-purple-600">Monitor and manage your solar installations and enquiries</p>
           </div>
           <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-purple-200 shadow-sm">
