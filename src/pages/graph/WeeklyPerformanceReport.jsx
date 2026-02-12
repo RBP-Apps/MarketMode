@@ -23,7 +23,7 @@ const SOLAR_SECRET_KEY = import.meta.env.VITE_SOLAR_SECRET_KEY || '';
 const SOLAR_SYS_CODE = import.meta.env.VITE_SOLAR_SYS_CODE || '207';
 const USER_ACCOUNT = import.meta.env.VITE_USER_ACCOUNT || '';
 const USER_PASSWORD = import.meta.env.VITE_USER_PASSWORD || '';
-const GOOGLE_SCRIPT_URL = (import.meta.env.VITE_GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbyg2JZ0lnX2lhsVcjHHOQUb29QH9jX8rNMWMU-uEAi3PHjrQ-sOb6FoO3Lx6gZT6h4W/exec").trim();
+const GOOGLE_SCRIPT_URL = (import.meta.env.VITE_GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec").trim();
 const SHEET_NAME = "Inverter_id";
 
 // Cache utility functions - Moved outside component

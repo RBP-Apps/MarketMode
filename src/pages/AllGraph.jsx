@@ -76,7 +76,7 @@ function AllGraph() {
             setLoading(true);
             setError(null);
             const sheetName = "Inverter_id";
-            const url = `https://script.google.com/macros/s/AKfycbyg2JZ0lnX2lhsVcjHHOQUb29QH9jX8rNMWMU-uEAi3PHjrQ-sOb6FoO3Lx6gZT6h4W/exec?sheet=${encodeURIComponent(sheetName)}&action=fetch`;
+            const url = `https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec?sheet=${encodeURIComponent(sheetName)}&action=fetch`;
 
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Failed to fetch sheet: ${response.status}`);
