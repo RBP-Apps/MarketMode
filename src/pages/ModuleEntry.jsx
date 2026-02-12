@@ -6,7 +6,7 @@ import AdminLayout from "../components/layout/AdminLayout"
 
 // Configuration object
 const CONFIG = {
-    APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+    APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyg2JZ0lnX2lhsVcjHHOQUb29QH9jX8rNMWMU-uEAi3PHjrQ-sOb6FoO3Lx6gZT6h4W/exec",
     DRIVE_FOLDER_ID: "1bHOWG-zPUelUXkwowTT2W8NLauU_gpf6",
     SOURCE_SHEET_NAME: "FMS",
     PAGE_CONFIG: {

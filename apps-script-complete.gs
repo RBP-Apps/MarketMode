@@ -25,7 +25,7 @@ function doGet(e) {
 
 function fetchSheetData(sheetName) {
   try {
-    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var ss = SpreadsheetApp.openById("1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc");
     var sheet = ss.getSheetByName(sheetName);
     
     if (!sheet) {
@@ -104,7 +104,7 @@ function formatTimestamp(date) {
 // Function to get next enquiry number
 function getNextEnquiryNumber(sheetName) {
   try {
-    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var ss = SpreadsheetApp.openById("1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc");
     var sheet = ss.getSheetByName(sheetName);
     
     if (!sheet) {
@@ -183,7 +183,7 @@ function doPost(e) {
     var action = params.action || 'insert';
     if (action === 'add') action = 'insert';
     
-    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var ss = SpreadsheetApp.openById("1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc");
     var sheet = ss.getSheetByName(sheetName);
     
     if (!sheet) {
@@ -282,7 +282,7 @@ function deleteRow(params) {
       throw new Error("Invalid row index for delete: " + rowIndex);
     }
     
-    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var ss = SpreadsheetApp.openById("1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc");
     var sheet = ss.getSheetByName(sheetName);
     
     if (!sheet) {
@@ -317,7 +317,7 @@ function updateTaskData(params) {
     console.log("Processing task data update for sheet:", sheetName);
     console.log("Row data array:", JSON.stringify(rowDataArray));
     
-    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var ss = SpreadsheetApp.openById("1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc");
     var sheet = ss.getSheetByName(sheetName);
     
     if (!sheet) {
@@ -414,7 +414,7 @@ function updateSalesData(params) {
     console.log("Processing sales data update (marking as done) for sheet:", sheetName);
     console.log("Row data array:", JSON.stringify(rowDataArray));
     
-    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var ss = SpreadsheetApp.openById("1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc");
     var sheet = ss.getSheetByName(sheetName);
     
     if (!sheet) {
@@ -567,7 +567,7 @@ function syncCSVFormat(params) {
     }
     
     // Open spreadsheet
-    var ss = SpreadsheetApp.openById("1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4");
+    var ss = SpreadsheetApp.openById("1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc");
     var sheet = ss.getSheetByName(sheetName);
     
     // Create sheet if it doesn't exist

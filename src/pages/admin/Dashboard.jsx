@@ -62,7 +62,7 @@ export default function FMSDashboard() {
     try {
       setFmsData((prev) => ({ ...prev, loading: true, error: null }));
       const response = await fetch(
-        `https://docs.google.com/spreadsheets/d/1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4/gviz/tq?tqx=out:json&sheet=FMS`
+        `https://docs.google.com/spreadsheets/d/1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc/gviz/tq?tqx=out:json&sheet=FMS`
       );
 
       if (!response.ok) {
@@ -607,7 +607,7 @@ export default function FMSDashboard() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-purple-900">Dashboard OverView</h1>
+            <h1 className="text-2xl font-bold text-purple-900">Dashboard</h1>
             <p className="text-purple-600">Monitor and manage your solar installations and enquiries</p>
           </div>
           <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-purple-200 shadow-sm">

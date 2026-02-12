@@ -102,7 +102,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
     },
     {
       href: "/dashboard/Quotationsend",
-      label: "Quotation Send",
+      label: "Quotation",
       icon: Send,
       active: location.pathname === "/dashboard/Quotationsend",
       showFor: ["admin", "user"]
@@ -178,10 +178,10 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       showFor: ["admin", "user"]
     },
     {
-      href: "/dashboard/ProjectCommissioning",
-      label: "Project Commissioning",
+      href: "/dashboard/ProjectCommission",
+      label: "Project Commission",
       icon: CheckSquare,
-      active: location.pathname === "/dashboard/ProjectCommissioning",
+      active: location.pathname === "/dashboard/ProjectCommission",
       showFor: ["admin", "user"]
     },
     {

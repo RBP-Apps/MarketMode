@@ -5,9 +5,9 @@ import AdminLayout from "../components/layout/AdminLayout"
 
 const CONFIG = {
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+    "https://script.google.com/macros/s/AKfycbyg2JZ0lnX2lhsVcjHHOQUb29QH9jX8rNMWMU-uEAi3PHjrQ-sOb6FoO3Lx6gZT6h4W/exec",
   DRIVE_FOLDER_ID: "1SUhoI00UZ8jkao8tXVCPAbyBZLoYp5ko",
-  SHEET_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
+  SHEET_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down value",
   PAGE_CONFIG: {
@@ -456,41 +456,26 @@ function InstallationPage() {
         const base64Data = await fileToBase64(processedFile);
 
         // Step 4: Transmit with progress monitoring
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", CONFIG.APPS_SCRIPT_URL);
-
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable && onProgress) {
-              const percent = Math.round((e.loaded / e.total) * 100);
-              onProgress(percent);
-            }
-          };
-
-          xhr.onload = () => {
-            try {
-              const result = JSON.parse(xhr.responseText);
-              if (result.success) {
-                resolve(result.fileUrl);
-              } else {
-                reject(new Error(result.error || "Upload failed. Please check your connection."));
-              }
-            } catch (err) {
-              reject(new Error("Server returned an invalid response."));
-            }
-          };
-
-          xhr.onerror = () => reject(new Error("Network connection lost. Please try again."));
-
-          const formData = new FormData();
-          formData.append("action", "uploadFile");
-          formData.append("base64Data", base64Data);
-          formData.append("fileName", `${selectedRecord._enquiryNumber}_${Date.now()}.${processedFile.name.split(".").pop()}`);
-          formData.append("mimeType", processedFile.type);
-          formData.append("folderId", CONFIG.DRIVE_FOLDER_ID);
-
-          xhr.send(formData);
+        if (onProgress) onProgress(50);
+        const formData = new FormData();
+        formData.append("action", "uploadFile");
+        formData.append("base64Data", base64Data);
+        formData.append("fileName", `${selectedRecord._enquiryNumber}_${Date.now()}
+       .${processedFile.name.split(".").pop()}`);
+        formData.append("mimeType", processedFile.type);
+        formData.append("folderId", CONFIG.DRIVE_FOLDER_ID);
+        const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: "POST",
+          body: formData,
         });
+        const result = await response.json();
+        if (onProgress) onProgress(100);
+        if (result.success) {
+          return result.fileUrl;
+        } else {
+          throw new Error(result.error || "Upload failed. Please check your connection.");
+        }
+
       } catch (error) {
         console.error("Error uploading image:", error);
         throw error;

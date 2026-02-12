@@ -8,16 +8,16 @@ import AdminLayout from "../components/layout/AdminLayout"
 const CONFIG = {
   // Updated Google Apps Script URL
   APPS_SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbzF4JjwpmtgsurRYkORyZvQPvRGc06VuBMCJM00wFbOOtVsSyFiUJx5xtb1J0P5ooyf/exec",
+    "https://script.google.com/macros/s/AKfycbyg2JZ0lnX2lhsVcjHHOQUb29QH9jX8rNMWMU-uEAi3PHjrQ-sOb6FoO3Lx6gZT6h4W/exec",
   // Updated Google Sheet ID
-  DRIVE_FOLDER_ID: "1Kp9eEqtQfesdie6l7XEuTZne6Md8_P8qzKfGFcHhpL4",
+  DRIVE_FOLDER_ID: "1Cc8RltkrZMfeSgHqnrJ1zdTx-NDu1BpLnh5O7i711Pc",
   // Sheet names
   SOURCE_SHEET_NAME: "FMS",
   DROPDOWN_SHEET_NAME: "Drop-Down Value",
   // Updated page configuration
   PAGE_CONFIG: {
-    title: "Subsidy Token",
-    historyTitle: "Subsidy Token History",
+    title: "Subsidy Redemption",
+    historyTitle: "Subsidy Redemption History",
     description: "Manage pending subsidy token records",
     historyDescription: "View completed subsidy token records",
   },
@@ -620,12 +620,12 @@ function SubsidyTokenPage() {
               {showHistory ? (
                 <>
                   <History className="h-4 w-4 mr-2" />
-                  Subsidy Token History
+                  Subsidy Redemption History
                 </>
               ) : (
                 <>
                   <FileText className="h-4 w-4 mr-2" />
-                  Pending Subsidy Token Records
+                  Pending Subsidy Redemption Records
                 </>
               )}
             </h2>
@@ -1080,7 +1080,7 @@ function SubsidyTokenPage() {
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                     <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                      Edit Subsidy Token
+                      Edit Subsidy Redemption
                     </h3>
                     <div className="mt-4">
                       {/* Status Dropdown */}

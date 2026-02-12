@@ -204,7 +204,7 @@ function App() {
 
           {/*ProjectCommissioning route for user */}
           <Route
-            path="/dashboard/ProjectCommissioning"
+            path="/dashboard/ProjectCommission"
             element={
               <ProtectedRoute>
                 <ProjectCommissioningPage />
