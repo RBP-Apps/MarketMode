@@ -368,7 +368,7 @@ function InsurancePage() {
                                     <th className="px-3 py-4">Action</th>
                                     <th className="px-3 py-4 font-bold">Enquiry No</th>
                                     <th className="px-3 py-4 font-bold">Beneficiary</th>
-                                    <th className="px-3 py-4 font-bold">Field Name</th>
+                                    {/* <th className="px-3 py-4 font-bold">Field Name</th> */}
                                     <th className="px-3 py-4 font-bold">Company</th>
                                     <th className="px-3 py-4 font-bold text-right">Premium</th>
                                     <th className="px-3 py-4 font-bold">Policy No</th>
@@ -377,8 +377,8 @@ function InsurancePage() {
                                     <th className="px-3 py-4 font-bold text-center">Aadhar</th>
                                     <th className="px-3 py-4 font-bold text-center">Invoice</th>
                                     <th className="px-3 py-4 font-bold text-center">Address</th>
-                                    <th className="px-3 py-4 font-bold text-center">Commission</th>
-                                    <th className="px-3 py-4 font-bold text-center">Certificate</th>
+                                    <th className="px-3 py-4 font-bold text-center">Commissioning Certificate</th>
+                                    <th className="px-3 py-4 font-bold text-center">Property document</th>
 
                                 </tr>
                             </thead>
@@ -473,7 +473,7 @@ function InsurancePage() {
                             <div className="space-y-4">
                                 <h4 className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">01. Policy Details</h4>
                                 <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                                    <div className="col-span-2">
+                                    {/* <div className="col-span-2">
                                         <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Field Name</label>
                                         <input
                                             type="text"
@@ -482,7 +482,7 @@ function InsurancePage() {
                                             value={form.fieldName}
                                             onChange={e => setForm({ ...form, fieldName: e.target.value })}
                                         />
-                                    </div>
+                                    </div> */}
                                     <div>
                                         <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Company Name</label>
                                         <input
@@ -543,8 +543,8 @@ function InsurancePage() {
                                         { id: 'aadharCard', label: 'Aadhar Card' },
                                         { id: 'taxInvoice', label: 'Tax Invoice' },
                                         { id: 'addressProof', label: 'Address Proof' },
-                                        { id: 'commission', label: 'Commission' },
-                                        { id: 'certificate', label: 'Certificate' }
+                                        { id: 'commission', label: 'Commissioning Certificate' },
+                                        { id: 'certificate', label: 'Property Document' }
                                     ].map(doc => (
                                         <label key={doc.id} className="flex items-center space-x-3 cursor-pointer group">
                                             <input

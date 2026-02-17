@@ -45,6 +45,21 @@ export default function FMSDashboard() {
     error: null,
   });
 
+  const [userRole, setUserRole] = useState("");
+  const [currentUsername, setCurrentUsername] = useState("");
+
+  useEffect(() => {
+    const role = sessionStorage.getItem("role");
+    const username = sessionStorage.getItem("username");
+    setUserRole(role || "user");
+    setCurrentUsername(username || "");
+
+    // If regular user, lock the selectedName to their username
+    if (role === "user" && username) {
+      setSelectedName(username);
+    }
+  }, []);
+
   // Safe access to cell value
   const getCellValue = (row, index) => {
     if (!row || !row.c || index >= row.c.length) return null;
@@ -116,6 +131,7 @@ export default function FMSDashboard() {
         const bcValue = getCellValue(row, 54); // Column BC
         const projectType = getCellValue(row, 17); // Column R
         const fmsUserName = getCellValue(row, 150); // Column EU
+        const subsidyDisbursalValue = getCellValue(row, 128); // Column DY
 
         // Update counters/trackers
         if (isNotNull(enquiryValue)) totalEnquiry++;
@@ -181,6 +197,7 @@ export default function FMSDashboard() {
               isNotNull(dmValue) && isNotNull(dnValue)
                 ? "Completed"
                 : "Pending",
+            subsidyDisbursal: subsidyDisbursalValue || "Pending",
             userName: fmsUserName?.toString().trim() || "Unknown Vendor",
           });
         }
@@ -281,6 +298,33 @@ export default function FMSDashboard() {
       counts.projectTypes[type] = (counts.projectTypes[type] || 0) + 1;
     });
 
+    // Calculate vendor stats for the new table
+    const vendorStatsMap = {};
+
+    // We want to show stats for all vendors if admin, or just the current user if not
+    const recordsForStats = userRole === "admin" ? fmsData.allRecords : fmsData.allRecords.filter(r => r.userName === currentUsername);
+
+    recordsForStats.forEach(record => {
+      const vName = record.userName;
+      if (!vendorStatsMap[vName]) {
+        vendorStatsMap[vName] = {
+          name: vName,
+          totalEnquiry: 0,
+          installation: 0,
+          commissioning: 0,
+          subsidyDisburse: 0
+        };
+      }
+
+      const stats = vendorStatsMap[vName];
+      if (isNotNull(record.enquiry)) stats.totalEnquiry++;
+      if (record.installationStatus === "Completed") stats.installation++;
+      if (record.commissionStatus === "Completed") stats.commissioning++;
+      if (record.subsidyDisbursal === "Done") stats.subsidyDisburse++;
+    });
+
+    const vendorStatsData = Object.values(vendorStatsMap).sort((a, b) => a.name.localeCompare(b.name));
+
     const projectTypesData = Object.entries(counts.projectTypes).map(([name, value]) => ({
       name,
       value,
@@ -289,8 +333,8 @@ export default function FMSDashboard() {
           name === "Commercial" ? "#FFBB28" : "#FF8042"
     }));
 
-    return { ...counts, projectTypesData };
-  }, [filteredRecords]);
+    return { ...counts, projectTypesData, vendorStatsData };
+  }, [filteredRecords, fmsData.allRecords, userRole, currentUsername]);
 
   // Project Types Chart Component
   const ProjectTypesChart = () => {
@@ -350,6 +394,68 @@ export default function FMSDashboard() {
           <Bar dataKey="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
+    );
+  };
+
+  // Vendor Statistics Table Component
+  const VendorStatsTable = () => {
+    return (
+      <div className="rounded-2xl border border-purple-200 shadow-lg bg-white overflow-hidden mt-8">
+        <div className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100 p-6">
+          <h3 className="text-lg font-semibold text-purple-700">
+            Vendor Statistics
+          </h3>
+          <p className="text-purple-600 text-sm mt-1">
+            Performance breakdown by vendor
+          </p>
+        </div>
+        <div className="p-6">
+          <div className="overflow-x-auto rounded-xl border border-purple-100">
+            <table className="min-w-full divide-y divide-purple-100">
+              <thead className="bg-purple-50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-purple-700 uppercase tracking-wider">
+                    Vendor name
+                  </th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-purple-700 uppercase tracking-wider">
+                    Total Enquiry
+                  </th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-purple-700 uppercase tracking-wider">
+                    Installation
+                  </th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-purple-700 uppercase tracking-wider">
+                    Commissiong
+                  </th>
+                  <th className="px-6 py-4 text-center text-sm font-bold text-purple-700 uppercase tracking-wider">
+                    Subsidy Dispurse
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-purple-50">
+                {metrics.vendorStatsData.map((vendor, index) => (
+                  <tr key={index} className="hover:bg-purple-25/50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-900">
+                      {vendor.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 font-medium">
+                      {vendor.totalEnquiry}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 font-medium">
+                      {vendor.installation}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 font-medium">
+                      {vendor.commissioning}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 font-medium">
+                      {vendor.subsidyDisburse}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -622,7 +728,8 @@ export default function FMSDashboard() {
                 id="name-dropdown"
                 value={selectedName}
                 onChange={(e) => setSelectedName(e.target.value)}
-                className="bg-transparent border-none text-sm font-semibold text-purple-900 focus:ring-0 cursor-pointer p-0"
+                disabled={userRole === "user"}
+                className={`bg-transparent border-none text-sm font-semibold text-purple-900 focus:ring-0 cursor-pointer p-0 ${userRole === "user" ? "opacity-75 cursor-not-allowed" : ""}`}
               >
                 <option value="all">Vendor Name</option>
                 {fmsData.uniqueNames.map((name, index) => (
@@ -804,6 +911,9 @@ export default function FMSDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Vendor Statistics Table */}
+              <VendorStatsTable />
             </div>
           )}
 
