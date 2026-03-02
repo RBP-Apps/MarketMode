@@ -32,9 +32,7 @@ const CACHE_KEYS = {
   TOKEN: 'solarToken',
   TOKEN_TIMESTAMP: 'solarTokenTimestamp',
   SYNC_INFO: 'csvSyncInfo',
-  LAST_CSV_SYNC: 'lastCSVSync',
-  AUTO_SYNC_STATUS: 'autoSyncStatus',
-  LAST_AUTO_SYNC_DATE: 'lastAutoSyncDate'
+  LAST_CSV_SYNC: 'lastCSVSync'
 };
 
 const getCachedData = (key) => {
@@ -118,16 +116,6 @@ const WeeklyPerformanceReport = () => {
     format: null
   });
 
-  // Auto-sync state
-  const [autoSyncStatus, setAutoSyncStatus] = useState({
-    enabled: false,
-    lastAutoSync: null,
-    nextAutoSync: null,
-    days: ['Monday', 'Wednesday'],
-    isTodayAutoSyncDay: false,
-    autoSyncTriggered: false
-  });
-
   // Date range state
   const [dateRange, setDateRange] = useState({
     startDate: '',
@@ -146,7 +134,6 @@ const WeeklyPerformanceReport = () => {
 
   // Use refs to store functions that can be called from useEffect
   const syncCSVFormatRef = useRef(null);
-  const autoSyncTriggeredRef = useRef(null); // stores the date string to handle long-running tabs
   // Ref to guard against concurrent inverter fetches (avoids stale-closure issues)
   const isFetchingInvertersRef = useRef(false);
   const invertersFetchedRef = useRef(false);
@@ -158,81 +145,6 @@ const WeeklyPerformanceReport = () => {
       setToast(prev => ({ ...prev, show: false }));
     }, duration);
   }, []);
-
-  // Check if today is Monday or Wednesday
-  const isTodayAutoSyncDay = useCallback(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, etc.
-    return dayOfWeek === 1 || dayOfWeek === 3; // Monday or Wednesday
-  }, []);
-
-  // Get day name
-  const getDayName = useCallback((dayNumber) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[dayNumber];
-  }, []);
-
-  // Calculate next auto-sync date
-  const getNextAutoSyncDate = useCallback((today) => {
-    const nextDate = new Date(today);
-    const dayOfWeek = today.getDay();
-
-    // If today is Monday, next is Wednesday (2 days)
-    // If today is Wednesday, next is Monday (5 days)
-    if (dayOfWeek === 1) { // Monday
-      nextDate.setDate(nextDate.getDate() + 2);
-    } else if (dayOfWeek === 3) { // Wednesday
-      nextDate.setDate(nextDate.getDate() + 5);
-    } else {
-      // Find next Monday
-      const daysUntilMonday = (8 - dayOfWeek) % 7 || 7;
-      nextDate.setDate(nextDate.getDate() + daysUntilMonday);
-    }
-
-    return nextDate;
-  }, []);
-
-  // Check and update auto-sync status
-  const checkAutoSyncDay = useCallback(() => {
-    const today = new Date();
-    const isToday = isTodayAutoSyncDay();
-    const lastAutoSyncDate = getCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE);
-
-    // Calculate next auto-sync date
-    const nextAutoSync = new Date(today);
-    if (isToday) {
-      // If today is auto-sync day, check if already synced
-      const todayStr = today.toDateString();
-      const hasSyncedToday = lastAutoSyncDate === todayStr;
-
-      if (!hasSyncedToday) {
-        setAutoSyncStatus(prev => ({
-          ...prev,
-          isTodayAutoSyncDay: true,
-          lastAutoSync: lastAutoSyncDate ? new Date(lastAutoSyncDate) : null,
-          nextAutoSync: today,
-          autoSyncTriggered: false
-        }));
-      } else {
-        setAutoSyncStatus(prev => ({
-          ...prev,
-          isTodayAutoSyncDay: true,
-          lastAutoSync: new Date(lastAutoSyncDate),
-          nextAutoSync: getNextAutoSyncDate(today),
-          autoSyncTriggered: true
-        }));
-      }
-    } else {
-      // Calculate next auto-sync date
-      setAutoSyncStatus(prev => ({
-        ...prev,
-        isTodayAutoSyncDay: false,
-        lastAutoSync: lastAutoSyncDate ? new Date(lastAutoSyncDate) : null,
-        nextAutoSync: getNextAutoSyncDate(today),
-        autoSyncTriggered: false
-      }));
-    }
-  }, [isTodayAutoSyncDay, getNextAutoSyncDate]);
 
   // Calculate number of days in date range
   const calculateDaysInRange = useCallback(() => {
@@ -285,16 +197,7 @@ const WeeklyPerformanceReport = () => {
         clearCachedData(CACHE_KEYS.SYNC_INFO);
       }
     }
-
-    // Restore auto-sync status
-    const savedAutoSyncStatus = getCachedData(CACHE_KEYS.AUTO_SYNC_STATUS);
-    if (savedAutoSyncStatus) {
-      setAutoSyncStatus(savedAutoSyncStatus);
-    }
-
-    // Check if today is auto-sync day
-    checkAutoSyncDay();
-  }, [checkAutoSyncDay]);
+  }, []);
 
   // Format date for API
   const formatDateForAPI = useCallback((date) => {
@@ -638,17 +541,63 @@ const WeeklyPerformanceReport = () => {
         const batch = selectedInverters.slice(i, i + batchSize);
 
         const batchPromises = batch.map(async (inverterId) => {
-          try {
-            const inverter = inverters.find(inv => inv.inverterId === inverterId);
-            if (!inverter) {
-              return null;
-            }
+          let retryCount = 0;
+          const maxRetries = 3;
 
-            let psKey = psKeyCache[inverterId];
+          while (retryCount <= maxRetries) {
+            try {
+              const inverter = inverters.find(inv => inv.inverterId === inverterId);
+              if (!inverter) {
+                return null;
+              }
 
-            // Fetch PS key if not cached
-            if (!psKey) {
-              const deviceRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getPVInverterRealTimeData', {
+              let psKey = psKeyCache[inverterId];
+
+              // Fetch PS key if not cached
+              if (!psKey) {
+                const deviceRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getPVInverterRealTimeData', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-access-key': SOLAR_SECRET_KEY,
+                    'sys_code': SOLAR_SYS_CODE,
+                    'token': activeToken
+                  },
+                  body: JSON.stringify({
+                    appkey: SOLAR_APPKEY,
+                    sn_list: [inverterId],
+                    lang: '_en_US',
+                    sys_code: 207
+                  })
+                });
+
+                if (!deviceRes.ok) {
+                  if (deviceRes.status === 401 || deviceRes.status === 403) {
+                    // Token expired - this shouldn't trigger retry on same token
+                    clearToken();
+                    clearCachedData(CACHE_KEYS.TOKEN);
+                    throw new Error('Session expired. Please login again.');
+                  }
+                  throw new Error(`Failed to fetch device data: ${deviceRes.status}`);
+                }
+
+                const deviceData = await deviceRes.json();
+
+                if (deviceData.result_code === "1" && deviceData.result_data?.device_point_list) {
+                  const point = deviceData.result_data.device_point_list.find(p => p?.device_point?.ps_key);
+                  psKey = point?.device_point?.ps_key;
+                  if (psKey) {
+                    psKeyCache[inverterId] = psKey;
+                  } else {
+                    throw new Error('No PS Key found');
+                  }
+                } else {
+                  throw new Error(deviceData.result_msg || 'Invalid device response');
+                }
+              }
+
+              // Fetch energy data using PS key
+              const energyRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getDevicePointsDayMonthYearDataList', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -658,178 +607,124 @@ const WeeklyPerformanceReport = () => {
                 },
                 body: JSON.stringify({
                   appkey: SOLAR_APPKEY,
-                  sn_list: [inverterId],
+                  data_point: 'p2',
+                  data_type: '2',
+                  end_time: apiEndDate,
                   lang: '_en_US',
+                  order: '0',
+                  ps_key_list: [psKey],
+                  query_type: '1',
+                  start_time: apiStartDate,
                   sys_code: 207
                 })
               });
 
-              if (!deviceRes.ok) {
-                if (deviceRes.status === 401 || deviceRes.status === 403) {
-                  // Token expired
+              if (!energyRes.ok) {
+                if (energyRes.status === 401 || energyRes.status === 403) {
                   clearToken();
                   clearCachedData(CACHE_KEYS.TOKEN);
                   throw new Error('Session expired. Please login again.');
                 }
-                throw new Error(`Failed to fetch device data: ${deviceRes.status}`);
+                throw new Error(`Failed to fetch energy data: ${energyRes.status}`);
               }
 
-              const deviceData = await deviceRes.json();
+              const energyData = await energyRes.json();
+              let totalKwh = 0;
+              const dailyData = [];
 
-              if (deviceData.result_code === "1" && deviceData.result_data?.device_point_list) {
-                const point = deviceData.result_data.device_point_list.find(p => p?.device_point?.ps_key);
-                psKey = point?.device_point?.ps_key;
-                if (psKey) {
-                  psKeyCache[inverterId] = psKey;
-                } else {
-                  return {
-                    ...inverter,
-                    psKey: null,
-                    totalKwh: 0,
-                    avgDailyKwh: 0,
-                    specYield: 0,
-                    dailyData: [],
-                    error: 'No PS Key found',
-                    daysInRange
-                  };
+              if (energyData.result_code === "1" && energyData.result_data) {
+                const psKeyData = Object.keys(energyData.result_data)[0];
+                if (psKeyData) {
+                  const dataPoint = Object.keys(energyData.result_data[psKeyData])[0];
+                  const dataArray = energyData.result_data[psKeyData][dataPoint];
+
+                  if (dataArray && Array.isArray(dataArray)) {
+                    const sortedData = [...dataArray].sort((a, b) => a.time_stamp.localeCompare(b.time_stamp));
+                    let previousValue = 0;
+
+                    sortedData.forEach((item, idx) => {
+                      const valueKey = Object.keys(item).find(key => key !== 'time_stamp');
+                      if (valueKey) {
+                        const currentKwh = (parseFloat(item[valueKey]) || 0) / 1000;
+                        if (idx === 0) {
+                          previousValue = currentKwh;
+                        } else {
+                          const dailyKwh = Math.max(0, currentKwh - previousValue);
+                          dailyData.push({
+                            date: item.time_stamp,
+                            dailyKwh,
+                            cumulativeKwh: currentKwh
+                          });
+                          previousValue = currentKwh;
+                        }
+                      }
+                    });
+
+                    // Filter to selected date range
+                    const filteredDailyData = dailyData.filter(item => {
+                      try {
+                        const itemDate = item.date.slice(0, 8);
+                        const startStr = dateRange.startDate.replace(/-/g, '');
+                        const endStr = dateRange.endDate.replace(/-/g, '');
+                        return itemDate >= startStr && itemDate <= endStr;
+                      } catch (e) {
+                        return false;
+                      }
+                    });
+
+                    totalKwh = filteredDailyData.reduce((sum, day) => sum + day.dailyKwh, 0);
+                  }
                 }
               } else {
+                throw new Error(energyData.result_msg || 'Invalid energy data');
+              }
+
+              const avgDailyKwh = daysInRange > 0 ? totalKwh / daysInRange : 0;
+              const specYield = inverter.capacity > 0 ? avgDailyKwh / inverter.capacity : 0;
+
+              // Success! Return the data.
+              return {
+                ...inverter,
+                psKey,
+                totalKwh: Number(totalKwh.toFixed(2)),
+                avgDailyKwh: Number(avgDailyKwh.toFixed(2)),
+                specYield: Number(specYield.toFixed(3)),
+                dailyData,
+                error: null,
+                daysInRange,
+                lifetimeGeneration: dailyData.length > 0 ? dailyData[dailyData.length - 1].cumulativeKwh : 0
+              };
+            } catch (err) {
+              // Immediately re-throw session expiration so it doesn't get retried 3 times uselessly
+              if (err.message.includes('Session expired')) {
+                throw err;
+              }
+
+              if (retryCount < maxRetries) {
+                retryCount++;
+                // Exponential backoff: 1s, 2s, 4s delay
+                const delay = Math.pow(2, retryCount - 1) * 1000;
+                await new Promise(res => setTimeout(res, delay));
+              } else {
+                // Return default error object after max retries
+                const inverter = inverters.find(inv => inv.inverterId === inverterId) || {
+                  id: i,
+                  inverterId,
+                  beneficiaryName: 'Unknown',
+                  capacity: 1
+                };
                 return {
                   ...inverter,
-                  psKey: null,
+                  error: err.message,
                   totalKwh: 0,
                   avgDailyKwh: 0,
                   specYield: 0,
                   dailyData: [],
-                  error: deviceData.result_msg || 'Invalid device response',
-                  daysInRange
+                  daysInRange: calculateDaysInRange(),
+                  lifetimeGeneration: 0
                 };
               }
             }
-
-            // Fetch energy data using PS key
-            const energyRes = await fetch('https://gateway.isolarcloud.com.hk/openapi/getDevicePointsDayMonthYearDataList', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-access-key': SOLAR_SECRET_KEY,
-                'sys_code': SOLAR_SYS_CODE,
-                'token': activeToken
-              },
-              body: JSON.stringify({
-                appkey: SOLAR_APPKEY,
-                data_point: 'p2',
-                data_type: '2',
-                end_time: apiEndDate,
-                lang: '_en_US',
-                order: '0',
-                ps_key_list: [psKey],
-                query_type: '1',
-                start_time: apiStartDate,
-                sys_code: 207
-              })
-            });
-
-            if (!energyRes.ok) {
-              if (energyRes.status === 401 || energyRes.status === 403) {
-                clearToken();
-                clearCachedData(CACHE_KEYS.TOKEN);
-                throw new Error('Session expired. Please login again.');
-              }
-              throw new Error(`Failed to fetch energy data: ${energyRes.status}`);
-            }
-
-            const energyData = await energyRes.json();
-            let totalKwh = 0;
-            const dailyData = [];
-
-            if (energyData.result_code === "1" && energyData.result_data) {
-              const psKeyData = Object.keys(energyData.result_data)[0];
-              if (psKeyData) {
-                const dataPoint = Object.keys(energyData.result_data[psKeyData])[0];
-                const dataArray = energyData.result_data[psKeyData][dataPoint];
-
-                if (dataArray && Array.isArray(dataArray)) {
-                  const sortedData = [...dataArray].sort((a, b) => a.time_stamp.localeCompare(b.time_stamp));
-                  let previousValue = 0;
-
-                  sortedData.forEach((item, idx) => {
-                    const valueKey = Object.keys(item).find(key => key !== 'time_stamp');
-                    if (valueKey) {
-                      const currentKwh = (parseFloat(item[valueKey]) || 0) / 1000;
-                      if (idx === 0) {
-                        previousValue = currentKwh;
-                      } else {
-                        const dailyKwh = Math.max(0, currentKwh - previousValue);
-                        dailyData.push({
-                          date: item.time_stamp,
-                          dailyKwh,
-                          cumulativeKwh: currentKwh
-                        });
-                        previousValue = currentKwh;
-                      }
-                    }
-                  });
-
-                  // Filter to selected date range
-                  const filteredDailyData = dailyData.filter(item => {
-                    try {
-                      const itemDate = item.date.slice(0, 8);
-                      const startStr = dateRange.startDate.replace(/-/g, '');
-                      const endStr = dateRange.endDate.replace(/-/g, '');
-                      return itemDate >= startStr && itemDate <= endStr;
-                    } catch (e) {
-                      return false;
-                    }
-                  });
-
-                  totalKwh = filteredDailyData.reduce((sum, day) => sum + day.dailyKwh, 0);
-                }
-              }
-            } else {
-              return {
-                ...inverter,
-                psKey,
-                totalKwh: 0,
-                avgDailyKwh: 0,
-                specYield: 0,
-                dailyData: [],
-                error: energyData.result_msg || 'Invalid energy data',
-                daysInRange
-              };
-            }
-
-            const avgDailyKwh = daysInRange > 0 ? totalKwh / daysInRange : 0;
-            const specYield = inverter.capacity > 0 ? avgDailyKwh / inverter.capacity : 0;
-
-            return {
-              ...inverter,
-              psKey,
-              totalKwh: Number(totalKwh.toFixed(2)),
-              avgDailyKwh: Number(avgDailyKwh.toFixed(2)),
-              specYield: Number(specYield.toFixed(3)),
-              dailyData,
-              error: null,
-              daysInRange,
-              lifetimeGeneration: dailyData.length > 0 ? dailyData[dailyData.length - 1].cumulativeKwh : 0
-            };
-          } catch (err) {
-            const inverter = inverters.find(inv => inv.inverterId === inverterId) || {
-              id: i,
-              inverterId,
-              beneficiaryName: 'Unknown',
-              capacity: 1
-            };
-            return {
-              ...inverter,
-              error: err.message,
-              totalKwh: 0,
-              avgDailyKwh: 0,
-              specYield: 0,
-              dailyData: [],
-              daysInRange: calculateDaysInRange(),
-              lifetimeGeneration: 0
-            };
           }
         });
 
@@ -988,76 +883,6 @@ const WeeklyPerformanceReport = () => {
   useEffect(() => {
     syncCSVFormatRef.current = handleSyncCSVFormat;
   }, [handleSyncCSVFormat]);
-
-  // AUTO-SYNC EFFECT - Triggers on Monday/Wednesday
-  useEffect(() => {
-    const checkAndTriggerAutoSync = async () => {
-      // Check if today is auto-sync day
-      const isToday = isTodayAutoSyncDay();
-      if (!isToday) return;
-
-      // Check if we have data and token
-      const activeToken = localToken || token;
-      if (!activeToken || performanceData.length === 0 || loading.data) return;
-
-      // Check if already synced today
-      const todayStr = new Date().toDateString();
-      const lastAutoSyncDate = getCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE);
-      if (lastAutoSyncDate === todayStr) return;
-
-      // Check if auto-sync already triggered for today
-      if (autoSyncTriggeredRef.current === todayStr) return;
-
-
-
-      // Show auto-sync notification
-      showToast(`📅 Auto-sync: Today is ${getDayName(new Date().getDay())}. Submitting weekly report...`, 'info', 6000);
-
-      // Update auto-sync status
-      setAutoSyncStatus(prev => ({
-        ...prev,
-        autoSyncTriggered: true,
-        isTodayAutoSyncDay: true
-      }));
-
-      autoSyncTriggeredRef.current = todayStr;
-
-      // Trigger auto-sync after a short delay to ensure data is ready
-      setTimeout(async () => {
-        try {
-          const result = await syncCSVFormatRef.current();
-
-          if (result.success) {
-            // Mark as synced
-            setCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE, todayStr);
-
-            // Update auto-sync status
-            setAutoSyncStatus(prev => ({
-              ...prev,
-              lastAutoSync: new Date(),
-              nextAutoSync: getNextAutoSyncDate(new Date())
-            }));
-
-            // Show success toast
-            showToast('✅ Auto-sync: Weekly report submitted successfully!', 'success', 8000);
-
-
-          } else {
-
-            showToast('❌ Auto-sync failed. Please try manual sync.', 'error', 8000);
-          }
-        } catch (error) {
-
-          showToast('❌ Auto-sync error. Please try manual sync.', 'error', 8000);
-        }
-      }, 3000);
-    };
-
-    // Check and trigger auto-sync when conditions are met
-    if (loginSuccess && performanceData.length > 0 && !loading.data) {
-      checkAndTriggerAutoSync();
-    }
-  }, [loginSuccess, performanceData.length, loading.data, localToken, token, isTodayAutoSyncDay, showToast, getDayName, getNextAutoSyncDate]);
 
   // UNIFIED AUTO-REFRESH EFFECT
   useEffect(() => {
@@ -1265,51 +1090,6 @@ const WeeklyPerformanceReport = () => {
     setSyncStatus({ lastSync: null, count: 0, totalRows: 0, timestamp: null, format: null });
     showToast("Sync history cleared", "info");
   }, [showToast]);
-
-  // Clear auto-sync history
-  const handleClearAutoSyncHistory = useCallback(() => {
-    clearCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE);
-    autoSyncTriggeredRef.current = null;
-    setAutoSyncStatus(prev => ({
-      ...prev,
-      lastAutoSync: null,
-      autoSyncTriggered: false
-    }));
-    showToast("Auto-sync history cleared", "info");
-  }, [showToast]);
-
-  // Manually trigger auto-sync
-  const handleManualAutoSync = useCallback(async () => {
-    if (performanceData.length === 0) {
-      showToast("No data available for auto-sync", "warning");
-      return;
-    }
-
-    showToast("🔄 Manually triggering auto-sync...", "info");
-
-    try {
-      const result = await handleSyncCSVFormat();
-
-      if (result.success) {
-        // Mark as synced
-        const todayStr = new Date().toDateString();
-        setCachedData(CACHE_KEYS.LAST_AUTO_SYNC_DATE, todayStr);
-
-        // Update auto-sync status
-        setAutoSyncStatus(prev => ({
-          ...prev,
-          lastAutoSync: new Date(),
-          autoSyncTriggered: true
-        }));
-
-        showToast("✅ Manual auto-sync completed!", "success");
-      } else {
-        showToast("❌ Manual auto-sync failed", "error");
-      }
-    } catch (error) {
-      showToast("❌ Manual auto-sync error", "error");
-    }
-  }, [performanceData.length, handleSyncCSVFormat, showToast]);
 
   // Chart data
   const chartData = useMemo(() => {
@@ -1693,13 +1473,6 @@ const WeeklyPerformanceReport = () => {
                           Last sync: {syncStatus.lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({syncStatus.format || 'unknown'})
                         </span>
                       )}
-                      {/* Auto-sync Status Indicator */}
-                      {autoSyncStatus.isTodayAutoSyncDay && (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${autoSyncStatus.autoSyncTriggered ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                          <Bell className="w-3 h-3" />
-                          {autoSyncStatus.autoSyncTriggered ? 'Auto-sync completed' : 'Auto-sync pending'}
-                        </span>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1731,19 +1504,6 @@ const WeeklyPerformanceReport = () => {
                       <FileText className={`w-4 h-4 ${syncLoading ? 'animate-pulse' : ''}`} />
                       {syncLoading ? 'Syncing...' : 'Upload CSV to Google Sheet'}
                     </button>
-
-                    {/* Manual Auto-sync Trigger */}
-                    {autoSyncStatus.isTodayAutoSyncDay && !autoSyncStatus.autoSyncTriggered && (
-                      <button
-                        onClick={handleManualAutoSync}
-                        disabled={syncLoading || filteredData.length === 0}
-                        className="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white"
-                        title="Trigger auto-sync now (normally runs automatically on Monday/Wednesday)"
-                      >
-                        <Bell className="w-4 h-4" />
-                        Trigger Auto-sync
-                      </button>
-                    )}
                   </div>
 
                   <button
@@ -1761,7 +1521,7 @@ const WeeklyPerformanceReport = () => {
               </div>
 
               {summaryStats && (
-                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <div className="flex items-center justify-between">
                       <div>
@@ -1812,76 +1572,6 @@ const WeeklyPerformanceReport = () => {
                     <p className="text-xs text-gray-400 mt-2">
                       Installed capacity
                     </p>
-                  </div>
-
-                  {/* Sync Status Card */}
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500">Auto-sync Status</p>
-                        <p className={`text-2xl font-bold ${autoSyncStatus.isTodayAutoSyncDay ? 'text-orange-600' : 'text-gray-600'}`}>
-                          {autoSyncStatus.isTodayAutoSyncDay ? 'Active' : 'Inactive'}
-                        </p>
-                      </div>
-                      <Bell className="w-8 h-8 text-indigo-100 bg-indigo-600 p-2 rounded-lg" />
-                    </div>
-                    <div className="text-xs text-gray-400 mt-2 space-y-1">
-                      <p>
-                        <span className="font-medium">Schedule:</span> Monday & Wednesday
-                      </p>
-                      {autoSyncStatus.lastAutoSync && (
-                        <p>
-                          <span className="font-medium">Last Auto-sync:</span> {autoSyncStatus.lastAutoSync.toLocaleDateString()}
-                        </p>
-                      )}
-                      {autoSyncStatus.nextAutoSync && (
-                        <p>
-                          <span className="font-medium">Next Auto-sync:</span> {autoSyncStatus.nextAutoSync.toLocaleDateString()}
-                        </p>
-                      )}
-                      <p className={`font-medium ${autoSyncStatus.isTodayAutoSyncDay ? 'text-orange-600' : 'text-gray-600'}`}>
-                        {autoSyncStatus.isTodayAutoSyncDay
-                          ? (autoSyncStatus.autoSyncTriggered ? '✅ Auto-sync completed today' : '🔄 Auto-sync pending for today')
-                          : 'Auto-sync not scheduled today'}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={handleClearAutoSyncHistory}
-                        className="text-xs text-red-500 hover:text-red-700"
-                      >
-                        Clear auto-sync
-                      </button>
-                      <button
-                        onClick={checkAutoSyncDay}
-                        className="text-xs text-blue-500 hover:text-blue-700 ml-auto"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Auto-sync Notification Banner */}
-              {autoSyncStatus.isTodayAutoSyncDay && !autoSyncStatus.autoSyncTriggered && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-orange-100 to-yellow-100 border border-orange-200 rounded-xl shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <Bell className="w-6 h-6 text-orange-600" />
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-orange-800">Auto-sync Scheduled for Today</h3>
-                      <p className="text-sm text-orange-700">
-                        Today is {getDayName(new Date().getDay())}. The system will automatically submit the weekly report to Google Sheets.
-                        {performanceData.length > 0 ? ' Ready to sync...' : ' Waiting for data...'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleManualAutoSync}
-                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition flex items-center gap-2"
-                    >
-                      <Bell className="w-4 h-4" />
-                      Sync Now
-                    </button>
                   </div>
                 </div>
               )}
