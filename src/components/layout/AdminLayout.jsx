@@ -100,11 +100,18 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
       active: location.pathname === "/dashboard/SurveyReport",
       showFor: ["admin", "user"]
     },
-    {
-      href: "/dashboard/Quotationsend",
-      label: "Quotation",
-      icon: Send,
-      active: location.pathname === "/dashboard/Quotationsend",
+    // {
+    //   href: "/dashboard/Quotationsend",
+    //   label: "Quotation",
+    //   icon: Send,
+    //   active: location.pathname === "/dashboard/Quotationsend",
+    //   showFor: ["admin", "user"]
+    // },
+     {
+      href: "/dashboard/QuotationCreatePage",
+      label: "Quotation Create",
+      icon: BarChart3,
+      active: location.pathname === "/dashboard/QuotationCreatePage",
       showFor: ["admin", "user"]
     },
     {

@@ -30,6 +30,8 @@ import MonthlyPerformanceReport from "./pages/graph/MonthlyPerformanceReport"
 import InsurancePage from "./pages/Insurance"
 import ModuleEntryPage from "./pages/ModuleEntry"
 
+import QuotationCreatePage from "./pages/QuatationCreate"
+
 import "./index.css"
 
 // Auth wrapper component to protect routes
@@ -258,6 +260,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ModuleEntryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/QuotationCreatePage"
+            element={
+              <ProtectedRoute>
+                <QuotationCreatePage />
               </ProtectedRoute>
             }
           />
