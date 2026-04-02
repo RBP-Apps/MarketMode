@@ -31,3 +31,6 @@ node_modules/
 dist/
 .env
 *.rar
+
+node_modules - Copy/
+dist - Copy/
